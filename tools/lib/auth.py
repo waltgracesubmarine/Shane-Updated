@@ -42,30 +42,35 @@ def auth_redirect_link(port):
   return (redirect_uri, 'https://accounts.google.com/o/oauth2/auth?' + urlencode(params))
 
 def login():
-  port = 9090
-  redirect_uri, oauth_uri = auth_redirect_link(port)
+  if len(sys.argv) > 1 and len(sys.argv[1]):
+    token = sys.argv[1]
+  else:
+    port = 9090
+    redirect_uri, oauth_uri = auth_redirect_link(port)
 
-  web_server = ClientRedirectServer(('localhost', port), ClientRedirectHandler)
-  print(f'To sign in, use your browser and navigate to {oauth_uri}')
-  webbrowser.open(oauth_uri, new=2)
+    web_server = ClientRedirectServer(('localhost', port), ClientRedirectHandler)
+    print(f'To sign in, use your browser and navigate to {oauth_uri}')
+    print('\nOR visit https://jwt.comma.ai and re-run this file with token appended as argument')
+    webbrowser.open(oauth_uri, new=2)
 
-  while True:
-    web_server.handle_request()
-    if 'code' in web_server.query_params:
-      code = web_server.query_params['code']
-      break
-    elif 'error' in web_server.query_params:
-      print('Authentication Error: "%s". Description: "%s" ' % (
-        web_server.query_params['error'],
-        web_server.query_params.get('error_description')), file=sys.stderr)
-      break
+    while True:
+      web_server.handle_request()
+      if 'code' in web_server.query_params:
+        code = web_server.query_params['code']
+        break
+      elif 'error' in web_server.query_params:
+        print('Authentication Error: "%s". Description: "%s" ' % (
+          web_server.query_params['error'],
+          web_server.query_params.get('error_description')), file=sys.stderr)
+        break
+    try:
+      token = CommaApi().post('v2/auth/', data={'code': code, 'redirect_uri': redirect_uri})['access_token']
+    except APIError as e:
+      print(f'Authentication Error: {e}', file=sys.stderr)
+      exit(1)
 
-  try:
-    auth_resp = CommaApi().post('v2/auth/', data={'code': code, 'redirect_uri': redirect_uri})
-    set_token(auth_resp['access_token'])
-    print('Authenticated')
-  except APIError as e:
-    print(f'Authentication Error: {e}', file=sys.stderr)
+  set_token(token)
+  print('Authenticated')
 
 if __name__ == '__main__':
   login()
