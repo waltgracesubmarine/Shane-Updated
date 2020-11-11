@@ -40,10 +40,13 @@ def to_signed(n, bits):
   return n
 
 def get_feedforward(lr, plot=False):
-  cs_data = []
-  plan_data = []
-  torque_data = []
+  # cs_data = []
+  # torque_data = []
+  data = []
 
+
+  last_plan_data = None
+  last_torque_data = None
 
   its = 0
   for msg in lr:
@@ -52,15 +55,22 @@ def get_feedforward(lr, plot=False):
       continue
 
     if msg.which() == 'carState':
-      cs_data.append({'angle_steers': msg.carState.steeringAngle, 'speed': msg.carState.vEgo, 'rate_steers': msg.carState.steeringRate, 'time': msg.logMonoTime})
+      if last_plan_data is not None and last_torque_data is not None:  # wait for plan seen
+        print((msg.logMonoTime - last_plan_data['time']) * 1e-9)
+        # print((msg.logMonoTime - last_torque_data['time']) * 1e-9)
+        if (msg.logMonoTime - last_plan_data['time']) * 1e-9 > 2 / 20:  # Last plan sample older than 2 cycles
+          continue
+        data.append({'angle_steers': msg.carState.steeringAngle, 'speed': msg.carState.vEgo, 'rate_steers': msg.carState.steeringRate, 'time': msg.logMonoTime,
+                     'angle_steers_des': last_plan_data['angle_steers_des'], 'angle_offset': last_plan_data['angle_offset'],
+                     'engaged': last_torque_data['engaged'], 'torque_cmd': last_torque_data['torque_cmd']})
 
     elif msg.which() == 'pathPlan':
-      plan_data.append({'angle_steers_des': msg.pathPlan.angleSteers, 'angle_offset': msg.pathPlan.angleOffset, 'time': msg.logMonoTime})
+      last_plan_data = {'angle_steers_des': msg.pathPlan.angleSteers, 'angle_offset': msg.pathPlan.angleOffset, 'time': msg.logMonoTime}
 
     elif msg.which() == 'can':
       for m in msg.can:
         if m.address == 0x2e4 and m.src == 128:
-          torque_data.append({'engaged': bool(m.dat[0] & 1), 'torque_cmd': to_signed((m.dat[1] << 8) | m.dat[2], 16), 'time': msg.logMonoTime})
+          last_torque_data = {'engaged': bool(m.dat[0] & 1), 'torque_cmd': to_signed((m.dat[1] << 8) | m.dat[2], 16), 'time': msg.logMonoTime}
 
   assert (cs_torq_diff := abs(len(cs_data) - len(torque_data))) <= 1, "Difference of carState and torque packets too high (>1)"
   if cs_torq_diff == 1:  # cs or torque data has one more sample. try to find lowest time error and align
@@ -81,8 +91,8 @@ def get_feedforward(lr, plot=False):
     print(f'{solutions=}')
 
 
-  print(f'{len(cs_data)=}, {len(torque_data)=}, {len(plan_data)=}')
-  assert len(cs_data) == len(torque_data) == len(plan_data), "length of data still not equal"
+  # print(f'{len(cs_data)=}, {len(torque_data)=}, {len(plan_data)=}')
+  # assert len(cs_data) == len(torque_data) == len(plan_data), "length of data still not equal"
 
 
 
