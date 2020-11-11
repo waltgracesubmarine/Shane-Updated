@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
@@ -55,6 +56,8 @@ def get_eps_factor(lr, plot=False):
 
 if __name__ == "__main__":
   r = Route(sys.argv[1])
+  print(r.log_paths())
   lr = MultiLogIterator(r.log_paths(), wraparound=False)
+  # lr = MultiLogIterator([i for i in os.listdir('/openpilot/rlogs')], wraparound=False)
   n = get_eps_factor(lr, plot="--plot" in sys.argv)
   print("EPS torque factor: ", n)
