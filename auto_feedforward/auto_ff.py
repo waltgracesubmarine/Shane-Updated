@@ -259,7 +259,7 @@ def fit_ff_model(lr, plot=False):
 
 
 if __name__ == "__main__":
-  # r = Route("14431dbeedbf3558|2020-11-09--17-55-33")
+  # r = Route("ce2fbd370f78ef21%7C2020-11-09--07-31-17")
   # lr = MultiLogIterator(r.log_paths(), wraparound=False)
-  lr = MultiLogIterator(['/openpilot/auto_feedforward/rlogs/' + i for i in os.listdir('/openpilot/auto_feedforward/rlogs')], wraparound=False)
+  lr = MultiLogIterator(['/openpilot/auto_feedforward/rlogs/trae/' + i for i in os.listdir('/openpilot/auto_feedforward/rlogs/trae')], wraparound=False)
   n = fit_ff_model(lr, plot="--plot" in sys.argv)
