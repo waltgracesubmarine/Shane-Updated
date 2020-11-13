@@ -5,12 +5,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from matplotlib import cm
+from tqdm import tqdm   # type: ignore
 from scipy.optimize import curve_fit
 
 from common.realtime import DT_CTRL
 from selfdrive.config import Conversions as CV
 from selfdrive.car.toyota.values import SteerLimitParams
 from tools.lib.route import Route
+import seaborn as sns
 from tools.lib.logreader import MultiLogIterator
 
 k_f = 0.0000795769068  # for plotting old function compared to new polynomial function
@@ -26,7 +28,7 @@ def to_signed(n, bits):
 
 def get_feedforward(v_ego, angle_steers, angle_offset=0):
   steer_feedforward = (angle_steers - angle_offset)
-  steer_feedforward *= v_ego ** 2  # + np.interp(v_ego, [0, 70 * CV.MPH_TO_MS], [75, 0])
+  steer_feedforward *= v_ego ** 2
   return steer_feedforward
 
 
@@ -44,17 +46,15 @@ def custom_feedforward(v_ego, angle_steers, *args):  # helper function to easily
 def fit_ff_model(lr, plot=False):
   data = []
   steer_delay = None
-
   last_plan = None
   last_cs = None
 
-  last_current_log = 0
+  all_msgs = sorted(lr, key=lambda msg: msg.logMonoTime)
+  del lr
+  print(len(all_msgs))
 
   try:
-    for msg in lr:
-      if lr._current_log != last_current_log:
-        last_current_log = lr._current_log
-        print('{}%'.format(round(lr._current_log / len(lr._log_readers) * 100, 2)))
+    for msg in tqdm(all_msgs):
 
       if steer_delay is None:
         if msg.which() == 'carParams':
@@ -71,10 +71,6 @@ def fit_ff_model(lr, plot=False):
           continue
         for m in msg.can:
           if m.address == 0x2e4 and m.src == 128:
-            # print((msg.logMonoTime - last_cs.logMonoTime) * 1e-9)
-            # mean: 0.02546293431592856 of times
-            # std: 0.23671715790222692
-            # if (msg.logMonoTime - last_plan.logMonoTime) * 1e-9 <= 2 / 20:  # Last plan sample younger than 2 plan cycles  # todo: exp with 1.5 or 1
             data.append({'angle_steers': last_cs.carState.steeringAngle, 'v_ego': last_cs.carState.vEgo, 'rate_steers': last_cs.carState.steeringRate,
                          'angle_steers_des': last_plan.pathPlan.angleSteers, 'angle_offset': last_plan.pathPlan.angleOffset,
                          'engaged': bool(m.dat[0] & 1), 'torque': to_signed((m.dat[1] << 8) | m.dat[2], 16), 'time': msg.logMonoTime * 1e-9})
@@ -92,10 +88,11 @@ def fit_ff_model(lr, plot=False):
         split.append([])
       split[-1].append(line)
   del data
+
   print([len(line) for line in split])
   print(max([len(line) for line in split]))
 
-  split = [sec for sec in split if len(sec) > int(5 * DT_CTRL)]  # long enough sections
+  split = [sec for sec in split if len(sec) > DT_CTRL]  # long enough sections
   for i in range(len(split)):  # accounts for steer actuator delay (moves torque cmd up by 12 samples)
     torque = [line['torque'] for line in split[i]]
     for j in range(len(split[i])):
@@ -110,13 +107,15 @@ def fit_ff_model(lr, plot=False):
   print(f'Samples (before filtering): {len(data)}')
 
   # Data filtering
-  data = [line for line in data if 1e-4 <= abs(line['angle_steers']) <= 70]
-  # data = [line for line in data if abs(line['torque']) >= 25]
+  data = [line for line in data if 1e-4 <= abs(line['angle_steers']) <= 60]
+  # data = [line for line in data if abs(line['torque']) != 0]
   data = [line for line in data if abs(line['v_ego']) > 1 * CV.MPH_TO_MS]
   # data = [line for line in data if np.sign(line['angle_steers']) == np.sign(line['torque'])]
-  data = [line for line in data if abs(line['angle_steers'] - line['angle_steers_des']) < 1.5]  # todo: plan is lagging behind carstate and can, should we raise limit?
+  data = [line for line in data if abs(line['angle_steers'] - line['angle_steers_des']) < 0.5]  # todo: should angle_steers be offset by angle_offset anywhere?
 
-  assert len(data) > MIN_SAMPLES, 'too few valid samples found in route'
+  print(f'Samples (after filtering): {len(data)}')
+
+  # assert len(data) > MIN_SAMPLES, 'too few valid samples found in route'
 
   print('Max angle: {}'.format(max([abs(i['angle_steers']) for i in data])))
   print('Top speed: {} mph'.format(max([i['v_ego'] for i in data]) * CV.MS_TO_MPH))
@@ -126,11 +125,9 @@ def fit_ff_model(lr, plot=False):
     line['angle_steers'] = abs(line['angle_steers'])
     line['angle_steers_des'] = abs(line['angle_steers_des'])
     line['torque'] = abs(line['torque'])
-    line['feedforward'] = (line['torque'] / MAX_TORQUE) / get_feedforward(line['v_ego'], line['angle_steers'])
 
     del line['time']
 
-  print(f'Samples (after filtering): {len(data)}')
   data_speeds = np.array([line['v_ego'] for line in data])
   data_angles = np.array([line['angle_steers'] for line in data])
   data_torque = np.array([line['torque'] for line in data])
@@ -261,5 +258,7 @@ def fit_ff_model(lr, plot=False):
 if __name__ == "__main__":
   # r = Route("ce2fbd370f78ef21%7C2020-11-09--07-31-17")
   # lr = MultiLogIterator(r.log_paths(), wraparound=False)
-  lr = MultiLogIterator(['/openpilot/auto_feedforward/rlogs/trae/' + i for i in os.listdir('/openpilot/auto_feedforward/rlogs/trae')], wraparound=False)
+  use_dir = '/openpilot/auto_feedforward/rlogs/shane/'
+  lr = MultiLogIterator([os.path.join(use_dir, i) for i in os.listdir(use_dir)], wraparound=False)
+  # lr = MultiLogIterator(['/openpilot/auto_feedforward/rlogs/shane/14431dbeedbf3558_2020-11-09--17-55-33--6--rlog.bz2'], wraparound=False)
   n = fit_ff_model(lr, plot="--plot" in sys.argv)
