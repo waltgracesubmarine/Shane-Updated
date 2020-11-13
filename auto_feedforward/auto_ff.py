@@ -10,14 +10,15 @@ from scipy.optimize import curve_fit
 
 from common.realtime import DT_CTRL
 from selfdrive.config import Conversions as CV
-from selfdrive.car.toyota.values import SteerLimitParams
+from selfdrive.car.toyota.values import SteerLimitParams as TOYOTA_PARAMS
+# from selfdrive.car.subaru.carcontroller import CarControllerParams as SUBARU_PARAMS
 from tools.lib.route import Route
 import seaborn as sns
 from tools.lib.logreader import MultiLogIterator
 import pickle
+import binascii
 
 k_f = 0.0000795769068  # for plotting old function compared to new polynomial function
-MAX_TORQUE = SteerLimitParams.STEER_MAX
 MIN_SAMPLES = 60 * 100
 
 
@@ -27,16 +28,21 @@ def to_signed(n, bits):
   return n
 
 
+def hex_to_binary(hexdata):
+  return (bin(int(binascii.hexlify(hexdata), 16))[2:]).zfill(len(hexdata) * 8)  # adds leading/trailing zeros so data matches up with 8x8 array on cabana
+
+
 def get_feedforward(v_ego, angle_steers, angle_offset=0):
   steer_feedforward = (angle_steers - angle_offset)
   steer_feedforward *= v_ego ** 2
   return steer_feedforward
 
 
-def _custom_feedforward(_X, _c1, _c2, _c3):  # automatically determines all params after input _X
+def _custom_feedforward(_X, _k_f):  # automatically determines all params after input _X
   v_ego, angle_steers = _X.copy()
+  _c1, _c2, _c3 = 0.34365576041121065, 12.845373070976711, 51.63304088261174
   steer_feedforward = angle_steers * (_c1 * v_ego ** 2 + _c2 * v_ego + _c3)
-  return steer_feedforward * k_f
+  return steer_feedforward * _k_f
 
 
 def custom_feedforward(v_ego, angle_steers, *args):  # helper function to easily use fitting ff function
@@ -45,10 +51,10 @@ def custom_feedforward(v_ego, angle_steers, *args):  # helper function to easily
 
 
 def fit_ff_model(lr, plot=False):
+  CAR_MAKE = 'subaru'
   data = []
   steer_delay = None
   last_plan = None
-  # last_cs = None
   last_can = None
 
   all_msgs = sorted(lr, key=lambda msg: msg.logMonoTime)
@@ -67,20 +73,32 @@ def fit_ff_model(lr, plot=False):
           continue
         data.append({'angle_steers': msg.carState.steeringAngle, 'v_ego': msg.carState.vEgo, 'rate_steers': msg.carState.steeringRate,
                      'angle_steers_des': last_plan.pathPlan.angleSteers, 'angle_offset': last_plan.pathPlan.angleOffset,
-                     'engaged': bool(last_can.dat[0] & 1), 'torque': to_signed((last_can.dat[1] << 8) | last_can.dat[2], 16), 'time': msg.logMonoTime * 1e-9})
+                     'engaged': last_can['engaged'], 'torque': last_can['torque'], 'time': msg.logMonoTime * 1e-9})
 
       elif msg.which() == 'pathPlan':
         last_plan = msg
 
       elif msg.which() == 'can':
         for m in msg.can:
-          if m.address == 0x2e4 and m.src == 128:
-            last_can = m
-            break
+          if CAR_MAKE == 'toyota':
+            if m.address == 0x2e4 and m.src == 128:
+              last_can = {'engaged': bool(m.dat[0] & 1), 'torque': to_signed((m.dat[1] << 8) | m.dat[2], 16)}
+              break
+          elif CAR_MAKE == 'subaru':
+            if m.address == 290 and m.src == 128:
+              m = hex_to_binary(m.dat)
+              last_can = {'torque': -to_signed(int(m[16 + 8 + 3:16 + 8 + 2 + 6] + m[16:16 + 8], 2), 13)}
+              last_can['engaged'] = last_can['torque'] != 0  # bool(m[26]) should be correct, but for some reason it's always 1
+              break
+
   except KeyboardInterrupt:
     print('Ctrl-C pressed, continuing...')
 
+  MAX_TORQUE = TOYOTA_PARAMS.STEER_MAX if CAR_MAKE == 'toyota' else 2047
+
+  print(f'{len(data)=}')
   data = [line for line in data if line['engaged']]  # remove disengaged
+  print(f'{len(data)=}')
 
   # Now split data by time
   split = [[]]
@@ -114,9 +132,11 @@ def fit_ff_model(lr, plot=False):
   data = [line for line in data if abs(line['v_ego']) > 1 * CV.MPH_TO_MS]
   # data = [line for line in data if np.sign(line['angle_steers']) == np.sign(line['torque'])]
   data = [line for line in data if abs(line['angle_steers'] - line['angle_steers_des']) < 0.5]  # todo: should angle_steers be offset by angle_offset anywhere?
+  print(max([i['torque'] for i in data]))
+  print(min([i['torque'] for i in data]))
 
   print(f'Samples (after filtering): {len(data)}')
-  with open('auto_feedforward/data', 'w') as f:
+  with open('auto_feedforward/data', 'wb') as f:
     pickle.dump(data, f)
 
   # assert len(data) > MIN_SAMPLES, 'too few valid samples found in route'
@@ -142,8 +162,7 @@ def fit_ff_model(lr, plot=False):
   assert all([i >= 0 for i in data_torque]), 'A torque sample is negative'
   assert steer_delay > 0, 'Steer actuator delay is zero'
 
-  params, covs = curve_fit(_custom_feedforward, np.array([data_speeds, data_angles]), np.array(data_torque) / MAX_TORQUE,
-                           p0=[1, 0, 0], maxfev=800)
+  params, covs = curve_fit(_custom_feedforward, np.array([data_speeds, data_angles]), np.array(data_torque) / MAX_TORQUE, maxfev=800)
   print('FOUND PARAMS: {}'.format(params.tolist()))
   if params[-1] < 0:
     print('WARNING: intercept is negative, possibly bad fit! needs more data')
@@ -263,9 +282,20 @@ def fit_ff_model(lr, plot=False):
   #   plt.title('New fitted polynomial feedforward function')
 
 
+# Compares poly with old ff speed function
+# x = np.linspace(0, 30, 100)
+# y = x ** 2
+# _c1, _c2, _c3 = 0.34365576041121065, 12.845373070976711, 51.63304088261174
+# y_poly = _c1 * x ** 2 + _c2 * x + _c3
+# plt.plot(x, y_poly, label='poly')
+# plt.plot(x, y, label='v_ego**2')
+# plt.legend()
+# plt.show()
+
+
 if __name__ == "__main__":
   # r = Route("14431dbeedbf3558%7C2020-11-10--22-24-34")
   # lr = MultiLogIterator(r.log_paths(), wraparound=False)
-  use_dir = '/openpilot/auto_feedforward/rlogs/shane/'
+  use_dir = '/openpilot/auto_feedforward/rlogs/michael/good'
   lr = MultiLogIterator([os.path.join(use_dir, i) for i in os.listdir(use_dir)], wraparound=False)
   n = fit_ff_model(lr, plot="--plot" in sys.argv)
