@@ -14,6 +14,7 @@ from selfdrive.car.toyota.values import SteerLimitParams
 from tools.lib.route import Route
 import seaborn as sns
 from tools.lib.logreader import MultiLogIterator
+import pickle
 
 k_f = 0.0000795769068  # for plotting old function compared to new polynomial function
 MAX_TORQUE = SteerLimitParams.STEER_MAX
@@ -32,10 +33,10 @@ def get_feedforward(v_ego, angle_steers, angle_offset=0):
   return steer_feedforward
 
 
-def _custom_feedforward(_X, _k_f, _c1, _c2, _c3):  # automatically determines all params after input _X
+def _custom_feedforward(_X, _c1, _c2, _c3):  # automatically determines all params after input _X
   v_ego, angle_steers = _X.copy()
   steer_feedforward = angle_steers * (_c1 * v_ego ** 2 + _c2 * v_ego + _c3)
-  return steer_feedforward * _k_f
+  return steer_feedforward * k_f
 
 
 def custom_feedforward(v_ego, angle_steers, *args):  # helper function to easily use fitting ff function
@@ -47,7 +48,8 @@ def fit_ff_model(lr, plot=False):
   data = []
   steer_delay = None
   last_plan = None
-  last_cs = None
+  # last_cs = None
+  last_can = None
 
   all_msgs = sorted(lr, key=lambda msg: msg.logMonoTime)
   del lr
@@ -61,20 +63,20 @@ def fit_ff_model(lr, plot=False):
           steer_delay = round(msg.carParams.steerActuatorDelay / DT_CTRL)
 
       if msg.which() == 'carState':
-        last_cs = msg
+        if last_plan is None or last_can is None:  # wait for other messages seen
+          continue
+        data.append({'angle_steers': msg.carState.steeringAngle, 'v_ego': msg.carState.vEgo, 'rate_steers': msg.carState.steeringRate,
+                     'angle_steers_des': last_plan.pathPlan.angleSteers, 'angle_offset': last_plan.pathPlan.angleOffset,
+                     'engaged': bool(last_can.dat[0] & 1), 'torque': to_signed((last_can.dat[1] << 8) | last_can.dat[2], 16), 'time': msg.logMonoTime * 1e-9})
 
       elif msg.which() == 'pathPlan':
         last_plan = msg
 
       elif msg.which() == 'can':
-        if last_plan is None or last_cs is None:  # wait for other messages seen
-          continue
         for m in msg.can:
           if m.address == 0x2e4 and m.src == 128:
-            data.append({'angle_steers': last_cs.carState.steeringAngle, 'v_ego': last_cs.carState.vEgo, 'rate_steers': last_cs.carState.steeringRate,
-                         'angle_steers_des': last_plan.pathPlan.angleSteers, 'angle_offset': last_plan.pathPlan.angleOffset,
-                         'engaged': bool(m.dat[0] & 1), 'torque': to_signed((m.dat[1] << 8) | m.dat[2], 16), 'time': msg.logMonoTime * 1e-9})
-            continue
+            last_can = m
+            break
   except KeyboardInterrupt:
     print('Ctrl-C pressed, continuing...')
 
@@ -114,11 +116,14 @@ def fit_ff_model(lr, plot=False):
   data = [line for line in data if abs(line['angle_steers'] - line['angle_steers_des']) < 0.5]  # todo: should angle_steers be offset by angle_offset anywhere?
 
   print(f'Samples (after filtering): {len(data)}')
+  with open('auto_feedforward/data', 'w') as f:
+    pickle.dump(data, f)
 
   # assert len(data) > MIN_SAMPLES, 'too few valid samples found in route'
 
   print('Max angle: {}'.format(max([abs(i['angle_steers']) for i in data])))
   print('Top speed: {} mph'.format(max([i['v_ego'] for i in data]) * CV.MS_TO_MPH))
+  print('Max torque: {}'.format(max([i['torque'] for i in data])))
 
   # Data preprocessing
   for line in data:
@@ -137,8 +142,11 @@ def fit_ff_model(lr, plot=False):
   assert all([i >= 0 for i in data_torque]), 'A torque sample is negative'
   assert steer_delay > 0, 'Steer actuator delay is zero'
 
-  params, covs = curve_fit(_custom_feedforward, np.array([data_speeds, data_angles]), np.array(data_torque) / MAX_TORQUE, maxfev=1000)
+  params, covs = curve_fit(_custom_feedforward, np.array([data_speeds, data_angles]), np.array(data_torque) / MAX_TORQUE,
+                           p0=[1, 0, 0], maxfev=800)
   print('FOUND PARAMS: {}'.format(params.tolist()))
+  if params[-1] < 0:
+    print('WARNING: intercept is negative, possibly bad fit! needs more data')
 
   std_func = []
   fitted_func = []
@@ -256,9 +264,8 @@ def fit_ff_model(lr, plot=False):
 
 
 if __name__ == "__main__":
-  # r = Route("ce2fbd370f78ef21%7C2020-11-09--07-31-17")
+  # r = Route("14431dbeedbf3558%7C2020-11-10--22-24-34")
   # lr = MultiLogIterator(r.log_paths(), wraparound=False)
   use_dir = '/openpilot/auto_feedforward/rlogs/shane/'
   lr = MultiLogIterator([os.path.join(use_dir, i) for i in os.listdir(use_dir)], wraparound=False)
-  # lr = MultiLogIterator(['/openpilot/auto_feedforward/rlogs/shane/14431dbeedbf3558_2020-11-09--17-55-33--6--rlog.bz2'], wraparound=False)
   n = fit_ff_model(lr, plot="--plot" in sys.argv)
