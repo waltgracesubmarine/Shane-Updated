@@ -38,8 +38,9 @@ def get_feedforward(v_ego, angle_steers, angle_offset=0):
   return steer_feedforward
 
 
-def _custom_feedforward(_X, _k_f, _c1, _c2, _c3):  # automatically determines all params after input _X
+def _custom_feedforward(_X, _c1, _c2, _c3):  # automatically determines all params after input _X
   v_ego, angle_steers = _X.copy()
+  _k_f = 0.00006908923778520113
   # _c1, _c2, _c3 = 0.34365576041121065, 12.845373070976711, 51.63304088261174
   steer_feedforward = angle_steers * (_c1 * v_ego ** 2 + _c2 * v_ego + _c3)
   return steer_feedforward * _k_f
@@ -70,6 +71,8 @@ def fit_ff_model(lr, plot=False):
 
       if msg.which() == 'carState':
         if last_plan is None or last_can is None:  # wait for other messages seen
+          continue
+        if msg.carState.steeringPressed:  # only use samples where user isn't touching wheel
           continue
         data.append({'angle_steers': msg.carState.steeringAngle, 'v_ego': msg.carState.vEgo, 'rate_steers': msg.carState.steeringRate,
                      'angle_steers_des': last_plan.pathPlan.angleSteers, 'angle_offset': last_plan.pathPlan.angleOffset,
@@ -109,8 +112,8 @@ def fit_ff_model(lr, plot=False):
       split[-1].append(line)
   del data
 
-  print([len(line) for line in split])
-  print(max([len(line) for line in split]))
+  # print([len(line) for line in split])
+  print('max len: {}'.format(max([len(line) for line in split])))
 
   split = [sec for sec in split if len(sec) > DT_CTRL]  # long enough sections
   for i in range(len(split)):  # accounts for steer actuator delay (moves torque cmd up by 12 samples)
