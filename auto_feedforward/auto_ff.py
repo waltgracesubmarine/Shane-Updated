@@ -174,7 +174,7 @@ def fit_ff_model(lr, plot=False):
   max_angle_error = 0.75
   data = [line for line in data if 1e-4 <= abs(line['angle_steers']) <= 90]
   data = [line for line in data if abs(line['v_ego']) > 1 * CV.MPH_TO_MS]
-  # data = [line for line in data if np.sign(line['angle_steers']) == np.sign(line['torque'])]  # todo see if this helps at all
+  # data = [line for line in data if np.sign(line['angle_steers'] - line['angle_offset']) == np.sign(line['torque'])]  # todo see if this helps at all
   data = [line for line in data if abs(line['angle_steers'] - line['angle_steers_des']) < max_angle_error]  # no need for offset since des is already offset in pathplanner
 
   print(f'Samples (after filtering):  {len(data)}')
