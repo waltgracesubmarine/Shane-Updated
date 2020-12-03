@@ -3,15 +3,14 @@ import os
 import sys
 import matplotlib.pyplot as plt
 import numpy as np
-from tqdm import tqdm   # type: ignore
+from tqdm import tqdm  # type: ignore
 from selfdrive.car.toyota.values import STEER_THRESHOLD
 from scipy.signal import correlate
 
 from common.realtime import DT_CTRL
 from tools.lib.logreader import MultiLogIterator
-import binascii
 
-MIN_SAMPLES = 60 * 100
+MIN_SAMPLES = int(5 / DT_CTRL)
 
 
 def to_signed(n, bits):
@@ -21,58 +20,52 @@ def to_signed(n, bits):
 
 
 def find_steer_delay(lr, plot=False):
-  data = []
+  data = [[]]
+  engaged, steering_pressed = False, False
+  torque_cmd, steer_angle = None, None
 
   all_msgs = sorted(lr, key=lambda msg: msg.logMonoTime)
   del lr
 
   for msg in tqdm(all_msgs):
-    if msg.which() == 'can':
-      engaged, torque_cmd, steering_pressed, steer_angle = None, None, None, None
-      for m in msg.can:
-        if m.address == 0x2e4 and m.src == 128:
-          engaged = bool(m.dat[0] & 1)
-          torque_cmd = to_signed((m.dat[1] << 8) | m.dat[2], 16)
-        elif m.address == 0x260 and m.src == 0:
-          steering_pressed = abs(to_signed((m.dat[1] << 8) | m.dat[2], 16)) > STEER_THRESHOLD
-        elif m.address == 0x25 and m.src == 0:
-          steer_angle = to_signed(int(bin(m.dat[0])[2:].zfill(8)[4:] + bin(m.dat[1])[2:].zfill(8), 2), 12) * 1.5
+    if msg.which() != 'can':
+      continue
 
-      if engaged is not None and steering_pressed is not None and torque_cmd is not None and steer_angle is not None:
-        if engaged and not steering_pressed:
-          data.append({'engaged': engaged, 'torque_cmd': torque_cmd, 'steering_pressed': steering_pressed, 'steer_angle': steer_angle, 'time': msg.logMonoTime * 1e-9})
+    for m in msg.can:
+      if m.address == 0x2e4 and m.src == 128:
+        engaged = bool(m.dat[0] & 1)
+        torque_cmd = to_signed((m.dat[1] << 8) | m.dat[2], 16)
+      elif m.address == 0x260 and m.src == 0:
+        steering_pressed = abs(to_signed((m.dat[1] << 8) | m.dat[2], 16)) > STEER_THRESHOLD
+      elif m.address == 0x25 and m.src == 0:
+        steer_angle = to_signed(int(bin(m.dat[0])[2:].zfill(8)[4:] + bin(m.dat[1])[2:].zfill(8), 2), 12) * 1.5
+
+    if engaged and not steering_pressed and torque_cmd is not None and steer_angle is not None:
+      data[-1].append({'engaged': engaged, 'torque_cmd': torque_cmd, 'steering_pressed': steering_pressed, 'steer_angle': steer_angle, 'time': msg.logMonoTime * 1e-9})
+    elif len(data[-1]):
+      data.append([])
 
   del all_msgs
 
-
-  # Now split data by time
-  split = [[]]
-  for idx, line in enumerate(data):  # split samples by time
-    if idx > 0:  # can't get before first
-      if line['time'] - data[idx - 1]['time'] > 1 / 20:  # 1/100 is rate but account for lag
-        split.append([])
-      split[-1].append(line)
+  split = [sec for sec in data if len(sec) > 100]  # long enough sections
   del data
-
-  split = [sec for sec in split if len(sec) > 3 / DT_CTRL]  # long enough sections
+  assert len(split) > 0, "Not enough valid sections of samples"
 
   print('max seq len: {}'.format(max([len(line) for line in split])))
   print([len(line) for line in split])
 
   for data in split:
-    torque = [line['torque_cmd'] for line in data]
-    angles = [line['steer_angle'] for line in data]
-
-    angles = np.array(angles)
-    torque = np.array(torque)
+    torque = np.array([line['torque_cmd'] for line in data])
+    angles = np.array([line['steer_angle'] for line in data])
     n_samples = angles.size
 
     angles = (angles - angles.mean()) / angles.std()
     torque = (torque - torque.mean()) / torque.std()
 
     plt.clf()
-    plt.plot(angles)
-    plt.plot(torque)
+    plt.plot(angles, label='angle')
+    plt.plot(torque, label='torque')
+    plt.legend()
     plt.savefig('/openpilot/steer_delay/test_before.png')
 
     xcorr = correlate(angles, torque)
@@ -84,12 +77,11 @@ def find_steer_delay(lr, plot=False):
 
     torque = np.roll(torque, recovered_time_shift)
     plt.clf()
-    plt.plot(angles)
-    plt.plot(torque)
+    plt.plot(angles, label='angle')
+    plt.plot(torque, label='torque')
+    plt.legend()
     plt.savefig('/openpilot/steer_delay/test_after.png')
     input('press enter')
-
-
 
 
 if __name__ == "__main__":
