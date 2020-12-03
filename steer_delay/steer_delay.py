@@ -103,7 +103,7 @@ def find_steer_delay(plot=False):
     plt.plot(torque, label='torque')
     # plt.plot(rates, label='rate')
     plt.legend()
-    plt.savefig('/openpilot/steer_delay/plots/{}__before.png'.format(idx), dpi=250)
+    plt.savefig('/openpilot/steer_delay/plots/{}__before.png'.format(idx))
 
     xcorr = correlate(angles, torque)[n_samples - 1:]  # indexing forces positive offset
 
@@ -123,7 +123,7 @@ def find_steer_delay(plot=False):
     plt.plot(torque, label='torque')
     # plt.plot(rates, label='rate')
     plt.legend()
-    plt.savefig('/openpilot/steer_delay/plots/{}_after.png'.format(idx), dpi=250)
+    plt.savefig('/openpilot/steer_delay/plots/{}_after.png'.format(idx))
 
   plt.clf()
   sns.distplot(delays, bins=40, label='delays')
