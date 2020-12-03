@@ -11,7 +11,7 @@ import seaborn as sns
 from common.realtime import DT_CTRL
 from tools.lib.logreader import MultiLogIterator
 
-MIN_SAMPLES = int(15 / DT_CTRL)
+MIN_SAMPLES = int(30 / DT_CTRL)
 
 
 def to_signed(n, bits):
@@ -41,11 +41,15 @@ def find_steer_delay(plot=False):
   for lr in lrs:
     engaged, steering_pressed = False, False
     torque_cmd, steer_angle = None, None
+    yaw_rate = None
 
     all_msgs = sorted(lr, key=lambda msg: msg.logMonoTime)
     del lr
 
     for msg in tqdm(all_msgs):
+      if msg.which() == 'liveLocationKalman':
+        yaw_rate = msg.liveLocationKalman.angularVelocityCalibrated.value[2] * -150
+
       if msg.which() != 'can':
         continue
 
@@ -58,10 +62,10 @@ def find_steer_delay(plot=False):
         elif m.address == 0x25 and m.src == 0:  # STEER_ANGLE_SENSOR
           steer_angle = to_signed(int(bin(m.dat[0])[2:].zfill(8)[4:] + bin(m.dat[1])[2:].zfill(8), 2), 12) * 1.5
 
-      if engaged and not steering_pressed and torque_cmd is not None and steer_angle is not None:  # creates uninterupted sections of engaged data
+      if engaged and not steering_pressed and torque_cmd is not None and steer_angle is not None and yaw_rate is not None:  # creates uninterupted sections of engaged data
         # if abs(steer_angle) < 5:
         #   continue
-        data[-1].append({'engaged': engaged, 'torque_cmd': torque_cmd, 'steering_pressed': steering_pressed, 'steer_angle': steer_angle, 'time': msg.logMonoTime * 1e-9})
+        data[-1].append({'engaged': engaged, 'torque_cmd': torque_cmd, 'steering_pressed': steering_pressed, 'steer_angle': steer_angle, 'time': msg.logMonoTime * 1e-9, 'yaw_rate': yaw_rate})
       elif len(data[-1]):
         data.append([])
 
@@ -80,20 +84,26 @@ def find_steer_delay(plot=False):
   for idx, data in enumerate(split):
     torque = np.array([line['torque_cmd'] for line in data])
     angles = np.array([line['steer_angle'] for line in data])
+    rates = np.array([line['yaw_rate'] for line in data])
     if angles.std() == 0 or torque.std() == 0:
       continue
 
     n_samples = angles.size
 
-    angles = (angles - angles.mean()) / angles.std()
+    # diff = max(torque) / max(angles)  # todo: not sure which regularization method is better. scale
+    # angles *= diff
+
+    angles = (angles - angles.mean()) / angles.std()  # todo: or normalization
     torque = (torque - torque.mean()) / torque.std()
+    # rates = (rates - rates.mean()) / rates.std()
 
     plt.clf()
     plt.title('before offset')
     plt.plot(angles, label='angle')
     plt.plot(torque, label='torque')
+    # plt.plot(rates, label='rate')
     plt.legend()
-    plt.savefig('/openpilot/steer_delay/plots/{}__before.png'.format(idx))
+    plt.savefig('/openpilot/steer_delay/plots/{}__before.png'.format(idx), dpi=250)
 
     xcorr = correlate(angles, torque)[n_samples - 1:]  # indexing forces positive offset
 
@@ -111,8 +121,9 @@ def find_steer_delay(plot=False):
     plt.title('after offset ({})'.format(time_shift))
     plt.plot(angles, label='angle')
     plt.plot(torque, label='torque')
+    # plt.plot(rates, label='rate')
     plt.legend()
-    plt.savefig('/openpilot/steer_delay/plots/{}_after.png'.format(idx))
+    plt.savefig('/openpilot/steer_delay/plots/{}_after.png'.format(idx), dpi=250)
 
   plt.clf()
   sns.distplot(delays, bins=40, label='delays')
