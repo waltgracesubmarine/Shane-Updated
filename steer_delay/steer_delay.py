@@ -40,7 +40,7 @@ def find_steer_delay(lr, plot=False):
       elif m.address == 0x25 and m.src == 0:
         steer_angle = to_signed(int(bin(m.dat[0])[2:].zfill(8)[4:] + bin(m.dat[1])[2:].zfill(8), 2), 12) * 1.5
 
-    if engaged and not steering_pressed and torque_cmd is not None and steer_angle is not None:
+    if engaged and not steering_pressed and torque_cmd is not None and steer_angle is not None:  # creates uninterupted sections of engaged data
       data[-1].append({'engaged': engaged, 'torque_cmd': torque_cmd, 'steering_pressed': steering_pressed, 'steer_angle': steer_angle, 'time': msg.logMonoTime * 1e-9})
     elif len(data[-1]):
       data.append([])
