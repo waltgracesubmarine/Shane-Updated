@@ -91,20 +91,36 @@ CF = CustomFeedforward(to_fit='poly')
 
 
 
-def fit_ff_model(lr, plot=False):
+def fit_ff_model(use_dir, plot=False):
   CAR_MAKE = 'toyota'
   MAX_TORQUE = TOYOTA_PARAMS.STEER_MAX if CAR_MAKE == 'toyota' else SUBARU_PARAMS().STEER_MAX
 
-  data = [[]]
   steer_delay = None
 
-  engaged, steering_pressed = False, False
-  torque_cmd, angle_steers, angle_steers_des, angle_offset, v_ego = None, None, None, None, None
-  last_time = 0
+  files = os.listdir(use_dir)
+  files = [f for f in files if '.ini' not in f]
 
-  all_msgs = sorted(lr, key=lambda msg: msg.logMonoTime)
+  routes = [[files[0]]]  # this mess ensures we process each route's segments independantly since sorting will join samples from random routes
+  for rt in files[1:]:  # todo: clean up
+    rt_name = ''.join(rt.split('--')[:2])
+    if rt_name != ''.join(routes[-1][-1].split('--')[:2]):
+      routes.append([rt])
+    else:
+      routes[-1].append(rt)
 
-  try:
+  print(list(map(len, routes)))
+  lrs = []
+  for _routes in routes:
+    lrs.append(MultiLogIterator([os.path.join(use_dir, i) for i in _routes], wraparound=False))
+
+  data = [[]]
+  for lr in lrs:
+    engaged, steering_pressed = False, False
+    torque_cmd, angle_steers, angle_steers_des, angle_offset, v_ego = None, None, None, None, None
+    last_time = 0
+
+    all_msgs = sorted(lr, key=lambda msg: msg.logMonoTime)
+
     for msg in tqdm(all_msgs):
       if msg.which() == 'carParams':
         if steer_delay is None:
@@ -141,9 +157,6 @@ def fit_ff_model(lr, plot=False):
         data.append([])
 
       last_time = msg.logMonoTime
-
-  except KeyboardInterrupt:
-    print('Ctrl-C pressed, continuing...')
 
   del all_msgs
   assert steer_delay is not None, 'Never received a carParams msg'
@@ -339,5 +352,5 @@ if __name__ == "__main__":
   # r = Route("14431dbeedbf3558%7C2020-11-10--22-24-34")
   # lr = MultiLogIterator(r.log_paths(), wraparound=False)
   use_dir = '/openpilot/auto_feedforward/rlogs/shane/good'
-  lr = MultiLogIterator([os.path.join(use_dir, i) for i in os.listdir(use_dir)], wraparound=False)
-  n = fit_ff_model(lr, plot="--plot" in sys.argv)
+  # lr = MultiLogIterator([os.path.join(use_dir, i) for i in os.listdir(use_dir)], wraparound=False)
+  n = fit_ff_model(use_dir, plot="--plot" in sys.argv)
