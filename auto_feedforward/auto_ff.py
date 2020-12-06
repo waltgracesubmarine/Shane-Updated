@@ -7,6 +7,7 @@ import seaborn as sns
 from matplotlib import cm
 from tqdm import tqdm   # type: ignore
 from scipy.optimize import curve_fit
+from selfdrive.car.toyota.values import STEER_THRESHOLD
 
 from common.realtime import DT_CTRL
 from selfdrive.config import Conversions as CV
@@ -86,7 +87,7 @@ class CustomFeedforward:
     return steer_feedforward * self.kf
 
 
-CF = CustomFeedforward(to_fit='kf')
+CF = CustomFeedforward(to_fit='poly')
 
 
 
@@ -94,45 +95,52 @@ def fit_ff_model(lr, plot=False):
   CAR_MAKE = 'toyota'
   MAX_TORQUE = TOYOTA_PARAMS.STEER_MAX if CAR_MAKE == 'toyota' else SUBARU_PARAMS().STEER_MAX
 
-  data = []
+  data = [[]]
   steer_delay = None
-  last_plan = None
-  last_can = None
+
+  engaged, steering_pressed = False, False
+  torque_cmd, angle_steers, angle_steers_des, angle_offset, v_ego = None, None, None, None, None
+  last_time = 0
 
   all_msgs = sorted(lr, key=lambda msg: msg.logMonoTime)
-  del lr
 
   try:
     for msg in tqdm(all_msgs):
-
-      if steer_delay is None:
-        if msg.which() == 'carParams':
+      if msg.which() == 'carParams':
+        if steer_delay is None:
           steer_delay = round(msg.carParams.steerActuatorDelay / DT_CTRL)
 
-      if msg.which() == 'carState':
-        if last_plan is None or last_can is None:  # wait for other messages seen
-          continue
-        if msg.carState.steeringPressed or not last_can['engaged']:  # filter out samples where user is touching wheel or not engaged/steer req
-          continue
-        data.append({'angle_steers': msg.carState.steeringAngle, 'v_ego': msg.carState.vEgo, 'rate_steers': msg.carState.steeringRate,
-                     'angle_steers_des': last_plan.pathPlan.angleSteers, 'angle_offset': last_plan.pathPlan.angleOffset,
-                     'torque': last_can['torque'], 'time': msg.logMonoTime * 1e-9})
+      elif msg.which() == 'carState':
+        v_ego = msg.carState.vEgo
 
       elif msg.which() == 'pathPlan':
-        last_plan = msg
+        angle_steers_des = msg.pathPlan.angleSteers
+        angle_offset = msg.pathPlan.angleOffset
 
-      elif msg.which() == 'can':
-        for m in msg.can:
-          if CAR_MAKE == 'toyota':
-            if m.address == 0x2e4 and m.src == 128:
-              last_can = {'engaged': bool(m.dat[0] & 1), 'torque': to_signed((m.dat[1] << 8) | m.dat[2], 16)}
-              break
-          elif CAR_MAKE == 'subaru':
-            if m.address == 290 and m.src == 128:
-              m = hex_to_binary(m.dat)
-              last_can = {'torque': -to_signed(int(m[16 + 8 + 3:16 + 8 + 2 + 6] + m[16:16 + 8], 2), 13)}
-              last_can['engaged'] = last_can['torque'] != 0  # fixme: bool(m[26]) should be correct, but for some reason it's always 1
-              break
+      if msg.which() != 'can':
+        continue
+
+      for m in msg.can:
+        if m.address == 0x2e4 and m.src == 128:  # STEERING_LKA
+          engaged = bool(m.dat[0] & 1)
+          torque_cmd = to_signed((m.dat[1] << 8) | m.dat[2], 16)
+        elif m.address == 0x260 and m.src == 0:  # STEER_TORQUE_SENSOR
+          steering_pressed = abs(to_signed((m.dat[1] << 8) | m.dat[2], 16)) > STEER_THRESHOLD
+        elif m.address == 0x25 and m.src == 0:  # STEER_ANGLE_SENSOR
+          steer_angle = to_signed(int(bin(m.dat[0])[2:].zfill(8)[4:] + bin(m.dat[1])[2:].zfill(8), 2), 12) * 1.5
+          steer_fraction = to_signed(int(bin(m.dat[4])[2:].zfill(8)[:4], 2), 4) * 0.1
+          angle_steers = steer_angle + steer_fraction
+
+      if (engaged and not steering_pressed and None not in [angle_steers, v_ego, angle_steers_des, angle_offset, torque_cmd] and  # creates uninterupted sections of engaged data
+              abs(msg.logMonoTime - last_time) * 1e-9 < 1 / 20):  # also split if there's a break in time
+
+        data[-1].append({'angle_steers': angle_steers, 'v_ego': v_ego, 'angle_steers_des': angle_steers_des,
+                         'angle_offset': angle_offset, 'torque': torque_cmd, 'time': msg.logMonoTime * 1e-9})
+
+      elif len(data[-1]):  # if last list has items in it, append new empty section
+        data.append([])
+
+      last_time = msg.logMonoTime
 
   except KeyboardInterrupt:
     print('Ctrl-C pressed, continuing...')
@@ -141,28 +149,17 @@ def fit_ff_model(lr, plot=False):
   assert steer_delay is not None, 'Never received a carParams msg'
   assert steer_delay > 0, 'Steer actuator delay is not positive'
 
-  # Now split data by time
-  split = [[]]
-  for idx, line in enumerate(data):  # split samples by time
-    if idx > 0:  # can't get before first
-      if line['time'] - data[idx - 1]['time'] > 1 / 20:  # 1/100 is rate but account for lag
-        split.append([])
-      split[-1].append(line)
-  del data
+  print('Max seq. len: {}'.format(max([len(line) for line in data])))
 
-  print('max seq len: {}'.format(max([len(line) for line in split])))
-
-  split = [sec for sec in split if len(sec) > DT_CTRL]  # long enough sections
-  for i in range(len(split)):  # accounts for steer actuator delay (moves torque cmd up by 12 samples)
-    torque = [line['torque'] for line in split[i]]
-    for j in range(len(split[i])):
+  data = [sec for sec in data if len(sec) > DT_CTRL]  # long enough sections
+  for i in range(len(data)):  # accounts for steer actuator delay (moves torque cmd up by 12 samples)
+    torque = [line['torque'] for line in data[i]]
+    for j in range(len(data[i])):
       if j < steer_delay:
         continue
-      split[i][j]['torque'] = torque[j - steer_delay]
-    split[i] = split[i][steer_delay:]  # removes leading samples
-
-  data = [i for j in split for i in j]  # flatten
-  del split
+      data[i][j]['torque'] = torque[j - steer_delay]
+    data[i] = data[i][steer_delay:]  # removes leading samples
+  data = [i for j in data for i in j]  # flatten
 
   if WRITE_DATA := False:  # todo: temp, for debugging
     with open('auto_feedforward/data', 'wb') as f:
@@ -177,7 +174,7 @@ def fit_ff_model(lr, plot=False):
   # data = [line for line in data if np.sign(line['angle_steers'] - line['angle_offset']) == np.sign(line['torque'])]  # todo see if this helps at all
   data = [line for line in data if abs(line['angle_steers'] - line['angle_steers_des']) < max_angle_error]  # no need for offset since des is already offset in pathplanner
 
-  print(f'Samples (after filtering):  {len(data)}')
+  print(f'Samples (after filtering):  {len(data)}\n')
 
   assert len(data) > MIN_SAMPLES, 'too few valid samples found in route'
 
@@ -188,10 +185,9 @@ def fit_ff_model(lr, plot=False):
   # Data preprocessing
   for line in data:
     line['angle_steers'] = abs(line['angle_steers'] - line['angle_offset'])  # need to offset angle to properly fit ff
-    line['angle_steers_des'] = abs(line['angle_steers_des'])
     line['torque'] = abs(line['torque'])
 
-    del line['time'], line['rate_steers'], line['angle_offset'], line['angle_steers_des']  # delete unusec
+    del line['time'], line['angle_offset'], line['angle_steers_des']  # delete unused
 
   data_speeds = np.array([line['v_ego'] for line in data])
   data_angles = np.array([line['angle_steers'] for line in data])
