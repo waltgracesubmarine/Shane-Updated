@@ -15,8 +15,11 @@ from selfdrive.config import Conversions as CV
 
 from common.realtime import DT_CTRL
 from tools.lib.logreader import MultiLogIterator
+from opendbc.can.parser import CANParser
 
-MIN_SAMPLES = int(10 / DT_CTRL)
+
+MIN_SAMPLES = int(5 / DT_CTRL)
+MAX_SAMPLES = int(15 / DT_CTRL)
 
 
 def to_signed(n, bits):
@@ -25,8 +28,9 @@ def to_signed(n, bits):
   return n
 
 
-def find_steer_delay(plot=False):
-  use_dir = '/openpilot/steer_delay/rlogs/good'  # change to a directory of rlogs
+def find_steer_delay(cp, plot=False):
+  BASEDIR = '/data/openpilot'
+  use_dir = '{}/steer_delay/rlogs/good'.format(BASEDIR)  # change to a directory of rlogs
   files = os.listdir(use_dir)
   files = [f for f in files if '.ini' not in f]
 
@@ -58,20 +62,21 @@ def find_steer_delay(plot=False):
       elif msg.which() == 'carState':
         v_ego = msg.carState.vEgo
 
-      if msg.which() != 'can':
+      if msg.which() not in ['can', 'sendcan']:
         continue
 
-      for m in msg.can:
-        if m.address == 0x2e4 and m.src == 128:  # STEERING_LKA
-          engaged = bool(m.dat[0] & 1)
-          torque_cmd = to_signed((m.dat[1] << 8) | m.dat[2], 16)
-        elif m.address == 0x260 and m.src == 0:  # STEER_TORQUE_SENSOR
-          steering_pressed = abs(to_signed((m.dat[1] << 8) | m.dat[2], 16)) > STEER_THRESHOLD
-        elif m.address == 0x25 and m.src == 0:  # STEER_ANGLE_SENSOR
-          steer_angle = to_signed(int(bin(m.dat[0])[2:].zfill(8)[4:] + bin(m.dat[1])[2:].zfill(8), 2), 12) * 1.5
+      updated = cp.update_string(msg.as_builder().to_bytes())
+      for u in updated:
+        if u == 0x2e4:  # STEERING_LKA
+          engaged = bool(cp.vl[u]['STEER_REQUEST'])
+          torque_cmd = cp.vl[u]['STEER_TORQUE_CMD']
+        elif u == 0x260:  # STEER_TORQUE_SENSOR
+          steering_pressed = abs(cp.vl[u]['STEER_TORQUE_DRIVER']) > STEER_THRESHOLD
+        elif u == 0x25:  # STEER_ANGLE_SENSOR
+          steer_angle = cp.vl[u]['STEER_ANGLE'] + cp.vl[u]['STEER_FRACTION']
 
       if (engaged and not steering_pressed and None not in [torque_cmd, steer_angle, yaw_rate, v_ego] and  # creates uninterupted sections of engaged data
-              v_ego > 1 * CV.MPH_TO_MS):  # todo: experiment with 5 or lower
+              v_ego > 5 * CV.MPH_TO_MS):  # todo: experiment with 5 or lower
         data[-1].append({'engaged': engaged, 'torque_cmd': torque_cmd, 'steering_pressed': steering_pressed,
                          'steer_angle': steer_angle, 'time': msg.logMonoTime * 1e-9, 'yaw_rate': yaw_rate, 'v_ego': v_ego})
       elif len(data[-1]):
@@ -79,7 +84,7 @@ def find_steer_delay(plot=False):
 
   del all_msgs
 
-  split = [sec for sec in data if len(sec) > MIN_SAMPLES]  # long enough sections
+  split = [sec for sec in data if MAX_SAMPLES > len(sec) > MIN_SAMPLES]  # long enough sections
   del data
   assert len(split) > 0, "Not enough valid sections of samples"
 
@@ -95,8 +100,8 @@ def find_steer_delay(plot=False):
       print('warning: angles or torque std is 0! skipping...')
       continue
     angles_ptp = abs(angles.ptp())  # todo: abs shouldn't be needed, but just in case
-    if angles_ptp <= 10:
-      print('angle range too low ({} <= 10)! skipping...'.format(angles_ptp))
+    if angles_ptp <= 5:
+      print('angle range too low ({} <= 5)! skipping...'.format(angles_ptp))
       continue
     print('peak to peak: {}'.format(angles_ptp))
 
@@ -111,7 +116,7 @@ def find_steer_delay(plot=False):
     plt.plot(angles, label='angle')
     plt.plot(torque / (max(torque) / max(angles)), label='torque')
     plt.legend()
-    plt.savefig('/openpilot/steer_delay/plots/{}__before.png'.format(idx))
+    plt.savefig('{}/steer_delay/plots/{}__before.png'.format(BASEDIR, idx))
 
     # xcorr = correlate(Y1, Y2)[angles.size - 1:]  # indexing forces positive offset (torque always precedes angle)
     xcorr = correlate(Y1, Y2)  # indexing forces positive offset (torque always precedes angle)
@@ -134,14 +139,14 @@ def find_steer_delay(plot=False):
     plt.plot(angles, label='angle')
     plt.plot(torque / (max(torque) / max(angles)), label='torque')
     plt.legend()
-    plt.savefig('/openpilot/steer_delay/plots/{}_after.png'.format(idx))
+    plt.savefig('{}/steer_delay/plots/{}_after.png'.format(BASEDIR, idx))
 
   plt.clf()
   sns.distplot(delays, bins=40, label='delays')
   plt.legend()
-  plt.savefig('/openpilot/steer_delay/dist.png')
+  plt.savefig('{}/steer_delay/dist.png'.format(BASEDIR))
 
-  with open('/openpilot/steer_delay/data', 'wb') as f:
+  with open('{}/steer_delay/data'.format(BASEDIR), 'wb') as f:
     pickle.dump(new_split, f)
 
   print('mean vels:  {}'.format(np.round(np.array(mean_vels) * CV.MS_TO_MPH, 2).tolist()))  # todo: add vel list
@@ -157,4 +162,18 @@ if __name__ == "__main__":
   # r = Route("14431dbeedbf3558%7C2020-11-10--22-24-34")
   # lr = MultiLogIterator(r.log_paths(), wraparound=False)
 
-  find_steer_delay(plot="--plot" in sys.argv)
+  signals = [
+    ("STEER_ANGLE", "STEER_ANGLE_SENSOR", 0),
+    ("STEER_FRACTION", "STEER_ANGLE_SENSOR", 0),
+    ("STEER_RATE", "STEER_ANGLE_SENSOR", 0),
+    ("STEER_TORQUE_DRIVER", "STEER_TORQUE_SENSOR", 0),
+    ("STEER_TORQUE_EPS", "STEER_TORQUE_SENSOR", 0),
+    ("STEER_ANGLE", "STEER_TORQUE_SENSOR", 0),
+    ("STEER_REQUEST", "STEERING_LKA", 0),
+    ("STEER_TORQUE_CMD", "STEERING_LKA", 0),
+    ("YAW_RATE", "KINEMATICS", 0)
+  ]
+  cp = CANParser("toyota_corolla_2017_pt_generated", signals)
+
+
+  find_steer_delay(cp, plot="--plot" in sys.argv)
