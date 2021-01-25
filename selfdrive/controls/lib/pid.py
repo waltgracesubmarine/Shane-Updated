@@ -173,7 +173,7 @@ class LongPIDController:
       # this function is not based on any data at all, in future it will be
       # all it does is convert accel to gas. the higher accel is the higher gas is, linearly
       # as speed increases, the y offset increases AS WELL AS the coefficient of the line (steeper for same accel)
-      accel_to_gas = lambda x: (x * 0.5 + (0.05 * (speed / 20 + 1))) * (speed / 25 + 1)
+      accel_to_gas = lambda x: (x * 0.65 + (0.08 * (speed / 20 + 1))) * (speed / 25 + 1)
       feedforward = accel_to_gas(feedforward)
 
 
