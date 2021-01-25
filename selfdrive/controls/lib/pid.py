@@ -1,6 +1,7 @@
 import numpy as np
 from common.numpy_fast import clip, interp
 from common.op_params import opParams
+from selfdrive.car.toyota.values import MIN_ACC_SPEED
 from selfdrive.config import Conversions as CV
 
 
@@ -107,9 +108,10 @@ class LatPIDController():
 
 
 class LongPIDController:
-  def __init__(self, k_p, k_i, k_d, k_f=1., pos_limit=None, neg_limit=None, rate=100, sat_limit=0.8, convert=None):
+  def __init__(self, k_p, k_i, k_d, k_f=1., pos_limit=None, neg_limit=None, rate=100, sat_limit=0.8, convert=None, CP=None):
     self.op_params = opParams()
     self.enable_long_derivative = self.op_params.get('enable_long_derivative')
+    self.CP = CP
     self._k_p = k_p  # proportional gain
     self._k_i = k_i  # integral gain
     self._k_d = k_d  # derivative gain
@@ -166,6 +168,14 @@ class LongPIDController:
     self.speed = speed
 
     error = float(apply_deadzone(setpoint - measurement, deadzone))
+
+    if feedforward >= 0 and self.CP.enableGasInterceptor and speed < MIN_ACC_SPEED:  # todo: move this to longcontrol
+      # this function is not based on any data at all, in future it will be
+      # all it does is convert accel to gas. the higher accel is the higher gas is, linearly
+      # as speed increases, the y offset increases AS WELL AS the coefficient of the line (steeper for same accel)
+      accel_to_gas = lambda x: (x * 0.5 + (0.05 * (speed / 20 + 1))) * (speed / 25 + 1)
+      feedforward = accel_to_gas(feedforward)
+
 
     self.p = error * self.k_p
     self.f = feedforward * self.k_f
