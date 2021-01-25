@@ -133,6 +133,7 @@ class LongControl():
         output_gb += STARTING_BRAKE_RATE / RATE
       self.reset(CS.vEgo)
 
+    output_gb = self.op_params.get('gas_output')
     self.last_output_gb = output_gb
     final_gas = clip(output_gb, 0., gas_max)
     final_brake = -clip(output_gb, -brake_max, 0.)
