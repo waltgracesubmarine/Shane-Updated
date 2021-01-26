@@ -205,7 +205,8 @@ class LongPIDController:
 
     control = self.p + self.f + self.id
     if self.convert is not None:
-      control = self.convert(control, speed=self.speed)
+      if speed > MIN_ACC_SPEED or (speed < MIN_ACC_SPEED and control < 0):
+        control = self.convert(control, speed=self.speed)
 
     self.saturated = self._check_saturation(control, check_saturation, error)
 
