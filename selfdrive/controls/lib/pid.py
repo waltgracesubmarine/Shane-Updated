@@ -136,7 +136,7 @@ class LongPIDController:
 
   @property
   def k_i(self):
-    return interp(self.speed, self._k_i[0], self._k_i[1])
+    return interp(self.speed, self._k_i[0], self._k_i[1]) * self.op_params.get('long_ki_under_19')
 
   @property
   def k_d(self):
@@ -178,7 +178,7 @@ class LongPIDController:
       feedforward = accel_to_gas(speed, feedforward)
 
 
-    self.p = error * (self.k_p * self.op_params.get('long_kp_under_19') if self.CP.enableGasInterceptor and speed <= MIN_ACC_SPEED else self.k_p)
+    self.p = error * self.k_p * self.op_params.get('long_kp_under_19')
     self.f = feedforward * self.k_f
 
     if override:
