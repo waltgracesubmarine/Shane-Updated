@@ -178,7 +178,7 @@ class LongPIDController:
       feedforward = accel_to_gas(speed, feedforward)
 
 
-    self.p = error * self.k_p
+    self.p = error * (self.k_p * self.op_params.get('long_kp_under_19') if self.CP.enableGasInterceptor and speed <= MIN_ACC_SPEED else self.k_p)
     self.f = feedforward * self.k_f
 
     if override:
