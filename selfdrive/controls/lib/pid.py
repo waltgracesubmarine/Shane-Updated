@@ -169,12 +169,13 @@ class LongPIDController:
 
     error = float(apply_deadzone(setpoint - measurement, deadzone))
 
-    if feedforward >= 0 and self.CP.enableGasInterceptor and speed < MIN_ACC_SPEED:  # todo: move this to longcontrol
-      # this function is not based on any data at all, in future it will be
-      # all it does is convert accel to gas. the higher accel is the higher gas is, linearly
-      # as speed increases, the y offset increases AS WELL AS the coefficient of the line (steeper for same accel)
-      accel_to_gas = lambda x: (x * 0.65 + (0.08 * (speed / 20 + 1))) * (speed / 25 + 1)
-      feedforward = accel_to_gas(feedforward)
+    if feedforward >= -0.5 and self.CP.enableGasInterceptor and speed <= MIN_ACC_SPEED:  # todo: move this to longcontrol
+      # converts accel to gas using current speed
+      def accel_to_gas(v_ego, a_ego):
+        _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
+        return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
+
+      feedforward = accel_to_gas(speed, feedforward)
 
 
     self.p = error * self.k_p
