@@ -185,10 +185,16 @@ class LongPIDController:
       self.id -= self.i_unwind_rate * float(np.sign(self.id))
     else:
       i = self.id + error * self.k_i * self.rate
+
       control = self.p + self.f + i
+      if speed < MIN_ACC_SPEED and feedforward >= -0.5:
+        control -= self.f
 
       if self.convert is not None:
         control = self.convert(control, speed=self.speed)
+
+      if speed < MIN_ACC_SPEED and feedforward >= -0.5:
+        control += self.f
 
       # Update when changing i will move the control away from the limits
       # or when i will move towards the sign of the error
@@ -204,9 +210,14 @@ class LongPIDController:
           self.id += d
 
     control = self.p + self.f + self.id
+    if speed < MIN_ACC_SPEED and feedforward >= -0.5:
+      control -= self.f
+
     if self.convert is not None:
-      if speed > MIN_ACC_SPEED or (speed < MIN_ACC_SPEED and control < 0):
         control = self.convert(control, speed=self.speed)
+
+    if speed < MIN_ACC_SPEED and feedforward >= -0.5:
+      control += self.f
 
     self.saturated = self._check_saturation(control, check_saturation, error)
 
