@@ -132,7 +132,7 @@ class LongPIDController:
 
   @property
   def k_p(self):
-    return interp(self.speed, self._k_p[0], self._k_p[1])
+    return interp(self.speed, self._k_p[0], self._k_p[1]) * self.op_params.get('long_kp_under_19')
 
   @property
   def k_i(self):
@@ -178,7 +178,7 @@ class LongPIDController:
       feedforward = accel_to_gas(speed, feedforward)
 
 
-    self.p = error * self.k_p * self.op_params.get('long_kp_under_19')
+    self.p = error * self.k_p
     self.f = feedforward * self.k_f
 
     if override:
