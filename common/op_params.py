@@ -99,9 +99,11 @@ class opParams:
                         'use_lqr': Param(False, bool, 'Enable this to use LQR as your lateral controller over default with any car'),
                         'corollaTSS2_use_indi': Param(False, bool, 'Enable this to use INDI for lat with your TSS2 Corolla'),
                         'rav4TSS2_use_indi': Param(False, bool, 'Enable this to use INDI for lat with your TSS2 RAV4'),
-                        'gas_output': Param(0.0, VT.number, live=True),
-                        'long_kp_under_19': Param(1, VT.number, live=True),
-                        'long_ki_under_19': Param(1, VT.number, live=True),
+                        # 'gas_output': Param(0.0, VT.number, live=True),
+                        'long_kp_multiplier': Param(1, VT.number, live=True),
+                        'long_ki_multiplier': Param(1, VT.number, live=True),
+                        'gb_reduction': Param(3., VT.number, 'The reduction to apply to just PI when under 19 mph and we\'re not braking', live=True),
+                        'new_compute_gb_method': Param(True, bool, 'Try enabling and disabling to see what works best', live=True),
                         'standstill_hack': Param(False, bool, 'Some cars support stop and go, you just need to enable this')}
 
     self._params_file = '/data/op_params.json'

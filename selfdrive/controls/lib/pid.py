@@ -108,13 +108,15 @@ class LatPIDController():
     return self.control
 
 
-def compute_gb(accel, speed, feedforward):
+def compute_gb(accel, speed, feedforward, reduction=3.0, new_method=True):
   # Since F is a real gas percentage value under 19 mph, this applies the gb scale as such
   # (PI) / 3 + F when using pedal and (accel-feedforward) > 0. subtracting feedforward detects when PI want to brake more than F wants to accelerate and switches to scaling everything increase of leaving feedforward out
   # We could also just check if feedforward > 0 but then we sometimes pay not enough attention to PI when we're above setspeed but accel is 0 (in cruise for ex.). PI would be negative but if we're fast enough feedforward would cancel it out
 
-  return ((accel - feedforward) / 9.0 + feedforward) if speed < MIN_ACC_SPEED and (accel - feedforward) > 0 else accel / 3.0  # todo: try replacing (accel - feedforward) in the if with feedforward
-
+  if new_method:
+    return ((accel - feedforward) / reduction + feedforward) if speed < MIN_ACC_SPEED and (accel - feedforward) > 0 else accel / 3.0  # todo: try replacing (accel - feedforward) in the if with feedforward
+  else:
+    return ((accel - feedforward) / reduction + feedforward) if speed < MIN_ACC_SPEED and feedforward > 0 else accel / 3.0
 
 class LongPIDController:
   def __init__(self, k_p, k_i, k_d, k_f=1., pos_limit=None, neg_limit=None, rate=100, sat_limit=0.8, convert=None, CP=None):
@@ -141,11 +143,11 @@ class LongPIDController:
 
   @property
   def k_p(self):
-    return interp(self.speed, self._k_p[0], self._k_p[1]) * self.op_params.get('long_kp_under_19')
+    return interp(self.speed, self._k_p[0], self._k_p[1]) * self.op_params.get('long_kp_multiplier')
 
   @property
   def k_i(self):
-    return interp(self.speed, self._k_i[0], self._k_i[1]) * self.op_params.get('long_ki_under_19')
+    return interp(self.speed, self._k_i[0], self._k_i[1]) * self.op_params.get('long_ki_multiplier')
 
   @property
   def k_d(self):
@@ -197,7 +199,7 @@ class LongPIDController:
       control = self.p + self.f + i
 
       if self.convert is not None:
-        control = compute_gb(control, speed=self.speed, feedforward=feedforward)
+        control = compute_gb(control, speed=self.speed, feedforward=feedforward, reduction=self.op_params.get('gb_reduction'), new_method=self.op_params.get('new_compute_gb_method'))
 
       # Update when changing i will move the control away from the limits
       # or when i will move towards the sign of the error
@@ -215,7 +217,7 @@ class LongPIDController:
     control = self.p + self.f + self.id
 
     if self.convert is not None:
-        control = self.convert(control, speed=self.speed)
+      control = compute_gb(control, speed=self.speed, feedforward=feedforward, reduction=self.op_params.get('gb_reduction'), new_method=self.op_params.get('new_compute_gb_method'))
 
     self.saturated = self._check_saturation(control, check_saturation, error)
 
