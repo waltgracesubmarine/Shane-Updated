@@ -207,14 +207,8 @@ class LongPIDController:
 
     control = self.p + self.f + self.id
 
-    if control > self.op_params.get('min_accel') and self.CP.enableGasInterceptor and speed <= MIN_ACC_SPEED:  # todo: tune the minimum threshold of acceleration
-      # converts accel to gas using current speed
-      def accel_to_gas(v_ego, a_ego):
-        _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
-        return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
-      control = accel_to_gas(speed, control)
-    elif self.convert is not None:
-      control = self.convert(control, speed=self.speed)
+    if self.convert is not None:
+      control = self.convert(control, speed=self.speed, gas_interceptor=self.CP.enableGasInterceptor)
 
     self.saturated = self._check_saturation(control, check_saturation, error)
 

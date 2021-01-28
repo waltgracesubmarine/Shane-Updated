@@ -16,7 +16,12 @@ EventName = car.CarEvent.EventName
 
 class CarInterface(CarInterfaceBase):
   @staticmethod
-  def compute_gb(accel, speed):
+  def compute_gb(accel, speed, gas_interceptor=False):  # instead of passing in pedal, when pedal is detected in CI init, switch the compute_gb function (one for non pedal one for pedal)
+    if accel > op_params.get('min_accel') and gas_interceptor and speed <= MIN_ACC_SPEED:  # todo: tune the minimum threshold of acceleration
+      def accel_to_gas(v_ego, a_ego):  # converts accel to gas using current speed
+        _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
+        return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
+      return accel_to_gas(speed, accel)
     return float(accel) / 3.0
 
   @staticmethod
