@@ -180,15 +180,6 @@ class LongPIDController:
 
     error = float(apply_deadzone(setpoint - measurement, deadzone))
 
-    if feedforward >= -0.5 and self.CP.enableGasInterceptor and speed <= MIN_ACC_SPEED:  # todo: move this to longcontrol
-      # converts accel to gas using current speed
-      def accel_to_gas(v_ego, a_ego):
-        _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
-        return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
-
-      feedforward = accel_to_gas(speed, feedforward)
-
-
     self.p = error * self.k_p
     self.f = feedforward * self.k_f
 
@@ -199,7 +190,7 @@ class LongPIDController:
       control = self.p + self.f + i
 
       if self.convert is not None:
-        control = compute_gb(control, speed=self.speed, feedforward=feedforward, reduction=self.op_params.get('gb_reduction'), new_method=self.op_params.get('new_compute_gb_method'))
+        control = self.convert(control, speed=self.speed)
 
       # Update when changing i will move the control away from the limits
       # or when i will move towards the sign of the error
@@ -216,8 +207,14 @@ class LongPIDController:
 
     control = self.p + self.f + self.id
 
-    if self.convert is not None:
-      control = compute_gb(control, speed=self.speed, feedforward=feedforward, reduction=self.op_params.get('gb_reduction'), new_method=self.op_params.get('new_compute_gb_method'))
+    if control > self.op_params.get('min_accel') and self.CP.enableGasInterceptor and speed <= MIN_ACC_SPEED:  # todo: tune the minimum threshold of acceleration
+      # converts accel to gas using current speed
+      def accel_to_gas(v_ego, a_ego):
+        _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
+        return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
+      control = accel_to_gas(speed, control)
+    elif self.convert is not None:
+      control = self.convert(control, speed=self.speed)
 
     self.saturated = self._check_saturation(control, check_saturation, error)
 
