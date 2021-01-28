@@ -68,8 +68,7 @@ class LongControl():
                                  (kdBP, kdV),
                                  rate=RATE,
                                  sat_limit=0.8,
-                                 convert=compute_gb,
-                                 CP=CP)
+                                 convert=compute_gb)
     self.v_pid = 0.0
     self.last_output_gb = 0.0
 
