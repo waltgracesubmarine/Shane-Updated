@@ -102,6 +102,7 @@ class opParams:
                         'min_accel': Param(-0.1, VT.number, 'The minumum control acceleration before comp_gb to use the accel to gas function. Default is -0.5'),
                         'long_kp_multiplier': Param(1, VT.number, live=True),
                         'long_ki_multiplier': Param(1, VT.number, live=True),
+                        'gas_output': Param(0., VT.none_or_number, live=True),
                         'standstill_hack': Param(False, bool, 'Some cars support stop and go, you just need to enable this')}
 
     self._params_file = '/data/op_params.json'
