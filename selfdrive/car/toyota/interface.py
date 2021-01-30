@@ -23,9 +23,9 @@ def compute_gb_gas_interceptor(accel, speed):
   # This converts desired positive acceleration at a speed to gas percentage
   # It's only accurate up to MIN_ACC_SPEED (19 mph) for now since the function was fitted on data up to that speed
   # Once we reach that speed, we switch to sending acceleration anyway so this isn't a problem
-  if accel > -0.1 and speed <= MIN_ACC_SPEED:  # todo: -0.1 is smooth but in data user was giving gas when a_ego was down to -0.5
-    _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
-    return (accel * _c1 + (_c4 * (speed * _c2 + 1))) * (speed * _c3 + 1)
+  if accel >= 0 and speed <= MIN_ACC_SPEED:  # todo: -0.1 is smooth but in data user was giving gas when a_ego was down to -0.5
+    poly, accel_coef = [0.006982872137520468, 0.11106537742995903], 0.06269069784770342
+    return (poly[0] * speed + poly[1]) + (accel_coef * accel)
   return float(accel) / 3.0
 
 

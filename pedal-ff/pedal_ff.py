@@ -22,7 +22,7 @@ import pickle
 import binascii
 
 old_kf = 0.0000795769068  # for plotting old function compared to new polynomial function
-MIN_SAMPLES = 15 / DT_CTRL
+MIN_SAMPLES = 5 / DT_CTRL
 
 
 def to_signed(n, bits):
@@ -42,7 +42,7 @@ def old_feedforward(v_ego, angle_steers, angle_offset=0):
 
 
 
-def fit_all(x_input, _c1, _c2, _c3, _c4):
+def fit_all(x_input, _c1, _c2, _c3):
   """
     x_input is array of v_ego and a_ego
     all _params are to be fit by curve_fit
@@ -50,8 +50,9 @@ def fit_all(x_input, _c1, _c2, _c3, _c4):
     c1-c3 are poly coefficients
   """
   v_ego, a_ego = x_input.copy()
-  # return (_c1 * v_ego + _c3) + (_c2 * a_ego)
-  return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
+
+  return (_c1 * v_ego + _c2) + (_c3 * a_ego)
+  # return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
   # return _c4 * a_ego + np.polyval([_c1, _c2, _c3], v_ego)  # use this if we think there is a non-linear speed relationship
 
 
@@ -108,103 +109,144 @@ CF = CustomFeedforward(to_fit='poly')
 
 
 def fit_ff_model(use_dir, plot=False):
-  files = os.listdir(use_dir)
-  files = [f for f in files if '.ini' not in f]
+  if not (LOADING_DATA := True):
+    route_dirs = [f for f in os.listdir(use_dir) if '.ini' not in f and f != 'exclude']
+    route_files = [[os.path.join(use_dir, i, f) for f in os.listdir(os.path.join(use_dir, i)) if f != 'exclude' and '.ini' not in f] for i in route_dirs]
+    lrs = [MultiLogIterator(rd, wraparound=False) for rd in route_files]
 
-  data = [[]]
+    data = [[]]
 
-  engaged, gas_enable = False, False
-  # torque_cmd, angle_steers, angle_steers_des, angle_offset, v_ego = None, None, None, None, None
-  v_ego, gas_command, a_ego, user_gas, car_gas = None, None, None, None, None
-  last_time = 0
-  lr = MultiLogIterator([os.path.join(use_dir, i) for i in files], wraparound=False)
+    for lr in lrs:
+      engaged, gas_enable, brake_pressed = False, False, False
+      # torque_cmd, angle_steers, angle_steers_des, angle_offset, v_ego = None, None, None, None, None
+      v_ego, gas_command, a_ego, user_gas, car_gas, pitch, steering_angle = None, None, None, None, None, None, None
+      last_time = 0
+      can_updated = False
 
-  signals = [
-    ("GAS_COMMAND", "GAS_COMMAND", 0),
-    ("GAS_COMMAND2", "GAS_COMMAND", 0),
-    ("ENABLE", "GAS_COMMAND", 0),
-    ("INTERCEPTOR_GAS", "GAS_SENSOR", 0),
-    ("INTERCEPTOR_GAS2", "GAS_SENSOR", 0),
-    ("GAS_PEDAL", "GAS_PEDAL", 0),
-  ]
-  cp = CANParser("toyota_corolla_2017_pt_generated", signals)
+      signals = [
+        ("GAS_COMMAND", "GAS_COMMAND", 0),
+        ("GAS_COMMAND2", "GAS_COMMAND", 0),
+        ("ENABLE", "GAS_COMMAND", 0),
+        ("INTERCEPTOR_GAS", "GAS_SENSOR", 0),
+        ("INTERCEPTOR_GAS2", "GAS_SENSOR", 0),
+        ("GAS_PEDAL", "GAS_PEDAL", 0),
+        ("BRAKE_PRESSED", "BRAKE_MODULE", 0),
+      ]
+      cp = CANParser("toyota_corolla_2017_pt_generated", signals)
 
-  all_msgs = sorted(lr, key=lambda msg: msg.logMonoTime)
+      all_msgs = sorted(lr, key=lambda msg: msg.logMonoTime)
 
-  for msg in tqdm(all_msgs):
-    if msg.which() == 'carState':
-      v_ego = msg.carState.vEgo
-      a_ego = msg.carState.aEgo
-      engaged = msg.carState.cruiseState.enabled
+      gyro_counter = 0
+      for msg in tqdm(all_msgs):
+        if msg.which() == 'carState':
+          v_ego = msg.carState.vEgo
+          a_ego = msg.carState.aEgo
+          steering_angle = msg.carState.steeringAngle
+          engaged = msg.carState.cruiseState.enabled
+        # elif msg.which() == 'sensorEvents':
+        #   for sensor_reading in msg.sensorEvents:
+        #     if sensor_reading.sensor == 4 and sensor_reading.type == 4:
+        #       gyro_counter += 1
+        #       if gyro_counter % 10 == 0:
+        #         print(sensor_reading.gyro.v)
+        #         pitch = float(np.degrees(sensor_reading.gyro.v[2]))
+        # elif msg.which() == 'liveCalibration':
+        #   pitch = float(np.degrees(msg.liveCalibration.rpyCalib[1]))
 
-    if msg.which() not in ['can', 'sendcan']:
-      continue
+        if msg.which() not in ['can', 'sendcan']:
+          continue
+        cp_updated = cp.update_string(msg.as_builder().to_bytes())  # usually all can signals are updated so we don't need to iterate through the updated list
 
-    updated = cp.update_string(msg.as_builder().to_bytes())
-    for u in updated:
-      if u == 0x200:
-        gas_enable = bool(cp.vl[u]['ENABLE'])
-        gas_command = max(round(cp.vl[u]['GAS_COMMAND'] / 255., 4), 0.0)  # unscale, round, and clip
+        for u in cp_updated:
+          if u == 0x200:  # GAS_COMMAND
+            can_updated = True
+
+        gas_enable = bool(cp.vl['GAS_COMMAND']['ENABLE'])
+        gas_command = max(round(cp.vl['GAS_COMMAND']['GAS_COMMAND'] / 255., 5), 0.0)  # unscale, round, and clip
         assert gas_command <= 1, "Gas command above 100%, look into this"
-      elif u == 0x201:
-        user_gas = ((cp.vl[u]['INTERCEPTOR_GAS'] + cp.vl[u]['INTERCEPTOR_GAS2']) / 2.) / 255.
-      elif u == 0x2c1:
-        car_gas = cp.vl[u]['GAS_PEDAL']
+
+        user_gas = ((cp.vl['GAS_SENSOR']['INTERCEPTOR_GAS'] + cp.vl['GAS_SENSOR']['INTERCEPTOR_GAS2']) / 2.) / 232.  # only for user todo: is the max 232?
+        car_gas = cp.vl['GAS_PEDAL']['GAS_PEDAL']  # for user AND openpilot/car (less noisy than interceptor but need to check we're not engaged)
+
+        brake_pressed = bool(cp.vl['BRAKE_MODULE']['BRAKE_PRESSED'])
+
+        if msg.which() != 'can':  # only store when can is updated
+          continue
+
+        if abs(msg.logMonoTime - last_time) * 1e-9 > 1 / 20:  # todo: remove once debugged
+          print('TIME BREAK!')
+          print(abs(msg.logMonoTime - last_time) * 1e-9)
+
+        if (v_ego is not None and can_updated and  # creates uninterupted sections of engaged data
+                abs(msg.logMonoTime - last_time) * 1e-9 < 1 / 20):  # also split if there's a break in time (todo: I don't think we need to check times)
+          data[-1].append({'v_ego': v_ego, 'gas_command': gas_command, 'a_ego': a_ego, 'user_gas': user_gas,
+                           'car_gas': car_gas, 'brake_pressed': brake_pressed, 'pitch': pitch, 'engaged': engaged, 'gas_enable': gas_enable,
+                           'steering_angle': steering_angle,
+                           'time': msg.logMonoTime * 1e-9})
+        elif len(data[-1]):  # if last list has items in it, append new empty section
+          data.append([])
+
+        last_time = msg.logMonoTime
+
+    del all_msgs
+
+    print('Max seq. len: {}'.format(max([len(line) for line in data])))
+
+    data = [sec for sec in data if len(sec) > 2 / DT_CTRL]  # long enough sections
+
+    accel_delay = int(.75 / DT_CTRL)  # about .75 seconds from gas to a_ego  # todo: manually calculated from 10 samples on cabana, might need to verify with data
+
+    for i in range(len(data)):  # accounts for delay (moves a_ego up by x samples)
+      a_ego = [line['a_ego'] for line in data[i]]
+      for j in range(len(data[i])):
+        if j < accel_delay:
+          continue
+        data[i][j]['a_ego'] = a_ego[j - accel_delay]
+      data[i] = data[i][accel_delay:]  # removes leading samples
+    data = [i for j in data for i in j]  # flatten
 
 
-    # for m in msg.can:
-    #   if m.address == 0x2e4 and m.src == 128:  # STEERING_LKA
-    #     engaged = bool(m.dat[0] & 1)
-    #     torque_cmd = to_signed((m.dat[1] << 8) | m.dat[2], 16)
-    #   elif m.address == 0x260 and m.src == 0:  # STEER_TORQUE_SENSOR
-    #     steering_pressed = abs(to_signed((m.dat[1] << 8) | m.dat[2], 16)) > STEER_THRESHOLD
-    #   elif m.address == 0x25 and m.src == 0:  # STEER_ANGLE_SENSOR
-    #     steer_angle = to_signed(int(bin(m.dat[0])[2:].zfill(8)[4:] + bin(m.dat[1])[2:].zfill(8), 2), 12) * 1.5
-    #     steer_fraction = to_signed(int(bin(m.dat[4])[2:].zfill(8)[:4], 2), 4) * 0.1
-    #     angle_steers = steer_angle + steer_fraction
+    if WRITE_DATA := False:  # todo: temp, for debugging
+      with open('data', 'wb') as f:
+        pickle.dump(data, f)
 
-    if (not engaged and not gas_enable and None not in [v_ego, gas_command, a_ego, user_gas, car_gas] and  # creates uninterupted sections of engaged data
-            abs(msg.logMonoTime - last_time) * 1e-9 < 1 / 20):  # also split if there's a break in time
-      data[-1].append({'v_ego': v_ego, 'gas_command': gas_command, 'a_ego': a_ego, 'user_gas': user_gas, 'car_gas': car_gas, 'time': msg.logMonoTime * 1e-9})
-
-    elif len(data[-1]):  # if last list has items in it, append new empty section
-      data.append([])
-
-    last_time = msg.logMonoTime
-
-  del all_msgs
-
-  print('Max seq. len: {}'.format(max([len(line) for line in data])))
-
-  data = [sec for sec in data if len(sec) > 1 / DT_CTRL]  # long enough sections
-
-  # TODO: do something like this with a_ego, move it up since acceleration lags behind gas command slightly
-  # for i in range(len(data)):  # accounts for steer actuator delay (moves torque cmd up by 12 samples)
-  #   torque = [line['torque'] for line in data[i]]
-  #   for j in range(len(data[i])):
-  #     if j < steer_delay:
-  #       continue
-  #     data[i][j]['torque'] = torque[j - steer_delay]
-  #   data[i] = data[i][steer_delay:]  # removes leading samples
-  data = [i for j in data for i in j]  # flatten
-
-  if WRITE_DATA := False:  # todo: temp, for debugging
-    with open('auto_feedforward/data', 'wb') as f:
-      pickle.dump(data, f)
+  if READ_DATA := True:
+    with open('data', 'rb') as f:
+      data = pickle.load(f)
 
   print(f'Samples (before filtering): {len(data)}')
 
   # Data filtering
-  data = [line for line in data if abs(line['v_ego']) < 19 * CV.MPH_TO_MS]
-  data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
-  # data = [line for line in data if abs(line['user_gas']) < 15 / 255]
-  data = [line for line in data if line['user_gas'] > 15 / 255]
-  data = [line for line in data if line['car_gas'] > 0]
+  # todo if steering angle is straight
+  # todo get rid of long periods of stopped ness
+  new_data = []
+  for line in data:
+    line = line.copy()
+    if line['v_ego'] <= (19) * CV.MPH_TO_MS and not line['brake_pressed'] and abs(line['steering_angle'] <= 25):
+
+      if not line['engaged'] and not line['gas_enable']:  # user is driving
+        line['gas'] = line['car_gas']  # user_gas (interceptor) doesn't map 1:1 with gas command so use car_gas which mostly does
+      elif line['engaged'] and line['gas_enable']:  # car is driving
+        line['gas'] = line['gas_command']
+      else:  # engaged but not commanding gas
+        continue
+      if line['car_gas'] > 0:
+        new_data.append(line)
+
+  data = new_data
+  data = [line for line in data if line['a_ego'] >= -0.22352]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
+
+  # data_pitch = [line['pitch'] for line in data]  # this is used to find the minimum deceleration where gas is still used
+  # sns.distplot(data_pitch, bins=100)
+  # plt.savefig('imgs/pitch dist.png')
+  # plt.clf()
+  # plt.plot(data_pitch)
+  # plt.savefig('imgs/pitch plotted.png')
 
   # data_a_ego = [line['a_ego'] for line in data]  # this is used to find the minimum deceleration where gas is still used
   # print(min(data_a_ego))
-  # sns.distplot(data_a_ego, bins=75)
-  # plt.savefig('imgs/a_ego.png')
+  # sns.distplot(data_a_ego, bins=100)
+  # plt.savefig('imgs/a_ego dist.png')
 
   print(f'Samples (after filtering):  {len(data)}\n')
 
@@ -223,7 +265,7 @@ def fit_ff_model(use_dir, plot=False):
 
   data_speeds = np.array([line['v_ego'] for line in data])
   data_accels = np.array([line['a_ego'] for line in data])
-  data_gas = np.array([line['car_gas'] for line in data])
+  data_gas = np.array([line['gas'] for line in data])
 
   params, covs = curve_fit(fit_all, np.array([data_speeds, data_accels]), np.array(data_gas), maxfev=800)
   print('Params: {}'.format(params.tolist()))
@@ -267,7 +309,7 @@ def fit_ff_model(use_dir, plot=False):
     plt.savefig('imgs/accel dist.png')
     plt.clf()
 
-    accel = 0.25
+    accel = 0.75
     X_speed = np.linspace(0, 19 * CV.MPH_TO_MS, 20)
     y_gas_old = [old_gas_func(_x, accel) for _x in X_speed]
     y_gas_new = [new_gas_func([_x, accel]) for _x in X_speed]
@@ -275,7 +317,7 @@ def fit_ff_model(use_dir, plot=False):
     plt.plot(X_speed, y_gas_new, label='fitted gas function')
     # print(data)
 
-    X_data, y_data = zip(*[[line['v_ego'], line['car_gas']] for line in data if abs(line['a_ego'] - accel) < 0.1])
+    X_data, y_data = zip(*[[line['v_ego'], line['gas']] for line in data if abs(line['a_ego'] - accel) < 0.1])
     print(len(X_data))
     plt.scatter(X_data, y_data, label='data', s=4)
     plt.xlabel('speed')
@@ -300,7 +342,7 @@ def fit_ff_model(use_dir, plot=False):
     plt.plot(X_accel, y_gas_new, label='fitted gas function')
     # print(data)
 
-    X_data, y_data = zip(*[[line['a_ego'], line['car_gas']] for line in data if abs(line['v_ego'] - speed) < 0.22352])
+    X_data, y_data = zip(*[[line['a_ego'], line['gas']] for line in data if abs(line['v_ego'] - speed) < 0.22352])
     print(len(X_data))
     plt.scatter(X_data, y_data, label='data', s=4)
     plt.xlabel('accel')
