@@ -94,6 +94,9 @@ class opParams:
                                                                   'localizer might not work correctly'),
                         'slowdown_for_curves': Param(True, bool, 'Whether your car will slow down for curves using the old planner code from 0.5/0.6'),
                         'steer_fault_fix': Param(True, bool, live=True),
+                        'lat_p': Param(0.05, VT.number, live=True),
+                        'lat_i': Param(0.01, VT.number, live=True),
+                        'lat_d': Param(0.1, VT.number, live=True),
 
                         'prius_use_pid': Param(False, bool, 'This enables the PID lateral controller with new a experimental derivative tune\nFalse: stock INDI, True: TSS2-tuned PID'),
                         'use_lqr': Param(False, bool, 'Enable this to use LQR as your lateral controller over default with any car'),
