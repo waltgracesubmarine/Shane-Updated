@@ -25,8 +25,10 @@ def compute_gb_gas_interceptor(accel, speed):
   # Once we reach that speed, we switch to sending acceleration anyway so this isn't a problem
   min_accel = -0.1  # the closer to 0 it is the quicker the transition from gas to brake
   if accel >= min_accel and speed <= MIN_ACC_SPEED:
-    poly, accel_coef = [0.006982872137520468, 0.11106537742995903], 0.06269069784770342
-    new_accel = (poly[0] * speed + poly[1]) + (accel_coef * accel)
+    # poly, accel_coef = [0.006982872137520468, 0.11106537742995903], 0.06269069784770342
+    # new_accel = (poly[0] * speed + poly[1]) + (accel_coef * accel)
+    _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
+    new_accel = (accel * _c1 + (_c4 * (speed * _c2 + 1))) * (speed * _c3 + 1)
     if accel >= 0:
       return new_accel
     accel_scale = accel / min_accel  # smoothly interpolates from gas to accel / 3 on accel's way to min_accel
