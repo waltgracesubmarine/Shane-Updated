@@ -23,7 +23,7 @@ def compute_gb_gas_interceptor(accel, speed):
   # This converts desired positive acceleration at a speed to gas percentage
   # It's only accurate up to MIN_ACC_SPEED (19 mph) for now since the function was fitted on data up to that speed
   # Once we reach that speed, we switch to sending acceleration anyway so this isn't a problem
-  min_accel = -0.1  # the closer to 0 it is the quicker the transition from gas to brake
+  min_accel = -0.5  # the closer to 0 it is the quicker the transition from gas to brake
   if accel >= min_accel and speed <= MIN_ACC_SPEED:
     # poly, accel_coef = [0.006982872137520468, 0.11106537742995903], 0.06269069784770342
     # new_accel = (poly[0] * speed + poly[1]) + (accel_coef * accel)
