@@ -23,17 +23,21 @@ def compute_gb_gas_interceptor(accel, speed):
   # This converts desired positive acceleration at a speed to gas percentage
   # It's only accurate up to MIN_ACC_SPEED (19 mph) for now since the function was fitted on data up to that speed
   # Once we reach that speed, we switch to sending acceleration anyway so this isn't a problem
-  min_accel = -0.5  # the closer to 0 it is the quicker the transition from gas to brake
-  if accel >= min_accel and speed <= MIN_ACC_SPEED:
-    # poly, accel_coef = [0.006982872137520468, 0.11106537742995903], 0.06269069784770342
-    # new_accel = (poly[0] * speed + poly[1]) + (accel_coef * accel)
+
+  def coast_accel(speed):  # given a speed, output coasting deceleration
+    # averages 0.1196 mae from 0 to 25 mph
+    poly = [-0.03037961424772595, 0.03048927968985604]
+    return poly[0] * speed + poly[1]
+
+  def accel_to_gas(accel, speed):  # given a speed and acceleration, output gas percentage for pedal
+    # averages 0.02863 mae from 0 to 25 mph
     _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
-    new_accel = (accel * _c1 + (_c4 * (speed * _c2 + 1))) * (speed * _c3 + 1)
-    if accel >= 0:  # todo: create a function from data to decide when to use gas vs. accel from pid (fit a function that outputs decel given speed and no gas)
-      return new_accel
-    accel_scale = accel / min_accel  # smoothly interpolates from gas to accel / 3 on accel's way to min_accel
-    return accel * accel_scale / (3 * accel_scale) + new_accel * (1 - accel_scale)
-  return float(accel) / 3.0
+    return (accel * _c1 + (_c4 * (speed * _c2 + 1))) * (speed * _c3 + 1)
+
+  if speed <= MIN_ACC_SPEED:
+    # todo: interpolate output near coast_accel, make it a smooth transition (but with the coast function it should be decent right now)
+    return accel_to_gas(accel, speed) if accel > coast_accel(speed) else compute_gb_toyota(accel, speed)
+  return compute_gb_toyota(accel, speed)
 
 
 class CarInterface(CarInterfaceBase):
