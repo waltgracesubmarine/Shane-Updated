@@ -29,7 +29,7 @@ def compute_gb_gas_interceptor(accel, speed):
     # new_accel = (poly[0] * speed + poly[1]) + (accel_coef * accel)
     _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
     new_accel = (accel * _c1 + (_c4 * (speed * _c2 + 1))) * (speed * _c3 + 1)
-    if accel >= 0:
+    if accel >= 0:  # todo: create a function from data to decide when to use gas vs. accel from pid (fit a function that outputs decel given speed and no gas)
       return new_accel
     accel_scale = accel / min_accel  # smoothly interpolates from gas to accel / 3 on accel's way to min_accel
     return accel * accel_scale / (3 * accel_scale) + new_accel * (1 - accel_scale)
