@@ -2,11 +2,12 @@
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-WINDOWS = False
-if not WINDOWS:
+try:
   from opendbc.can.parser import CANParser
   from tools.lib.logreader import MultiLogIterator
   from tools.lib.route import Route
+except:
+  pass
 
 import os
 import sys
@@ -24,7 +25,6 @@ import binascii
 
 
 DT_CTRL = 0.01
-old_kf = 0.0000795769068  # for plotting old function compared to new polynomial function
 MIN_SAMPLES = 5 / DT_CTRL  # seconds to frames
 
 
@@ -40,11 +40,6 @@ def coast_accel(speed):  # given a speed, output coasting deceleration
   else:  # 9.811, -.069
     return 0.028339018630280762 * speed - 0.3470341117816846
 
-
-def old_feedforward(v_ego, angle_steers, angle_offset=0):
-  steer_feedforward = (angle_steers - angle_offset)
-  steer_feedforward *= v_ego ** 2
-  return steer_feedforward
 
 def compute_gb_old(accel, speed):
   # return (accel * 0.5 + (0.05 * (speed / 20 + 1))) * (speed / 25 + 1)
@@ -209,12 +204,12 @@ def fit_ff_model(use_dir, plot=False):
         line['gas'] = line['gas_command']
       else:  # engaged but not commanding gas
         continue
-      if line['car_gas'] > 0:
+      if line['car_gas'] > 0 and line['user_gas'] > 15 / 232:
         new_data.append(line)
 
   data = new_data
-  data = [line for line in data if line['a_ego'] >= coast_accel(line['v_ego'])]
-  # data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
+  # data = [line for line in data if line['a_ego'] > coast_accel(line['v_ego'])]
+  data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
   print(f'Samples (after filtering):  {len(data)}\n')
   print(f"Coasting samples: {len(data_coasting)}")
 
@@ -228,10 +223,10 @@ def fit_ff_model(use_dir, plot=False):
   params, covs = curve_fit(fit_all, np.array([data_accels, data_speeds]), np.array(data_gas), maxfev=1000)
   print('Params: {}'.format(params.tolist()))
 
-  def compute_gb_new(p):
-    return fit_all(p, *params)
+  def compute_gb_new(accel, speed):
+    return fit_all([accel, speed], *params)
 
-  from_function = np.array([compute_gb_new([line['a_ego'], line['v_ego']]) for line in data])
+  from_function = np.array([compute_gb_new(line['a_ego'], line['v_ego']) for line in data])
   print('Fitted function MAE: {}'.format(np.mean(np.abs(data_gas - from_function))))
 
 
@@ -292,30 +287,48 @@ def fit_ff_model(use_dir, plot=False):
   # print('Torque MAE: {} (standard) - {} (fitted)'.format(np.mean(std_func), np.mean(fitted_func)))
   # print('Torque STD: {} (standard) - {} (fitted)\n'.format(np.std(std_func), np.std(fitted_func)))
 
+
   if ANALYZE_SPEED := True:
     plt.clf()
     sns.distplot([line['a_ego'] for line in data], bins=100)
-    plt.savefig('imgs/accel dist.png')
+    plt.savefig('plots/accel dist.png')
     plt.clf()
 
-    accel = 1.5
-    X_speed = np.linspace(0, TOP_FIT_SPEED, 20)
-    y_gas_old = [compute_gb_old(accel, _x) for _x in X_speed]
-    y_gas_new = [compute_gb_new([accel, _x]) for _x in X_speed]
-    plt.plot(X_speed, y_gas_old, label='guessed gas function')
-    plt.plot(X_speed, y_gas_new, label='fitted gas function')
-    # print(data)
+    res = 100
+    color = 'blue'
 
-    X_data, y_data = zip(*[[line['v_ego'], line['gas']] for line in data if abs(line['a_ego'] - accel) < 0.1])
-    print(len(X_data))
-    plt.scatter(X_data, y_data, label='data', s=4)
-    plt.xlabel('speed')
-    plt.ylabel('gas')
+    _accels = [
+      [0, 0.5],
+      [0.5, 1],
+      [1, 1.25],
+      [1.25, 1.5],
+      [1.5, 2],
+      [2, 2.5],
+    ]
 
-    # data_0_accel
+    for idx, accel_range in enumerate(_accels):
+      accel_range_str = '{} m/s/s'.format('-'.join(map(str, accel_range)))
+      temp_data = [line for line in data if accel_range[0] <= abs(line['a_ego']) <= accel_range[1]]
+      if not len(temp_data):
+        continue
+      print(f'{accel_range} samples: {len(temp_data)}')
+      plt.figure(idx)
+      plt.clf()
+      speeds, gas = zip(*[[line['v_ego'], line['gas']] for line in temp_data])
+      plt.scatter(np.array(speeds) * CV.MS_TO_MPH, gas, label=accel_range_str, color=color, s=0.05)
 
-    plt.legend()
-    plt.savefig('imgs/speed plot.png')
+      _x_ff = np.linspace(0, max(speeds), res)
+      _y_ff = [compute_gb_old(np.mean(accel_range), _i) for _i in _x_ff]
+      plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='orange', label='standard ff model at {} m/s/s'.format(np.mean(accel_range)))
+
+      _y_ff = [compute_gb_new(np.mean(accel_range), _i) for _i in _x_ff]
+      plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='purple', label='new fitted ff function')
+
+      plt.legend()
+      plt.xlabel('speed (mph)')
+      plt.ylabel('gas')
+      plt.savefig('plots/s{}.png'.format(accel_range_str.replace('/', '')))
+
 
   if ANALYZE_ACCEL := True:
     plt.clf()
@@ -323,83 +336,13 @@ def fit_ff_model(use_dir, plot=False):
     plt.savefig('imgs/speed dist.png')
     plt.clf()
 
-    speed = 2.75
-    X_accel = np.linspace(0, 2.25, 20)
-    y_gas_old = [compute_gb_old(_x, speed) for _x in X_accel]
-    y_gas_new = [compute_gb_new([_x, speed]) for _x in X_accel]
-    plt.plot(X_accel, y_gas_old, label='guessed gas function')
-    plt.plot(X_accel, y_gas_new, label='fitted gas function')
-    # print(data)
-
-    X_data, y_data = zip(*[[line['a_ego'], line['gas']] for line in data if abs(line['v_ego'] - speed) < 0.22352])
-    print(len(X_data))
-    plt.scatter(X_data, y_data, label='data', s=4)
-    plt.xlabel('accel')
-    plt.ylabel('gas')
-
-    # data_0_accel
-
-    plt.legend()
-    plt.savefig('imgs/accel plot.png')
-
-
-  raise Exception
-  if SPEED_DATA_ANALYSIS := True:  # analyzes how torque needed changes based on speed
-    if PLOT_ANGLE_DIST := False:
-      sns.distplot([line['angle_steers'] for line in data if abs(line['angle_steers']) < 30], bins=200)
-      raise Exception
-
-    res = 100
-    color = 'blue'
-
-    _angles = [
-      [5, 10],
-      [10, 20],
-      [10, 15],
-      [15, 20],
-      [20, 25],
-      [20, 30],
-      [30, 45],
-    ]
-
-    for idx, angle_range in enumerate(_angles):
-      angle_range_str = '{} deg'.format('-'.join(map(str, angle_range)))
-      temp_data = [line for line in data if angle_range[0] <= abs(line['angle_steers']) <= angle_range[1]]
-      if not len(temp_data):
-        continue
-      print(f'{angle_range} samples: {len(temp_data)}')
-      plt.figure(idx)
-      plt.clf()
-      speeds, torque = zip(*[[line['v_ego'], line['torque']] for line in temp_data])
-      plt.scatter(np.array(speeds) * CV.MS_TO_MPH, torque, label=angle_range_str, color=color, s=0.05)
-
-      _x_ff = np.linspace(0, max(speeds), res)
-      _y_ff = [old_feedforward(_i, np.mean(angle_range)) * old_kf * MAX_TORQUE for _i in _x_ff]
-      plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='orange', label='standard ff model at {} deg'.format(np.mean(angle_range)))
-
-      _y_ff = [CF.get(_i, np.mean(angle_range), *params) * MAX_TORQUE for _i in _x_ff]
-      plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='purple', label='new fitted ff function')
-
-      plt.legend()
-      plt.xlabel('speed (mph)')
-      plt.ylabel('torque')
-      plt.savefig('auto_feedforward/plots/{}.png'.format(angle_range_str))
-
-  if ANGLE_DATA_ANALYSIS := True:  # analyzes how angle changes need of torque (RESULT: seems to be relatively linear, can be tuned by k_f)
-    if PLOT_ANGLE_DIST := False:
-      sns.distplot([line['angle_steers'] for line in data if abs(line['angle_steers']) < 30], bins=200)
-      raise Exception
-
     res = 100
 
     _speeds = np.r_[[
-      [0, 10],
-      [10, 20],
-      [20, 30],
-      [30, 40],
-      [40, 50],
-      [50, 60],
-      [60, 70],
+      [0, 5],
+      [5, 10],
+      [10, 15],
+      [15, 19],
     ]] * CV.MPH_TO_MS
     color = 'blue'
 
@@ -411,20 +354,20 @@ def fit_ff_model(use_dir, plot=False):
       print(f'{speed_range_str} samples: {len(temp_data)}')
       plt.figure(idx)
       plt.clf()
-      angles, torque, speeds = zip(*[[line['angle_steers'], line['torque'], line['v_ego']] for line in temp_data])
-      plt.scatter(angles, torque, label=speed_range_str, color=color, s=0.05)
+      accels, gas, speeds = zip(*[[line['a_ego'], line['gas'], line['v_ego']] for line in temp_data])
+      plt.scatter(accels, gas, label=speed_range_str, color=color, s=0.05)
 
-      _x_ff = np.linspace(0, max(angles), res)
-      _y_ff = [old_feedforward(np.mean(speed_range), _i) * old_kf * MAX_TORQUE for _i in _x_ff]
+      _x_ff = np.linspace(0, max(accels), res)
+      _y_ff = [compute_gb_old(_i, np.mean(speed_range)) for _i in _x_ff]
       plt.plot(_x_ff, _y_ff, color='orange', label='standard ff model at {} mph'.format(np.round(np.mean(speed_range) * CV.MS_TO_MPH, 1)))
 
-      _y_ff = [CF.get(np.mean(speed_range), _i, *params) * MAX_TORQUE for _i in _x_ff]
+      _y_ff = [compute_gb_new(_i, np.mean(speed_range)) for _i in _x_ff]
       plt.plot(_x_ff, _y_ff, color='purple', label='new fitted ff function')
 
       plt.legend()
-      plt.xlabel('angle (deg)')
-      plt.ylabel('torque')
-      plt.savefig('auto_feedforward/plots/{}.png'.format(speed_range_str))
+      plt.xlabel('accel (m/s/s)')
+      plt.ylabel('gas')
+      plt.savefig('plots/a{}.png'.format(speed_range_str))
 
   # if PLOT_3D := False:
   #   X_test = np.linspace(0, max(data_speeds), 20)
