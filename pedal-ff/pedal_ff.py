@@ -64,8 +64,8 @@ def fit_all(x_input, _c1, _c2, _c3, _c4):
   """
   a_ego, v_ego = x_input.copy()
 
-  return (_c1 * v_ego ** 2 + _c2 * v_ego + _c3) + (_c4 * a_ego)
-  # return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
+  # return (_c1 * v_ego ** 2 + _c2 * v_ego + _c3) + (_c4 * a_ego)
+  return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
   # return _c4 * a_ego + np.polyval([_c1, _c2, _c3], v_ego)  # use this if we think there is a non-linear speed relationship
 
 
