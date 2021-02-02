@@ -74,7 +74,7 @@ def load_processed(file_name):
     return pickle.load(f)
 
 
-def load_and_process_rlogs(lrs, file_name, coast=False):
+def load_and_process_rlogs(lrs, file_name):
   data = [[]]
 
   for lr in lrs:
@@ -155,28 +155,13 @@ def load_and_process_rlogs(lrs, file_name, coast=False):
 
   data = [sec for sec in data if len(sec) > 2 / DT_CTRL]  # long enough sections
 
-  if not coast:
-    accel_delay = int(.75 / DT_CTRL)  # about .75 seconds from gas to a_ego  # todo: manually calculated from 10 samples on cabana, might need to verify with data
-    for i in range(len(data)):  # accounts for delay (moves a_ego up by x samples since it lags behind gas)
-      a_ego = [line['a_ego'] for line in data[i]]
-      v_ego = [line['v_ego'] for line in data[i]]
-      data_len = len(data[i])
-      for j in range(data_len):
-        if j + accel_delay >= data_len:
-          break
-        data[i][j]['a_ego'] = a_ego[j + accel_delay]
-        data[i][j]['v_ego'] = v_ego[j + accel_delay]
-      data[i] = data[i][:-accel_delay]  # removes trailing samples
-
-  data = [i for j in data for i in j]  # flatten
-
   with open(file_name, 'wb') as f:  # now dump
     pickle.dump(data, f)
   return data
 
 
 def fit_ff_model(use_dir, plot=False):
-  TOP_FIT_SPEED = (19 + 5) * CV.MPH_TO_MS
+  TOP_FIT_SPEED = (19) * CV.MPH_TO_MS
 
   if os.path.exists('data'):
     data = load_processed('data')
@@ -186,20 +171,32 @@ def fit_ff_model(use_dir, plot=False):
     lrs = [MultiLogIterator(rd, wraparound=False) for rd in route_files]
     data = load_and_process_rlogs(lrs, file_name='data')
 
+  if OFFSET_ACCEL := True:  # todo: play around with this
+    accel_delay = int(0.75 / DT_CTRL)  # about .75 seconds from gas to a_ego  # todo: manually calculated from 10 samples on cabana, might need to verify with data
+    for i in range(len(data)):  # accounts for delay (moves a_ego up by x samples since it lags behind gas)
+      a_ego = [line['a_ego'] for line in data[i]]
+      data_len = len(data[i])
+      for j in range(data_len):
+        if j + accel_delay >= data_len:
+          break
+        data[i][j]['a_ego'] = a_ego[j + accel_delay]
+      data[i] = data[i][:-accel_delay]  # removes trailing samples
+
   if os.path.exists('data_coasting'):  # for 2nd function that ouputs decel from speed (assuming coasting)
     data_coasting = load_processed('data_coasting')
   else:
     coast_dir = os.path.join(os.path.dirname(use_dir), 'coast')
-    print(coast_dir)
-    data_coasting = load_and_process_rlogs([MultiLogIterator([os.path.join(coast_dir, f) for f in os.listdir(coast_dir) if '.ini' not in f], wraparound=False)], file_name='data_coasting', coast=True)
+    data_coasting = load_and_process_rlogs([MultiLogIterator([os.path.join(coast_dir, f) for f in os.listdir(coast_dir) if '.ini' not in f], wraparound=False)], file_name='data_coasting')
 
+  data = [i for j in data for i in j]  # flatten
+  data_coasting = [i for j in data_coasting for i in j]  # flatten
   print(f'Samples (before filtering): {len(data)}')
 
   # Data filtering
   def general_filters(_line):  # general filters
-    return _line['v_ego'] <= TOP_FIT_SPEED and not _line['brake_pressed'] and abs(_line['steering_angle']) <= 25 and not _line['engaged']
+    return _line['v_ego'] <= TOP_FIT_SPEED and not _line['brake_pressed'] and abs(_line['steering_angle']) <= 25  # and not _line['engaged']
 
-  data_coasting = [line for line in data_coasting if general_filters(line) and line['car_gas'] == 0]
+  data_coasting = [line for line in data_coasting if general_filters(line) and line['car_gas'] == 0 and not line['engaged']]
 
   # todo get rid of long periods of stopped ness
   new_data = []
@@ -301,7 +298,7 @@ def fit_ff_model(use_dir, plot=False):
     plt.savefig('imgs/accel dist.png')
     plt.clf()
 
-    accel = 0.75
+    accel = 1.5
     X_speed = np.linspace(0, TOP_FIT_SPEED, 20)
     y_gas_old = [compute_gb_old(accel, _x) for _x in X_speed]
     y_gas_new = [compute_gb_new([accel, _x]) for _x in X_speed]
@@ -326,7 +323,7 @@ def fit_ff_model(use_dir, plot=False):
     plt.savefig('imgs/speed dist.png')
     plt.clf()
 
-    speed = 5.5
+    speed = 2.75
     X_accel = np.linspace(0, 2.25, 20)
     y_gas_old = [compute_gb_old(_x, speed) for _x in X_accel]
     y_gas_new = [compute_gb_new([_x, speed]) for _x in X_accel]
