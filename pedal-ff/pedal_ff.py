@@ -2,7 +2,7 @@
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-WINDOWS = True
+WINDOWS = False
 if not WINDOWS:
   from opendbc.can.parser import CANParser
   from tools.lib.logreader import MultiLogIterator
@@ -28,6 +28,18 @@ old_kf = 0.0000795769068  # for plotting old function compared to new polynomial
 MIN_SAMPLES = 5 / DT_CTRL  # seconds to frames
 
 
+def coast_accel(speed):  # given a speed, output coasting deceleration
+  if speed < 0.384:  # this relationship is very nonlinear (below 5 mph it accelerates above it decelerates, but this piecewise function should do the trick)
+    return (.565 / .324) * speed
+  elif speed < 2.003:  # 2.003, .235
+    return -0.1965455628350208 * speed + 0.6286807623585466
+  elif speed < 2.71:  # 2.71, -.255
+    return -0.6506364922206507 * speed + 1.5382248939179632
+  elif speed < 6:  # 6, -.177
+    return 0.014589665653495445 * speed - 0.26453799392097266
+  else:  # 9.811, -.069
+    return 0.028339018630280762 * speed - 0.3470341117816846
+
 
 def old_feedforward(v_ego, angle_steers, angle_offset=0):
   steer_feedforward = (angle_steers - angle_offset)
@@ -52,8 +64,8 @@ def fit_all(x_input, _c1, _c2, _c3, _c4):
   """
   a_ego, v_ego = x_input.copy()
 
-  # return (_c1 * v_ego ** 2 + _c2) + (_c3 * a_ego)
-  return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
+  return (_c1 * v_ego ** 2 + _c2 * v_ego + _c3) + (_c4 * a_ego)
+  # return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
   # return _c4 * a_ego + np.polyval([_c1, _c2, _c3], v_ego)  # use this if we think there is a non-linear speed relationship
 
 
@@ -147,11 +159,13 @@ def load_and_process_rlogs(lrs, file_name, coast=False):
     accel_delay = int(.75 / DT_CTRL)  # about .75 seconds from gas to a_ego  # todo: manually calculated from 10 samples on cabana, might need to verify with data
     for i in range(len(data)):  # accounts for delay (moves a_ego up by x samples since it lags behind gas)
       a_ego = [line['a_ego'] for line in data[i]]
+      v_ego = [line['v_ego'] for line in data[i]]
       data_len = len(data[i])
       for j in range(data_len):
         if j + accel_delay >= data_len:
           break
         data[i][j]['a_ego'] = a_ego[j + accel_delay]
+        data[i][j]['v_ego'] = v_ego[j + accel_delay]
       data[i] = data[i][:-accel_delay]  # removes trailing samples
 
   data = [i for j in data for i in j]  # flatten
@@ -202,7 +216,8 @@ def fit_ff_model(use_dir, plot=False):
         new_data.append(line)
 
   data = new_data
-  data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
+  data = [line for line in data if line['a_ego'] >= coast_accel(line['v_ego'])]
+  # data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
   print(f'Samples (after filtering):  {len(data)}\n')
   print(f"Coasting samples: {len(data_coasting)}")
 
@@ -213,7 +228,7 @@ def fit_ff_model(use_dir, plot=False):
   data_accels = np.array([line['a_ego'] for line in data])
   data_gas = np.array([line['gas'] for line in data])
 
-  params, covs = curve_fit(fit_all, np.array([data_accels, data_speeds]), np.array(data_gas))
+  params, covs = curve_fit(fit_all, np.array([data_accels, data_speeds]), np.array(data_gas), maxfev=1000)
   print('Params: {}'.format(params.tolist()))
 
   def compute_gb_new(p):
@@ -253,7 +268,6 @@ def fit_ff_model(use_dir, plot=False):
 
     plt.plot(x, [piece_wise_function(_x) for _x in x], 'r', label='piecewise function')
     plt.savefig('imgs/coasting plot.png')
-    raise Exception
   else:
     raise Exception('Not enough coasting samples')
 
