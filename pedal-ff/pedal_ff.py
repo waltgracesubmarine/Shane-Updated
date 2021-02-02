@@ -1,26 +1,29 @@
 #!/usr/bin/env python3
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
+WINDOWS = True
+if not WINDOWS:
+  from opendbc.can.parser import CANParser
+  from tools.lib.logreader import MultiLogIterator
+  from tools.lib.route import Route
+
 import os
 import sys
 import matplotlib.pyplot as plt
 import numpy as np
-import seaborn as sns
 from matplotlib import cm
 from tqdm import tqdm   # type: ignore
 from scipy.optimize import curve_fit
 
-from opendbc.can.parser import CANParser
-from selfdrive.car.toyota.values import STEER_THRESHOLD
-
-from common.realtime import DT_CTRL
 from selfdrive.config import Conversions as CV
-from selfdrive.car.toyota.values import SteerLimitParams as TOYOTA_PARAMS
-from selfdrive.car.subaru.carcontroller import CarControllerParams as SUBARU_PARAMS
-from tools.lib.route import Route
 import seaborn as sns
-from tools.lib.logreader import MultiLogIterator
+
 import pickle
 import binascii
 
+
+DT_CTRL = 0.01
 old_kf = 0.0000795769068  # for plotting old function compared to new polynomial function
 MIN_SAMPLES = 5 / DT_CTRL  # seconds to frames
 
@@ -36,8 +39,8 @@ def compute_gb_old(accel, speed):
   return float(accel) / 3.0
 
 
-def coasting_func(x_input, _c1, _c2):  # x is speed
-  return _c1 * x_input + _c2
+def coasting_func(x_input, _c1, _c2, _c3):  # x is speed
+  return _c3 * x_input ** 2 + _c1 * x_input + _c2
 
 
 def fit_all(x_input, _c1, _c2, _c3, _c4):
@@ -54,67 +57,12 @@ def fit_all(x_input, _c1, _c2, _c3, _c4):
   # return _c4 * a_ego + np.polyval([_c1, _c2, _c3], v_ego)  # use this if we think there is a non-linear speed relationship
 
 
-class CustomFeedforward:
-  def __init__(self, to_fit):
-    """
-      fit_all: if True, then it fits kf as well as speed poly
-               if False, then it only fits kf using speed poly found from prior fitting and data
-    """
-    if to_fit == 'kf':
-      self.c1, self.c2, self.c3 = 0.35189607550172824, 7.506201251644202, 69.226826411091
-      self.fit_func = self._fit_kf
-    elif to_fit == 'all':
-      self.fit_func = self._fit_all
-    elif to_fit == 'poly':
-      self.kf = 0.00006908923778520113
-      self.fit_func = self._fit_poly
-
-  def get(self, v_ego, angle_steers, *args):  # helper function to easily use fitting ff function):
-    x_input = np.array((v_ego, angle_steers)).T
-    return self.fit_func(x_input, *args)
-
-  @staticmethod
-  def _fit_all(x_input, _kf, _c1, _c2, _c3):
-    """
-      x_input is array of v_ego and angle_steers
-      all _params are to be fit by curve_fit
-      kf is multiplier from angle to torque
-      c1-c3 are poly coefficients
-    """
-    v_ego, angle_steers = x_input.copy()
-    steer_feedforward = angle_steers * np.polyval([_c1, _c2, _c3], v_ego)
-    return steer_feedforward * _kf
-
-  def _fit_kf(self, x_input, _kf):
-    """
-      Just fits kf using best-so-far speed poly
-    """
-    v_ego, angle_steers = x_input.copy()
-    steer_feedforward = angle_steers * np.polyval([self.c1, self.c2, self.c3], v_ego)
-    return steer_feedforward * _kf
-
-  def _fit_poly(self, x_input, _c1, _c2, _c3):
-    """
-      Just fits poly using current kf
-    """
-    v_ego, angle_steers = x_input.copy()
-    steer_feedforward = angle_steers * np.polyval([_c1, _c2, _c3], v_ego)
-    return steer_feedforward * self.kf
-
-
-CF = CustomFeedforward(to_fit='poly')
-
-
-def load_processed():
-  with open('data', 'rb') as f:
+def load_processed(file_name):
+  with open(file_name, 'rb') as f:
     return pickle.load(f)
 
 
-def load_and_process_rlogs():
-  route_dirs = [f for f in os.listdir(use_dir) if '.ini' not in f and f != 'exclude']
-  route_files = [[os.path.join(use_dir, i, f) for f in os.listdir(os.path.join(use_dir, i)) if f != 'exclude' and '.ini' not in f] for i in route_dirs]
-  lrs = [MultiLogIterator(rd, wraparound=False) for rd in route_files]
-
+def load_and_process_rlogs(lrs, file_name, coast=False):
   data = [[]]
 
   for lr in lrs:
@@ -195,18 +143,20 @@ def load_and_process_rlogs():
 
   data = [sec for sec in data if len(sec) > 2 / DT_CTRL]  # long enough sections
 
-  accel_delay = int(.75 / DT_CTRL)  # about .75 seconds from gas to a_ego  # todo: manually calculated from 10 samples on cabana, might need to verify with data
-  for i in range(len(data)):  # accounts for delay (moves a_ego up by x samples since it lags behind gas)
-    a_ego = [line['a_ego'] for line in data[i]]
-    data_len = len(data[i])
-    for j in range(data_len):
-      if j + accel_delay >= data_len:
-        break
-      data[i][j]['a_ego'] = a_ego[j + accel_delay]
-    data[i] = data[i][:-accel_delay]  # removes trailing samples
+  if not coast:
+    accel_delay = int(.75 / DT_CTRL)  # about .75 seconds from gas to a_ego  # todo: manually calculated from 10 samples on cabana, might need to verify with data
+    for i in range(len(data)):  # accounts for delay (moves a_ego up by x samples since it lags behind gas)
+      a_ego = [line['a_ego'] for line in data[i]]
+      data_len = len(data[i])
+      for j in range(data_len):
+        if j + accel_delay >= data_len:
+          break
+        data[i][j]['a_ego'] = a_ego[j + accel_delay]
+      data[i] = data[i][:-accel_delay]  # removes trailing samples
+
   data = [i for j in data for i in j]  # flatten
 
-  with open('data', 'wb') as f:  # now dump
+  with open(file_name, 'wb') as f:  # now dump
     pickle.dump(data, f)
   return data
 
@@ -215,30 +165,41 @@ def fit_ff_model(use_dir, plot=False):
   TOP_FIT_SPEED = (19 + 5) * CV.MPH_TO_MS
 
   if os.path.exists('data'):
-    data = load_processed()
+    data = load_processed('data')
   else:
-    data = load_and_process_rlogs()
+    route_dirs = [f for f in os.listdir(use_dir) if '.ini' not in f and f != 'exclude']
+    route_files = [[os.path.join(use_dir, i, f) for f in os.listdir(os.path.join(use_dir, i)) if f != 'exclude' and '.ini' not in f] for i in route_dirs]
+    lrs = [MultiLogIterator(rd, wraparound=False) for rd in route_files]
+    data = load_and_process_rlogs(lrs, file_name='data')
+
+  if os.path.exists('data_coasting'):  # for 2nd function that ouputs decel from speed (assuming coasting)
+    data_coasting = load_processed('data_coasting')
+  else:
+    coast_dir = os.path.join(os.path.dirname(use_dir), 'coast')
+    print(coast_dir)
+    data_coasting = load_and_process_rlogs([MultiLogIterator([os.path.join(coast_dir, f) for f in os.listdir(coast_dir) if '.ini' not in f], wraparound=False)], file_name='data_coasting', coast=True)
 
   print(f'Samples (before filtering): {len(data)}')
 
   # Data filtering
+  def general_filters(_line):  # general filters
+    return _line['v_ego'] <= TOP_FIT_SPEED and not _line['brake_pressed'] and abs(_line['steering_angle']) <= 25 and not _line['engaged']
+
+  data_coasting = [line for line in data_coasting if general_filters(line) and line['car_gas'] == 0]
+
   # todo get rid of long periods of stopped ness
   new_data = []
-  data_coasting = []  # for 2nd function that ouputs decel from speed (assuming coasting)
   for line in data:
     line = line.copy()
-    if line['v_ego'] <= TOP_FIT_SPEED and not line['brake_pressed'] and abs(line['steering_angle'] <= 25):  # general filters
+    if general_filters(line):
       if not line['engaged'] and not line['gas_enable']:  # user is driving
         line['gas'] = line['car_gas']  # user_gas (interceptor) doesn't map 1:1 with gas command so use car_gas which mostly does
       elif line['engaged'] and line['gas_enable']:  # car is driving and giving gas
         line['gas'] = line['gas_command']
       else:  # engaged but not commanding gas
         continue
-
       if line['car_gas'] > 0:
         new_data.append(line)
-      if line['car_gas'] == 0 and not line['engaged']:  # coasting and user driving (brake_pressed doesn't work when engaged)
-        data_coasting.append(line)
 
   data = new_data
   data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
@@ -247,17 +208,7 @@ def fit_ff_model(use_dir, plot=False):
 
   assert len(data) > MIN_SAMPLES, 'too few valid samples found in route'
 
-  # print('Max angle: {}'.format(round(max([i['angle_steers'] for i in data]), 2)))
-  # print('Top speed: {} mph'.format(round(max([i['v_ego'] for i in data]) * CV.MS_TO_MPH, 2)))
-  # print('Torque: min: {}, max: {}\n'.format(*[func([i['torque'] for i in data]) for func in [min, max]]))
-
-  # Data preprocessing
-  # for line in data:
-  #   line['angle_steers'] = abs(line['angle_steers'] - line['angle_offset'])  # need to offset angle to properly fit ff
-  #   line['torque'] = abs(line['torque'])
-  #
-  #   del line['time'], line['angle_offset'], line['angle_steers_des']  # delete unused
-
+  # Now prepare for function fitting
   data_speeds = np.array([line['v_ego'] for line in data])
   data_accels = np.array([line['a_ego'] for line in data])
   data_gas = np.array([line['gas'] for line in data])
@@ -283,10 +234,26 @@ def fit_ff_model(use_dir, plot=False):
 
     plt.clf()
     plt.title('Coasting data')
-    plt.scatter(*zip(*[[line['v_ego'], line['a_ego']] for line in data_coasting]), label='coasting data', s=4)
+    plt.scatter(*zip(*[[line['v_ego'], line['a_ego']] for line in data_coasting]), label='coasting data', s=2)
     x = np.linspace(0, TOP_FIT_SPEED, 100)
+    plt.plot(x, coasting_func(x, *coast_params))
     plt.plot(x, coasting_func(x, *coast_params), label='function')
+
+    def piece_wise_function(speed):  # this is very non-linear so create a piecewise function for it
+      if speed < 0.384:
+        return (.565/.324) * speed
+      elif speed < 2.003:  # 2.003, .235
+        return -0.1965455628350208 * speed + 0.6286807623585466
+      elif speed < 2.71:  # 2.71, -.255
+        return -0.6506364922206507 * speed + 1.5382248939179632
+      elif speed < 6:  # 6, -.177
+        return 0.014589665653495445 * speed - 0.26453799392097266
+      else:  # 9.811, -.069
+        return 0.028339018630280762 * speed - 0.3470341117816846
+
+    plt.plot(x, [piece_wise_function(_x) for _x in x], 'r', label='piecewise function')
     plt.savefig('imgs/coasting plot.png')
+    raise Exception
   else:
     raise Exception('Not enough coasting samples')
 

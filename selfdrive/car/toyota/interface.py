@@ -25,9 +25,17 @@ def compute_gb_gas_interceptor(accel, speed):
   # Once we reach that speed, we switch to sending acceleration anyway so this isn't a problem
 
   def coast_accel(speed):  # given a speed, output coasting deceleration
-    # averages 0.1196 mae from 0 to 25 mph
-    poly = [-0.03037961424772595, 0.03048927968985604]
-    return poly[0] * speed + poly[1]
+    if speed < 0.384:  # this relationship is very nonlinear (below 5 mph it accelerates above it decelerates, but this piecewise function should do the trick)
+      return (.565 / .324) * speed
+    elif speed < 2.003:  # 2.003, .235
+      return -0.1965455628350208 * speed + 0.6286807623585466
+    elif speed < 2.71:  # 2.71, -.255
+      return -0.6506364922206507 * speed + 1.5382248939179632
+    elif speed < 6:  # 6, -.177
+      return 0.014589665653495445 * speed - 0.26453799392097266
+    else:  # 9.811, -.069
+      return 0.028339018630280762 * speed - 0.3470341117816846
+
 
   def accel_to_gas(accel, speed):  # given a speed and acceleration, output gas percentage for pedal
     # averages 0.02863 mae from 0 to 25 mph
