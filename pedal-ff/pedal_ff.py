@@ -6,6 +6,7 @@ try:
   from opendbc.can.parser import CANParser
   from tools.lib.logreader import MultiLogIterator
   from tools.lib.route import Route
+  from cereal import car
 except:
   pass
 
@@ -64,6 +65,11 @@ def fit_all(x_input, _c1, _c2, _c3, _c4):
   # return _c4 * a_ego + np.polyval([_c1, _c2, _c3], v_ego)  # use this if we think there is a non-linear speed relationship
 
 
+def known_bad_accel_to_gas(accel, speed):
+  poly, accel_coef = [0.00011699240374307696, 0.01634332377590708, -0.0018321108362775451], 0.1166783696247945
+  return (poly[0] * speed ** 2 + poly[1] * speed + poly[2]) + (accel_coef * accel)
+
+
 def load_processed(file_name):
   with open(file_name, 'rb') as f:
     return pickle.load(f)
@@ -74,8 +80,7 @@ def load_and_process_rlogs(lrs, file_name):
 
   for lr in lrs:
     engaged, gas_enable, brake_pressed = False, False, False
-    # torque_cmd, angle_steers, angle_steers_des, angle_offset, v_ego = None, None, None, None, None
-    v_ego, gas_command, a_ego, user_gas, car_gas, pitch, steering_angle = None, None, None, None, None, None, None
+    v_ego, gas_command, a_ego, user_gas, car_gas, pitch, steering_angle, gear_shifter = None, None, None, None, None, None, None, None
     last_time = 0
     can_updated = False
 
@@ -99,6 +104,7 @@ def load_and_process_rlogs(lrs, file_name):
         a_ego = msg.carState.aEgo
         steering_angle = msg.carState.steeringAngle
         engaged = msg.carState.cruiseState.enabled
+        gear_shifter = msg.carState.gearShifter
       # elif msg.which() == 'sensorEvents':
       #   for sensor_reading in msg.sensorEvents:
       #     if sensor_reading.sensor == 4 and sensor_reading.type == 4:
@@ -133,7 +139,7 @@ def load_and_process_rlogs(lrs, file_name):
         print('TIME BREAK!')
         print(abs(msg.logMonoTime - last_time) * 1e-9)
 
-      if (v_ego is not None and can_updated and  # creates uninterupted sections of engaged data
+      if (v_ego is not None and can_updated and gear_shifter == car.CarState.GearShifter.drive and  # creates uninterupted sections of engaged data
               abs(msg.logMonoTime - last_time) * 1e-9 < 1 / 20):  # also split if there's a break in time (todo: I don't think we need to check times)
         data[-1].append({'v_ego': v_ego, 'gas_command': gas_command, 'a_ego': a_ego, 'user_gas': user_gas,
                          'car_gas': car_gas, 'brake_pressed': brake_pressed, 'pitch': pitch, 'engaged': engaged, 'gas_enable': gas_enable,
@@ -198,19 +204,20 @@ def fit_ff_model(use_dir, plot=False):
   for line in data:
     line = line.copy()
     if general_filters(line):
-      if not line['engaged'] and not line['gas_enable']:  # user is driving
+      if not line['engaged']:  # and line['v_ego'] > 0.05 * CV.MPH_TO_MS:  # user is driving
         line['gas'] = line['car_gas']  # user_gas (interceptor) doesn't map 1:1 with gas command so use car_gas which mostly does
       elif line['engaged'] and line['gas_enable']:  # car is driving and giving gas
         line['gas'] = line['gas_command']
       else:  # engaged but not commanding gas
         continue
-      if line['car_gas'] > 0 and line['user_gas'] > 15 / 232:
+      if line['car_gas'] >= 0:
         new_data.append(line)
 
   data = new_data
   # data = [line for line in data if line['a_ego'] > coast_accel(line['v_ego'])]
   data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
   print(f'Samples (after filtering):  {len(data)}\n')
+
   print(f"Coasting samples: {len(data_coasting)}")
 
   assert len(data) > MIN_SAMPLES, 'too few valid samples found in route'
@@ -219,6 +226,7 @@ def fit_ff_model(use_dir, plot=False):
   data_speeds = np.array([line['v_ego'] for line in data])
   data_accels = np.array([line['a_ego'] for line in data])
   data_gas = np.array([line['gas'] for line in data])
+  print('MIN ACCEL: {}'.format(min(data_accels)))
 
   params, covs = curve_fit(fit_all, np.array([data_accels, data_speeds]), np.array(data_gas), maxfev=1000)
   print('Params: {}'.format(params.tolist()))
@@ -260,6 +268,12 @@ def fit_ff_model(use_dir, plot=False):
 
     plt.plot(x, [piece_wise_function(_x) for _x in x], 'r', label='piecewise function')
     plt.savefig('imgs/coasting plot.png')
+
+    plt.clf()
+    x = np.linspace(0, 19 * CV.MPH_TO_MS, 100)
+    y = [compute_gb_new(piece_wise_function(spd), spd) for spd in x]  # should be near 0
+    plt.plot(x, y)
+    plt.savefig('imgs/coasting plot-should-be-0.png')
   else:
     raise Exception('Not enough coasting samples')
 
@@ -298,11 +312,15 @@ def fit_ff_model(use_dir, plot=False):
     color = 'blue'
 
     _accels = [
-      [0, 0.5],
-      [0.5, 1],
+      [0, 0.25],
+      [0.25, 0.5],
+      [0.4, 0.6],
+      [0.5, .75],
+      [0.75, 1],
       [1, 1.25],
       [1.25, 1.5],
-      [1.5, 2],
+      [1.5, 1.75],
+      [1.75, 2],
       [2, 2.5],
     ]
 
@@ -324,6 +342,9 @@ def fit_ff_model(use_dir, plot=False):
       _y_ff = [compute_gb_new(np.mean(accel_range), _i) for _i in _x_ff]
       plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='purple', label='new fitted ff function')
 
+      _y_ff = [known_bad_accel_to_gas(np.mean(accel_range), _i) for _i in _x_ff]
+      plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='red', label='bad ff function')
+
       plt.legend()
       plt.xlabel('speed (mph)')
       plt.ylabel('gas')
@@ -333,7 +354,7 @@ def fit_ff_model(use_dir, plot=False):
   if ANALYZE_ACCEL := True:
     plt.clf()
     sns.distplot([line['v_ego'] for line in data], bins=100)
-    plt.savefig('imgs/speed dist.png')
+    plt.savefig('plots/speed dist.png')
     plt.clf()
 
     res = 100
@@ -363,6 +384,9 @@ def fit_ff_model(use_dir, plot=False):
 
       _y_ff = [compute_gb_new(_i, np.mean(speed_range)) for _i in _x_ff]
       plt.plot(_x_ff, _y_ff, color='purple', label='new fitted ff function')
+
+      _y_ff = [known_bad_accel_to_gas(_i, np.mean(speed_range)) for _i in _x_ff]
+      plt.plot(_x_ff, _y_ff, color='red', label='bad ff function')
 
       plt.legend()
       plt.xlabel('accel (m/s/s)')

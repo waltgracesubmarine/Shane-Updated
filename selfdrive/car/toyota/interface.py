@@ -39,7 +39,7 @@ def compute_gb_gas_interceptor(accel, speed):
 
   def accel_to_gas(accel, speed):  # given a speed and acceleration, output gas percentage for pedal
     # averages x mae from 0 to 25 mph
-    _c1, _c2, _c3, _c4 = [0.10838328737858863, 1.4097485080628154, 0.019293940766453552, 0.009102501373276872]
+    _c1, _c2, _c3, _c4 = [0.09277252728523458, 1.1103475330089951, 0.10643901855641838, 0.004149163057996235]
     return (accel * _c1 + (_c4 * (speed * _c2 + 1))) * (speed * _c3 + 1)
 
   if speed <= MIN_ACC_SPEED:
