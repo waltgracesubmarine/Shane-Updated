@@ -201,6 +201,8 @@ class LongPIDController:
 
     is_gas = False
     control = self.p + self.f + self.id
+    if self.op_params.get('gas_output') is not None:
+      control = self.op_params.get('gas_output')
     if self.convert is not None:
       control, is_gas = self.convert(control, speed=self.speed)
 
