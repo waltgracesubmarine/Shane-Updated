@@ -59,9 +59,10 @@ def fit_all(x_input, _c1, _c2, _c3, _c4):
     c1-c3 are poly coefficients
   """
   a_ego, v_ego = x_input.copy()
+  poly, accel_coef = [_c1, _c2, _c3], _c4
 
-  # return (_c1 * v_ego ** 2 + _c2 * v_ego + _c3) + (_c4 * a_ego)
-  return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
+  return (poly[0] * v_ego ** 2 + poly[1] * v_ego + poly[2]) + (accel_coef * a_ego)
+  # return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
   # return _c4 * a_ego + np.polyval([_c1, _c2, _c3], v_ego)  # use this if we think there is a non-linear speed relationship
 
 
@@ -214,8 +215,8 @@ def fit_ff_model(use_dir, plot=False):
         new_data.append(line)
 
   data = new_data
-  # data = [line for line in data if line['a_ego'] > coast_accel(line['v_ego'])]
-  data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
+  data = [line for line in data if line['a_ego'] > coast_accel(line['v_ego'])]
+  # data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
   print(f'Samples (after filtering):  {len(data)}\n')
 
   print(f"Coasting samples: {len(data_coasting)}")
