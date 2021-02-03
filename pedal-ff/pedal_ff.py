@@ -59,16 +59,22 @@ def fit_all(x_input, _c1, _c2, _c3, _c4):
     c1-c3 are poly coefficients
   """
   a_ego, v_ego = x_input.copy()
-  poly, accel_coef = [_c1, _c2, _c3], _c4
+  # poly, accel_coef = [_c1, _c2, _c3], _c4
+  # return (poly[0] * v_ego ** 2 + poly[1] * v_ego + poly[2]) + (accel_coef * a_ego + _c5)
+  # return _c1 * v_ego + _c2 * a_ego + _c3
 
-  return (poly[0] * v_ego ** 2 + poly[1] * v_ego + poly[2]) + (accel_coef * a_ego)
-  # return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
+  return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
   # return _c4 * a_ego + np.polyval([_c1, _c2, _c3], v_ego)  # use this if we think there is a non-linear speed relationship
 
 
 def known_bad_accel_to_gas(accel, speed):
   poly, accel_coef = [0.00011699240374307696, 0.01634332377590708, -0.0018321108362775451], 0.1166783696247945
   return (poly[0] * speed ** 2 + poly[1] * speed + poly[2]) + (accel_coef * accel)
+
+
+def known_good_accel_to_gas(accel, speed):
+  _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
+  return (accel * _c1 + (_c4 * (speed * _c2 + 1))) * (speed * _c3 + 1)
 
 
 def load_processed(file_name):
@@ -173,7 +179,7 @@ def fit_ff_model(use_dir, plot=False):
     lrs = [MultiLogIterator(rd, wraparound=False) for rd in route_files]
     data = load_and_process_rlogs(lrs, file_name='data')
 
-  if OFFSET_ACCEL := True:  # todo: play around with this
+  if OFFSET_ACCEL := False:  # todo: play around with this
     accel_delay = int(0.75 / DT_CTRL)  # about .75 seconds from gas to a_ego  # todo: manually calculated from 10 samples on cabana, might need to verify with data
     for i in range(len(data)):  # accounts for delay (moves a_ego up by x samples since it lags behind gas)
       a_ego = [line['a_ego'] for line in data[i]]
@@ -204,19 +210,19 @@ def fit_ff_model(use_dir, plot=False):
   new_data = []
   for line in data:
     line = line.copy()
-    if general_filters(line):
+    if general_filters(line):  # and not line['engaged']:
       if not line['engaged']:  # and line['v_ego'] > 0.05 * CV.MPH_TO_MS:  # user is driving
         line['gas'] = line['car_gas']  # user_gas (interceptor) doesn't map 1:1 with gas command so use car_gas which mostly does
       elif line['engaged'] and line['gas_enable']:  # car is driving and giving gas
         line['gas'] = line['gas_command']
       else:  # engaged but not commanding gas
         continue
-      if line['car_gas'] >= 0:
+      if line['car_gas'] > 0:
         new_data.append(line)
 
   data = new_data
-  data = [line for line in data if line['a_ego'] > coast_accel(line['v_ego'])]
-  # data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
+  # data = [line for line in data if line['a_ego'] > coast_accel(line['v_ego'])]
+  data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
   print(f'Samples (after filtering):  {len(data)}\n')
 
   print(f"Coasting samples: {len(data_coasting)}")
@@ -229,7 +235,7 @@ def fit_ff_model(use_dir, plot=False):
   data_gas = np.array([line['gas'] for line in data])
   print('MIN ACCEL: {}'.format(min(data_accels)))
 
-  params, covs = curve_fit(fit_all, np.array([data_accels, data_speeds]), np.array(data_gas), maxfev=1000)
+  params, covs = curve_fit(fit_all, np.array([data_accels, data_speeds]), np.array(data_gas), maxfev=5000)
   print('Params: {}'.format(params.tolist()))
 
   def compute_gb_new(accel, speed):
@@ -337,14 +343,16 @@ def fit_ff_model(use_dir, plot=False):
       plt.scatter(np.array(speeds) * CV.MS_TO_MPH, gas, label=accel_range_str, color=color, s=0.05)
 
       _x_ff = np.linspace(0, max(speeds), res)
-      _y_ff = [compute_gb_old(np.mean(accel_range), _i) for _i in _x_ff]
-      plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='orange', label='standard ff model at {} m/s/s'.format(np.mean(accel_range)))
-
-      _y_ff = [compute_gb_new(np.mean(accel_range), _i) for _i in _x_ff]
-      plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='purple', label='new fitted ff function')
 
       _y_ff = [known_bad_accel_to_gas(np.mean(accel_range), _i) for _i in _x_ff]
       plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='red', label='bad ff function')
+      _y_ff = [known_good_accel_to_gas(np.mean(accel_range), _i) for _i in _x_ff]
+      plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='green', label='good ff function')
+
+      _y_ff = [compute_gb_old(np.mean(accel_range), _i) for _i in _x_ff]
+      # plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='orange', label='standard ff model at {} m/s/s'.format(np.mean(accel_range)))
+      _y_ff = [compute_gb_new(np.mean(accel_range), _i) for _i in _x_ff]
+      plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='purple', label='new fitted ff function')
 
       plt.legend()
       plt.xlabel('speed (mph)')
@@ -380,14 +388,16 @@ def fit_ff_model(use_dir, plot=False):
       plt.scatter(accels, gas, label=speed_range_str, color=color, s=0.05)
 
       _x_ff = np.linspace(0, max(accels), res)
-      _y_ff = [compute_gb_old(_i, np.mean(speed_range)) for _i in _x_ff]
-      plt.plot(_x_ff, _y_ff, color='orange', label='standard ff model at {} mph'.format(np.round(np.mean(speed_range) * CV.MS_TO_MPH, 1)))
-
-      _y_ff = [compute_gb_new(_i, np.mean(speed_range)) for _i in _x_ff]
-      plt.plot(_x_ff, _y_ff, color='purple', label='new fitted ff function')
 
       _y_ff = [known_bad_accel_to_gas(_i, np.mean(speed_range)) for _i in _x_ff]
       plt.plot(_x_ff, _y_ff, color='red', label='bad ff function')
+      _y_ff = [known_good_accel_to_gas(_i, np.mean(speed_range)) for _i in _x_ff]
+      plt.plot(_x_ff, _y_ff, color='green', label='good ff function')
+
+      _y_ff = [compute_gb_old(_i, np.mean(speed_range)) for _i in _x_ff]
+      # plt.plot(_x_ff, _y_ff, color='orange', label='standard ff model at {} mph'.format(np.round(np.mean(speed_range) * CV.MS_TO_MPH, 1)))
+      _y_ff = [compute_gb_new(_i, np.mean(speed_range)) for _i in _x_ff]
+      plt.plot(_x_ff, _y_ff, color='purple', label='new fitted ff function')
 
       plt.legend()
       plt.xlabel('accel (m/s/s)')
