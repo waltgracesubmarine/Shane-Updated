@@ -179,15 +179,17 @@ def fit_ff_model(use_dir, plot=False):
     lrs = [MultiLogIterator(rd, wraparound=False) for rd in route_files]
     data = load_and_process_rlogs(lrs, file_name='data')
 
-  if OFFSET_ACCEL := False:  # todo: play around with this
+  if OFFSET_ACCEL := True:  # todo: play around with this
     accel_delay = int(0.75 / DT_CTRL)  # about .75 seconds from gas to a_ego  # todo: manually calculated from 10 samples on cabana, might need to verify with data
     for i in range(len(data)):  # accounts for delay (moves a_ego up by x samples since it lags behind gas)
       a_ego = [line['a_ego'] for line in data[i]]
+      # v_ego = [line['v_ego'] for line in data[i]]
       data_len = len(data[i])
       for j in range(data_len):
         if j + accel_delay >= data_len:
           break
         data[i][j]['a_ego'] = a_ego[j + accel_delay]
+        # data[i][j]['v_ego'] = v_ego[j + accel_delay]
       data[i] = data[i][:-accel_delay]  # removes trailing samples
 
   if os.path.exists('data_coasting'):  # for 2nd function that ouputs decel from speed (assuming coasting)
