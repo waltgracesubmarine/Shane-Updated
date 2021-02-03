@@ -41,7 +41,7 @@ def compute_gb_gas_interceptor(accel, speed):
     # averages x mae from 0 to 25 mph
     # poly, accel_coef = [-0.00010143462068808111, 0.018842027085583517, -0.029564214347422745], 0.13109371316121238
     # return (poly[0] * speed ** 2 + poly[1] * speed + poly[2]) + (accel_coef * accel)
-    _c1, _c2, _c3, _c4 = [0.053868868313634535, -0.010179505272946551, 0.074919369452811, 0.10303824847534748]
+    _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
     return (accel * _c1 + (_c4 * (speed * _c2 + 1))) * (speed * _c3 + 1)
 
   if speed <= MIN_ACC_SPEED:
