@@ -184,7 +184,7 @@ class LongPIDController:
       control = self.p + self.f + i
 
       if self.convert is not None:
-        control = self.convert(control, speed=self.speed)
+        control, _ = self.convert(control, speed=self.speed)
 
       # Update when changing i will move the control away from the limits
       # or when i will move towards the sign of the error
@@ -199,9 +199,10 @@ class LongPIDController:
         if (self.id > 0 and self.id + d >= 0) or (self.id < 0 and self.id + d <= 0):  # if changing integral doesn't make it cross zero
           self.id += d
 
+    is_gas = False
     control = self.p + self.f + self.id
     if self.convert is not None:
-      control = self.convert(control, speed=self.speed)
+      control, is_gas = self.convert(control, speed=self.speed)
 
     self.saturated = self._check_saturation(control, check_saturation, error)
 
@@ -209,4 +210,4 @@ class LongPIDController:
     self.last_error = float(error)
 
     self.control = clip(control, self.neg_limit, self.pos_limit)
-    return self.control
+    return self.control, is_gas

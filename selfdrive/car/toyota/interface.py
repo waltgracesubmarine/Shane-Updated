@@ -46,8 +46,12 @@ def compute_gb_gas_interceptor(accel, speed):
 
   if speed <= MIN_ACC_SPEED:
     # todo: interpolate output near coast_accel, make it a smooth transition (but with the coast function it should be decent right now)
-    return accel_to_gas(accel, speed) if accel > coast_accel(speed) else compute_gb_toyota(accel, speed)
-  return compute_gb_toyota(accel, speed)
+    if accel > coast_accel(speed):
+      return accel_to_gas(accel, speed), True
+    else:
+      return compute_gb_toyota(accel, speed), False
+    # return accel_to_gas(accel, speed) if accel > coast_accel(speed) else compute_gb_toyota(accel, speed)
+  return compute_gb_toyota(accel, speed), False
 
 
 class CarInterface(CarInterfaceBase):

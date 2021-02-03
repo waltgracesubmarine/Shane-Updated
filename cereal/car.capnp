@@ -293,6 +293,7 @@ struct CarControl {
     # range from -1.0 - 1.0
     steer @2: Float32;
     steerAngle @3: Float32;
+    isGas @4: Bool;
   }
 
   struct CruiseControl {

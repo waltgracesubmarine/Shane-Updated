@@ -16,6 +16,20 @@ ACCEL_MAX = 1.5  # 1.5 m/s2
 ACCEL_MIN = -3.0  # 3   m/s2
 ACCEL_SCALE = max(ACCEL_MAX, -ACCEL_MIN)
 
+
+def coast_accel(speed):  # given a speed, output coasting deceleration
+  if speed < 0.384:  # this relationship is very nonlinear (below 5 mph it accelerates above it decelerates, but this piecewise function should do the trick)
+    return (.565 / .324) * speed
+  elif speed < 2.003:  # 2.003, .235
+    return -0.1965455628350208 * speed + 0.6286807623585466
+  elif speed < 2.71:  # 2.71, -.255
+    return -0.6506364922206507 * speed + 1.5382248939179632
+  elif speed < 6:  # 6, -.177
+    return 0.014589665653495445 * speed - 0.26453799392097266
+  else:  # 9.811, -.069
+    return 0.028339018630280762 * speed - 0.3470341117816846
+
+
 def accel_hysteresis(accel, accel_steady, enabled):
 
   # for small accel oscillations within ACCEL_HYST_GAP, don't change the accel command
@@ -60,7 +74,7 @@ class CarController():
 
     apply_gas = clip(actuators.gas, 0., 1.)
 
-    if CS.CP.enableGasInterceptor and CS.out.vEgo < MIN_ACC_SPEED:
+    if CS.CP.enableGasInterceptor and CS.out.vEgo < MIN_ACC_SPEED and actuators.isGas:
       # send only negative accel if interceptor is detected. otherwise, send the regular value
       # +0.06 offset to reduce ABS pump usage when OP is engaged
       apply_accel = 0.06 - actuators.brake
@@ -125,7 +139,7 @@ class CarController():
       else:
         can_sends.append(create_accel_command(self.packer, 0, pcm_cancel_cmd, False, lead))
 
-    if frame % 2 == 0 and CS.CP.enableGasInterceptor and CS.out.vEgo < MIN_ACC_SPEED:
+    if frame % 2 == 0 and CS.CP.enableGasInterceptor and CS.out.vEgo < MIN_ACC_SPEED and actuators.isGas:
       # send exactly zero if apply_gas is zero. Interceptor will send the max between read value and apply_gas.
       # This prevents unexpected pedal range rescaling
       can_sends.append(create_gas_command(self.packer, apply_gas, frame//2))
