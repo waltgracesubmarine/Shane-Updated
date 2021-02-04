@@ -34,10 +34,10 @@ def compute_gb_gas_interceptor(accel, speed):
 
   def accel_to_gas(accel, speed):  # given a speed and acceleration, output gas percentage for pedal
     # averages x mae from 0 to 25 mph
-    poly, accel_coef = [-0.00036742174834669726, 0.022650177688971165, -0.05711605265453139], 0.14408144749460255
-    return (poly[0] * speed ** 2 + poly[1] * speed + poly[2]) + (accel_coef * accel)
-    # _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
-    # return (accel * _c1 + (_c4 * (speed * _c2 + 1))) * (speed * _c3 + 1)
+    # poly, accel_coef = [-0.00036742174834669726, 0.022650177688971165, -0.05711605265453139], 0.14408144749460255
+    # return (poly[0] * speed ** 2 + poly[1] * speed + poly[2]) + (accel_coef * accel)
+    _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
+    return (accel * _c1 + (_c4 * (speed * _c2 + 1))) * (speed * _c3 + 1)
 
   if speed <= MIN_ACC_SPEED:
     # todo: interpolate output near coast_accel, make it a smooth transition (but with the coast function it should be decent right now)
