@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from cereal import car
+from common.numpy_fast import interp
 from selfdrive.config import Conversions as CV
 from selfdrive.car.toyota.values import Ecu, ECU_FINGERPRINT, CAR, TSS2_CAR, FINGERPRINTS, MIN_ACC_SPEED
 from selfdrive.car import STD_CARGO_KG, scale_rot_inertia, scale_tire_stiffness, is_ecu_disconnected, gen_empty_fingerprint
@@ -24,25 +25,19 @@ def compute_gb_gas_interceptor(accel, speed):
   # It's only accurate up to MIN_ACC_SPEED (19 mph) for now since the function was fitted on data up to that speed
   # Once we reach that speed, we switch to sending acceleration anyway so this isn't a problem
 
-  def coast_accel(speed):  # given a speed, output coasting deceleration
-    if speed < 0.384:  # this relationship is very nonlinear (below 5 mph it accelerates above it decelerates, but this piecewise function should do the trick)
-      return (.565 / .324) * speed
-    elif speed < 2.003:  # 2.003, .235
-      return -0.1965455628350208 * speed + 0.6286807623585466
-    elif speed < 2.71:  # 2.71, -.255
-      return -0.6506364922206507 * speed + 1.5382248939179632
-    elif speed < 6:  # 6, -.177
-      return 0.014589665653495445 * speed - 0.26453799392097266
-    else:  # 9.811, -.069
-      return 0.028339018630280762 * speed - 0.3470341117816846
+  def coast_accel(speed):  # given a speed, output coasting acceleration
+    points = [[0, .504], [1.697, .266],
+              [2.839, -.187], [3.413, -.233],
+              [MIN_ACC_SPEED, -.145]]
+    return interp(speed, *zip(*points))
 
 
   def accel_to_gas(accel, speed):  # given a speed and acceleration, output gas percentage for pedal
     # averages x mae from 0 to 25 mph
-    # poly, accel_coef = [-0.00010143462068808111, 0.018842027085583517, -0.029564214347422745], 0.13109371316121238
-    # return (poly[0] * speed ** 2 + poly[1] * speed + poly[2]) + (accel_coef * accel)
-    _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
-    return (accel * _c1 + (_c4 * (speed * _c2 + 1))) * (speed * _c3 + 1)
+    poly, accel_coef = [-0.00036742174834669726, 0.022650177688971165, -0.05711605265453139], 0.14408144749460255
+    return (poly[0] * speed ** 2 + poly[1] * speed + poly[2]) + (accel_coef * accel)
+    # _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
+    # return (accel * _c1 + (_c4 * (speed * _c2 + 1))) * (speed * _c3 + 1)
 
   if speed <= MIN_ACC_SPEED:
     # todo: interpolate output near coast_accel, make it a smooth transition (but with the coast function it should be decent right now)

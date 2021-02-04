@@ -17,6 +17,7 @@ import numpy as np
 from matplotlib import cm
 from tqdm import tqdm   # type: ignore
 from scipy.optimize import curve_fit
+from common.numpy_fast import interp
 
 from selfdrive.config import Conversions as CV
 import seaborn as sns
@@ -29,17 +30,11 @@ DT_CTRL = 0.01
 MIN_SAMPLES = 5 / DT_CTRL  # seconds to frames
 
 
-def coast_accel(speed):  # given a speed, output coasting deceleration
-  if speed < 0.384:  # this relationship is very nonlinear (below 5 mph it accelerates above it decelerates, but this piecewise function should do the trick)
-    return (.565 / .324) * speed
-  elif speed < 2.003:  # 2.003, .235
-    return -0.1965455628350208 * speed + 0.6286807623585466
-  elif speed < 2.71:  # 2.71, -.255
-    return -0.6506364922206507 * speed + 1.5382248939179632
-  elif speed < 6:  # 6, -.177
-    return 0.014589665653495445 * speed - 0.26453799392097266
-  else:  # 9.811, -.069
-    return 0.028339018630280762 * speed - 0.3470341117816846
+def coast_accel(speed):  # given a speed, output coasting acceleration
+  points = [[0, .504], [1.697, .266],
+            [2.839, -.187], [3.413, -.233],
+            [19 * CV.MPH_TO_MS, -.145]]
+  return interp(speed, *zip(*points))
 
 
 def compute_gb_old(accel, speed):
@@ -59,11 +54,11 @@ def fit_all(x_input, _c1, _c2, _c3, _c4):
     c1-c3 are poly coefficients
   """
   a_ego, v_ego = x_input.copy()
-  # poly, accel_coef = [_c1, _c2, _c3], _c4
-  # return (poly[0] * v_ego ** 2 + poly[1] * v_ego + poly[2]) + (accel_coef * a_ego + _c5)
+  poly, accel_coef = [_c1, _c2, _c3], _c4
+  return (poly[0] * v_ego ** 2 + poly[1] * v_ego + poly[2]) + (accel_coef * a_ego)
   # return _c1 * v_ego + _c2 * a_ego + _c3
 
-  return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
+  # return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
   # return _c4 * a_ego + np.polyval([_c1, _c2, _c3], v_ego)  # use this if we think there is a non-linear speed relationship
 
 
@@ -80,6 +75,22 @@ def known_good_accel_to_gas(accel, speed):
 def load_processed(file_name):
   with open(file_name, 'rb') as f:
     return pickle.load(f)
+
+
+def offset_accel(_data):
+  # todo: manually calculated offset from 10 samples on cabana, might need to verify with data
+  accel_delay = int(0.85 / DT_CTRL)  # about .75 seconds from gas to a_ego
+  for i in range(len(_data)):  # accounts for delay (moves a_ego up by x samples since it lags behind gas)
+    a_ego = [line['a_ego'] for line in _data[i]]
+    # v_ego = [line['v_ego'] for line in _data[i]]
+    data_len = len(_data[i])
+    for j in range(data_len):
+      if j + accel_delay >= data_len:
+        break
+      _data[i][j]['a_ego'] = a_ego[j + accel_delay]
+      # _data[i][j]['v_ego'] = v_ego[j + accel_delay]
+    _data[i] = _data[i][:-accel_delay]  # removes trailing samples
+  return _data
 
 
 def load_and_process_rlogs(lrs, file_name):
@@ -142,12 +153,12 @@ def load_and_process_rlogs(lrs, file_name):
       if msg.which() != 'can':  # only store when can is updated
         continue
 
-      if abs(msg.logMonoTime - last_time) * 1e-9 > 1 / 20:  # todo: remove once debugged
+      if abs(msg.logMonoTime - last_time) * 1e-9 > 1 / 20:
         print('TIME BREAK!')
         print(abs(msg.logMonoTime - last_time) * 1e-9)
 
       if (v_ego is not None and can_updated and gear_shifter == car.CarState.GearShifter.drive and  # creates uninterupted sections of engaged data
-              abs(msg.logMonoTime - last_time) * 1e-9 < 1 / 20):  # also split if there's a break in time (todo: I don't think we need to check times)
+              abs(msg.logMonoTime - last_time) * 1e-9 < 1 / 20):  # also split if there's a break in time
         data[-1].append({'v_ego': v_ego, 'gas_command': gas_command, 'a_ego': a_ego, 'user_gas': user_gas,
                          'car_gas': car_gas, 'brake_pressed': brake_pressed, 'pitch': pitch, 'engaged': engaged, 'gas_enable': gas_enable,
                          'steering_angle': steering_angle,
@@ -179,28 +190,21 @@ def fit_ff_model(use_dir, plot=False):
     lrs = [MultiLogIterator(rd, wraparound=False) for rd in route_files]
     data = load_and_process_rlogs(lrs, file_name='data')
 
-  if OFFSET_ACCEL := True:  # todo: play around with this
-    accel_delay = int(0.75 / DT_CTRL)  # about .75 seconds from gas to a_ego  # todo: manually calculated from 10 samples on cabana, might need to verify with data
-    for i in range(len(data)):  # accounts for delay (moves a_ego up by x samples since it lags behind gas)
-      a_ego = [line['a_ego'] for line in data[i]]
-      # v_ego = [line['v_ego'] for line in data[i]]
-      data_len = len(data[i])
-      for j in range(data_len):
-        if j + accel_delay >= data_len:
-          break
-        data[i][j]['a_ego'] = a_ego[j + accel_delay]
-        # data[i][j]['v_ego'] = v_ego[j + accel_delay]
-      data[i] = data[i][:-accel_delay]  # removes trailing samples
-
   if os.path.exists('data_coasting'):  # for 2nd function that ouputs decel from speed (assuming coasting)
     data_coasting = load_processed('data_coasting')
   else:
     coast_dir = os.path.join(os.path.dirname(use_dir), 'coast')
     data_coasting = load_and_process_rlogs([MultiLogIterator([os.path.join(coast_dir, f) for f in os.listdir(coast_dir) if '.ini' not in f], wraparound=False)], file_name='data_coasting')
 
+  if OFFSET_ACCEL := True:  # todo: play around with these
+    data = offset_accel(data)
+  if COAST_OFFSET_ACCEL := True:
+    data_coasting = offset_accel(data_coasting)
+
   data = [i for j in data for i in j]  # flatten
   data_coasting = [i for j in data_coasting for i in j]  # flatten
   print(f'Samples (before filtering): {len(data)}')
+  data += data_coasting
 
   # Data filtering
   def general_filters(_line):  # general filters
@@ -219,12 +223,12 @@ def fit_ff_model(use_dir, plot=False):
         line['gas'] = line['gas_command']
       else:  # engaged but not commanding gas
         continue
-      if line['car_gas'] > 0:
+      if line['car_gas'] >= 0:
         new_data.append(line)
 
   data = new_data
-  # data = [line for line in data if line['a_ego'] > coast_accel(line['v_ego'])]
-  data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
+  data = [line for line in data if line['a_ego'] > coast_accel(line['v_ego'])]
+  # data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
   print(f'Samples (after filtering):  {len(data)}\n')
 
   print(f"Coasting samples: {len(data_coasting)}")
@@ -237,7 +241,7 @@ def fit_ff_model(use_dir, plot=False):
   data_gas = np.array([line['gas'] for line in data])
   print('MIN ACCEL: {}'.format(min(data_accels)))
 
-  params, covs = curve_fit(fit_all, np.array([data_accels, data_speeds]), np.array(data_gas), maxfev=5000)
+  params, covs = curve_fit(fit_all, np.array([data_accels, data_speeds]), np.array(data_gas), maxfev=1000)
   print('Params: {}'.format(params.tolist()))
 
   def compute_gb_new(accel, speed):
@@ -260,27 +264,15 @@ def fit_ff_model(use_dir, plot=False):
     plt.title('Coasting data')
     plt.scatter(*zip(*[[line['v_ego'], line['a_ego']] for line in data_coasting]), label='coasting data', s=2)
     x = np.linspace(0, TOP_FIT_SPEED, 100)
-    plt.plot(x, coasting_func(x, *coast_params))
-    plt.plot(x, coasting_func(x, *coast_params), label='function')
+    # plt.plot(x, coasting_func(x, *coast_params))
+    # plt.plot(x, coasting_func(x, *coast_params), label='function')
 
-    def piece_wise_function(speed):  # this is very non-linear so create a piecewise function for it
-      if speed < 0.384:
-        return (.565/.324) * speed
-      elif speed < 2.003:  # 2.003, .235
-        return -0.1965455628350208 * speed + 0.6286807623585466
-      elif speed < 2.71:  # 2.71, -.255
-        return -0.6506364922206507 * speed + 1.5382248939179632
-      elif speed < 6:  # 6, -.177
-        return 0.014589665653495445 * speed - 0.26453799392097266
-      else:  # 9.811, -.069
-        return 0.028339018630280762 * speed - 0.3470341117816846
-
-    plt.plot(x, [piece_wise_function(_x) for _x in x], 'r', label='piecewise function')
+    plt.plot(x, [coast_accel(_x) for _x in x], 'r', label='piecewise function')
     plt.savefig('imgs/coasting plot.png')
 
     plt.clf()
     x = np.linspace(0, 19 * CV.MPH_TO_MS, 100)
-    y = [compute_gb_new(piece_wise_function(spd), spd) for spd in x]  # should be near 0
+    y = [compute_gb_new(coast_accel(spd), spd) for spd in x]  # should be near 0
     plt.plot(x, y)
     plt.savefig('imgs/coasting plot-should-be-0.png')
   else:
