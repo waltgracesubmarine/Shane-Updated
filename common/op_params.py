@@ -102,10 +102,13 @@ class opParams:
                         'use_lqr': Param(False, bool, 'Enable this to use LQR as your lateral controller over default with any car'),
                         'corollaTSS2_use_indi': Param(False, bool, 'Enable this to use INDI for lat with your TSS2 Corolla'),
                         'rav4TSS2_use_indi': Param(False, bool, 'Enable this to use INDI for lat with your TSS2 RAV4'),
-                        'min_accel': Param(-0.1, VT.number, 'The minumum control acceleration before comp_gb to use the accel to gas function. Default is -0.5'),
+
                         'long_kp_multiplier': Param(1, VT.number, live=True),
                         'long_ki_multiplier': Param(1, VT.number, live=True),
                         'gas_output': Param(None, VT.none_or_number, live=True),
+                        'apply_accel': Param(None, VT.none_or_number, live=True),
+                        'permit_braking': Param(True, bool, live=True),
+
                         'standstill_hack': Param(False, bool, 'Some cars support stop and go, you just need to enable this')}
 
     self._params_file = '/data/op_params.json'
