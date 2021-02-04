@@ -21,6 +21,10 @@ from common.numpy_fast import interp
 
 from selfdrive.config import Conversions as CV
 import seaborn as sns
+from tensorflow.keras import layers
+from tensorflow.keras import models
+from tensorflow.keras import activations
+from tensorflow.keras import optimizers
 
 import pickle
 import binascii
@@ -46,7 +50,21 @@ def coasting_func(x_input, _c1, _c2, _c3):  # x is speed
   return _c3 * x_input ** 2 + _c1 * x_input + _c2
 
 
-def fit_all(x_input, _c1, _c2, _c3, _c4):
+def build_model(shape):
+  model = models.Sequential()
+  model.add(layers.Input(shape=shape))
+  model.add(layers.Dense(32, 'relu'))
+  model.add(layers.Dropout(0.2))
+  # model.add(layers.Dense(16, 'relu'))
+  # model.add(layers.Dropout(0.2))
+  model.add(layers.Dense(1))
+
+  opt = optimizers.Adam(amsgrad=True)
+  model.compile(opt, loss='mse', metrics=['mae'])
+  return model
+
+
+def fit_all(x_input, _c1, _c2, _c3, _c4, _c5):
   """
     x_input is array of a_ego and v_ego
     all _params are to be fit by curve_fit
@@ -55,7 +73,7 @@ def fit_all(x_input, _c1, _c2, _c3, _c4):
   """
   a_ego, v_ego = x_input.copy()
   poly, accel_coef = [_c1, _c2, _c3], _c4
-  return (poly[0] * v_ego ** 2 + poly[1] * v_ego + poly[2]) + (accel_coef * a_ego)
+  return (poly[0] * v_ego ** 2 + poly[1] * v_ego + poly[2]) + (accel_coef * a_ego ** 2 + _c5 * a_ego)
   # return _c1 * v_ego + _c2 * a_ego + _c3
 
   # return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
@@ -204,7 +222,7 @@ def fit_ff_model(use_dir, plot=False):
   data = [i for j in data for i in j]  # flatten
   data_coasting = [i for j in data_coasting for i in j]  # flatten
   print(f'Samples (before filtering): {len(data)}')
-  data += data_coasting
+  # data += data_coasting
 
   # Data filtering
   def general_filters(_line):  # general filters
@@ -216,18 +234,18 @@ def fit_ff_model(use_dir, plot=False):
   new_data = []
   for line in data:
     line = line.copy()
-    if general_filters(line):  # and not line['engaged']:
+    if general_filters(line) and not line['engaged']:
       if not line['engaged']:  # and line['v_ego'] > 0.05 * CV.MPH_TO_MS:  # user is driving
         line['gas'] = line['car_gas']  # user_gas (interceptor) doesn't map 1:1 with gas command so use car_gas which mostly does
       elif line['engaged'] and line['gas_enable']:  # car is driving and giving gas
         line['gas'] = line['gas_command']
       else:  # engaged but not commanding gas
         continue
-      if line['car_gas'] >= 0:
+      if (line['car_gas'] >= 0 and line['a_ego'] > 0) or line['car_gas'] > 0:  # no coast samples if decelerating
         new_data.append(line)
 
   data = new_data
-  data = [line for line in data if line['a_ego'] > coast_accel(line['v_ego'])]
+  # data = [line for line in data if line['a_ego'] > coast_accel(line['v_ego'])]
   # data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
   print(f'Samples (after filtering):  {len(data)}\n')
 
@@ -241,7 +259,19 @@ def fit_ff_model(use_dir, plot=False):
   data_gas = np.array([line['gas'] for line in data])
   print('MIN ACCEL: {}'.format(min(data_accels)))
 
-  params, covs = curve_fit(fit_all, np.array([data_accels, data_speeds]), np.array(data_gas), maxfev=1000)
+  x_train = np.array([data_accels, data_speeds]).T
+  y_train = np.array(data_gas)
+
+  model = build_model(x_train.shape[1:])
+  try:
+    model.fit(x_train, y_train,
+              batch_size=32,
+              epochs=100,
+              validation_split=0.2)
+  except KeyboardInterrupt:
+    print('Training stopped!')
+
+  params, covs = curve_fit(fit_all, x_train.T, y_train, maxfev=1000)
   print('Params: {}'.format(params.tolist()))
 
   def compute_gb_new(accel, speed):
@@ -338,8 +368,8 @@ def fit_ff_model(use_dir, plot=False):
 
       _x_ff = np.linspace(0, max(speeds), res)
 
-      _y_ff = [known_bad_accel_to_gas(np.mean(accel_range), _i) for _i in _x_ff]
-      plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='red', label='bad ff function')
+      # _y_ff = [known_bad_accel_to_gas(np.mean(accel_range), _i) for _i in _x_ff]
+      # plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='red', label='bad ff function')
       _y_ff = [known_good_accel_to_gas(np.mean(accel_range), _i) for _i in _x_ff]
       plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='green', label='good ff function')
 
@@ -347,6 +377,9 @@ def fit_ff_model(use_dir, plot=False):
       # plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='orange', label='standard ff model at {} m/s/s'.format(np.mean(accel_range)))
       _y_ff = [compute_gb_new(np.mean(accel_range), _i) for _i in _x_ff]
       plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='purple', label='new fitted ff function')
+
+      _y_ff = [model.predict_on_batch(np.array([[np.mean(accel_range), _i]]))[0][0] for _i in _x_ff]
+      plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='cyan', label='model ff')
 
       plt.legend()
       plt.xlabel('speed (mph)')
@@ -383,8 +416,8 @@ def fit_ff_model(use_dir, plot=False):
 
       _x_ff = np.linspace(0, max(accels), res)
 
-      _y_ff = [known_bad_accel_to_gas(_i, np.mean(speed_range)) for _i in _x_ff]
-      plt.plot(_x_ff, _y_ff, color='red', label='bad ff function')
+      # _y_ff = [known_bad_accel_to_gas(_i, np.mean(speed_range)) for _i in _x_ff]
+      # plt.plot(_x_ff, _y_ff, color='red', label='bad ff function')
       _y_ff = [known_good_accel_to_gas(_i, np.mean(speed_range)) for _i in _x_ff]
       plt.plot(_x_ff, _y_ff, color='green', label='good ff function')
 
@@ -393,10 +426,15 @@ def fit_ff_model(use_dir, plot=False):
       _y_ff = [compute_gb_new(_i, np.mean(speed_range)) for _i in _x_ff]
       plt.plot(_x_ff, _y_ff, color='purple', label='new fitted ff function')
 
+      _y_ff = [model.predict_on_batch(np.array([[_i, np.mean(speed_range)]]))[0][0] for _i in _x_ff]
+      plt.plot(_x_ff, _y_ff, color='cyan', label='model ff')
+
       plt.legend()
       plt.xlabel('accel (m/s/s)')
       plt.ylabel('gas')
       plt.savefig('plots/a{}.png'.format(speed_range_str))
+
+  return model
 
   # if PLOT_3D := False:
   #   X_test = np.linspace(0, max(data_speeds), 20)
@@ -438,4 +476,4 @@ if __name__ == "__main__":
   # lr = MultiLogIterator(r.log_paths(), wraparound=False)
   use_dir = '/openpilot/pedal-ff/rlogs/use'
   # lr = MultiLogIterator([os.path.join(use_dir, i) for i in os.listdir(use_dir)], wraparound=False)
-  n = fit_ff_model(use_dir, plot="--plot" in sys.argv)
+  model = fit_ff_model(use_dir, plot="--plot" in sys.argv)

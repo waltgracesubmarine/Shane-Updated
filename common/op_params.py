@@ -109,6 +109,7 @@ class opParams:
                         'apply_accel': Param(None, VT.none_or_number, live=True),
                         'permit_braking': Param(True, bool, live=True),
                         'STARTING_BRAKE_RATE': Param(0.8, VT.number, live=True),
+                        'min_accel': Param(None, VT.none_or_number, live=True),
 
                         'standstill_hack': Param(False, bool, 'Some cars support stop and go, you just need to enable this')}
 
