@@ -53,13 +53,16 @@ def coasting_func(x_input, _c1, _c2, _c3):  # x is speed
 def build_model(shape):
   model = models.Sequential()
   model.add(layers.Input(shape=shape))
-  model.add(layers.Dense(32, 'relu'))
-  model.add(layers.Dropout(0.2))
+  model.add(layers.Dense(6, layers.LeakyReLU()))
+  model.add(layers.Dropout(2/6))
+  model.add(layers.Dense(6, layers.LeakyReLU()))
+  model.add(layers.Dropout(2/6))
   # model.add(layers.Dense(16, 'relu'))
   # model.add(layers.Dropout(0.2))
   model.add(layers.Dense(1))
 
-  opt = optimizers.Adam(amsgrad=True)
+  # opt = optimizers.Adam(learning_rate=0.001 / 3, amsgrad=True)
+  opt = optimizers.Adadelta(learning_rate=1)
   model.compile(opt, loss='mse', metrics=['mae'])
   return model
 
@@ -241,7 +244,8 @@ def fit_ff_model(use_dir, plot=False):
         line['gas'] = line['gas_command']
       else:  # engaged but not commanding gas
         continue
-      if (line['car_gas'] >= 0 and line['a_ego'] > 0) or line['car_gas'] > 0:  # no coast samples if decelerating
+      # if (line['car_gas'] >= 0 and line['a_ego'] > 0) or line['car_gas'] > 0:  # no coast samples if decelerating
+      if line['car_gas'] > 0:  # no coast samples if decelerating
         new_data.append(line)
 
   data = new_data
@@ -265,7 +269,7 @@ def fit_ff_model(use_dir, plot=False):
   model = build_model(x_train.shape[1:])
   try:
     model.fit(x_train, y_train,
-              batch_size=32,
+              batch_size=64,
               epochs=100,
               validation_split=0.2)
   except KeyboardInterrupt:
@@ -366,7 +370,7 @@ def fit_ff_model(use_dir, plot=False):
       speeds, gas = zip(*[[line['v_ego'], line['gas']] for line in temp_data])
       plt.scatter(np.array(speeds) * CV.MS_TO_MPH, gas, label=accel_range_str, color=color, s=0.05)
 
-      _x_ff = np.linspace(0, max(speeds), res)
+      _x_ff = np.linspace(min(speeds), max(speeds), res)
 
       # _y_ff = [known_bad_accel_to_gas(np.mean(accel_range), _i) for _i in _x_ff]
       # plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='red', label='bad ff function')
@@ -414,7 +418,7 @@ def fit_ff_model(use_dir, plot=False):
       accels, gas, speeds = zip(*[[line['a_ego'], line['gas'], line['v_ego']] for line in temp_data])
       plt.scatter(accels, gas, label=speed_range_str, color=color, s=0.05)
 
-      _x_ff = np.linspace(0, max(accels), res)
+      _x_ff = np.linspace(min(accels), max(accels), res)
 
       # _y_ff = [known_bad_accel_to_gas(_i, np.mean(speed_range)) for _i in _x_ff]
       # plt.plot(_x_ff, _y_ff, color='red', label='bad ff function')

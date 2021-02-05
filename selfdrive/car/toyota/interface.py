@@ -47,8 +47,6 @@ def compute_gb_gas_interceptor(accel, speed):
       min_accel = op_params.get('min_accel')
     if accel > min_accel:
       return accel_to_gas([accel, speed])[0], True
-    else:
-      return compute_gb_toyota(accel, speed), False
     # return accel_to_gas(accel, speed) if accel > coast_accel(speed) else compute_gb_toyota(accel, speed)
   return compute_gb_toyota(accel, speed), False
 

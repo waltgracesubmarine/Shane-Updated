@@ -105,10 +105,8 @@ class opParams:
 
                         'long_kp_multiplier': Param(1, VT.number, live=True),
                         'long_ki_multiplier': Param(1, VT.number, live=True),
-                        'gas_output': Param(None, VT.none_or_number, live=True),
-                        'apply_accel': Param(None, VT.none_or_number, live=True),
-                        'permit_braking': Param(True, bool, live=True),
-                        'STARTING_BRAKE_RATE': Param(0.8, VT.number, live=True),
+                        'gas_output': Param(None, VT.none_or_number, 'Sent to accel to gas function first', live=True),
+                        'accel_output': Param(None, VT.none_or_number, 'Raw acceleration sent from longcontrol to CC (-1 to 1). Overrides gas_output', live=True),
                         'min_accel': Param(None, VT.none_or_number, live=True),
 
                         'standstill_hack': Param(False, bool, 'Some cars support stop and go, you just need to enable this')}

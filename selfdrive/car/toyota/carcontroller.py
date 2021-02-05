@@ -74,20 +74,16 @@ class CarController():
 
     apply_gas = clip(actuators.gas, 0., 1.)
 
-    if CS.CP.enableGasInterceptor and CS.out.vEgo < MIN_ACC_SPEED and actuators.isGas:
+    if CS.CP.enableGasInterceptor and CS.out.vEgo < MIN_ACC_SPEED:  # and actuators.isGas:
       # send only negative accel if interceptor is detected. otherwise, send the regular value
       # +0.06 offset to reduce ABS pump usage when OP is engaged
       apply_accel = 0.06 - actuators.brake
     else:
-      apply_gas = 0.
+      # apply_gas = 0.
       apply_accel = actuators.gas - actuators.brake
 
     apply_accel, self.accel_steady = accel_hysteresis(apply_accel, self.accel_steady, enabled)
     apply_accel = clip(apply_accel * ACCEL_SCALE, ACCEL_MIN, ACCEL_MAX)
-    if self.op_params.get('apply_accel') is not None:
-      apply_accel = self.op_params.get('apply_accel')
-      apply_gas = 0.
-
 
     # steer torque
     new_steer = int(round(actuators.steer * SteerLimitParams.STEER_MAX))
@@ -134,15 +130,15 @@ class CarController():
 
     # we can spam can to cancel the system even if we are using lat only control
     if (frame % 3 == 0 and CS.CP.openpilotLongitudinalControl) or (pcm_cancel_cmd and Ecu.fwdCamera in self.fake_ecus):
-      # lead = lead or CS.out.vEgo < 12.    # at low speed we always assume the lead is present do ACC can be engaged
+      lead = lead or CS.out.vEgo < 12.    # at low speed we always assume the lead is present do ACC can be engaged
 
       # Lexus IS uses a different cancellation message
       if pcm_cancel_cmd and CS.CP.carFingerprint == CAR.LEXUS_IS:
         can_sends.append(create_acc_cancel_command(self.packer))
       elif CS.CP.openpilotLongitudinalControl:
-        can_sends.append(create_accel_command(self.packer, apply_accel, pcm_cancel_cmd, self.standstill_req, lead, self.op_params.get('permit_braking')))
+        can_sends.append(create_accel_command(self.packer, apply_accel, pcm_cancel_cmd, self.standstill_req, lead))
       else:
-        can_sends.append(create_accel_command(self.packer, 0, pcm_cancel_cmd, False, lead, True))
+        can_sends.append(create_accel_command(self.packer, 0, pcm_cancel_cmd, False, lead))
 
     if frame % 2 == 0 and CS.CP.enableGasInterceptor and CS.out.vEgo < MIN_ACC_SPEED:
       # send exactly zero if apply_gas is zero. Interceptor will send the max between read value and apply_gas.
