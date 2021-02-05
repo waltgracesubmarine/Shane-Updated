@@ -7,7 +7,7 @@ from selfdrive.car import STD_CARGO_KG, scale_rot_inertia, scale_tire_stiffness,
 from selfdrive.swaglog import cloudlog
 from selfdrive.car.interfaces import CarInterfaceBase
 from common.op_params import opParams
-# from selfdrive.car.toyota.accel_to_gas import predict as accel_to_gas
+from selfdrive.car.toyota.accel_to_gas import predict as accel_to_gas
 
 op_params = opParams()
 use_lqr = op_params.get('use_lqr')
@@ -33,12 +33,12 @@ def compute_gb_gas_interceptor(accel, speed):
     return interp(speed, *zip(*points))
 
 
-  def accel_to_gas(accel, speed):  # given a speed and acceleration, output gas percentage for pedal
-    # averages x mae from 0 to 25 mph
-    # poly, accel_coef = [-0.00036742174834669726, 0.022650177688971165, -0.05711605265453139], 0.14408144749460255
-    # return (poly[0] * speed ** 2 + poly[1] * speed + poly[2]) + (accel_coef * accel)
-    _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
-    return (accel * _c1 + (_c4 * (speed * _c2 + 1))) * (speed * _c3 + 1)
+  # def accel_to_gas(accel, speed):  # given a speed and acceleration, output gas percentage for pedal
+  #   # averages x mae from 0 to 25 mph
+  #   # poly, accel_coef = [-0.00036742174834669726, 0.022650177688971165, -0.05711605265453139], 0.14408144749460255
+  #   # return (poly[0] * speed ** 2 + poly[1] * speed + poly[2]) + (accel_coef * accel)
+  #   _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
+  #   return (accel * _c1 + (_c4 * (speed * _c2 + 1))) * (speed * _c3 + 1)
 
   if speed <= MIN_ACC_SPEED:
     # todo: interpolate output near coast_accel, make it a smooth transition (but with the coast function it should be decent right now)
@@ -46,7 +46,7 @@ def compute_gb_gas_interceptor(accel, speed):
     if op_params.get('min_accel') is not None:
       min_accel = op_params.get('min_accel')
     if accel > min_accel:
-      return accel_to_gas(accel, speed), True
+      return accel_to_gas([accel, speed])[0], True
     # return accel_to_gas(accel, speed) if accel > coast_accel(speed) else compute_gb_toyota(accel, speed)
   return compute_gb_toyota(accel, speed), False
 

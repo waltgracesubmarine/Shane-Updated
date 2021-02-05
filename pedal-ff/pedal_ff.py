@@ -2,6 +2,7 @@
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
+
 try:
   from opendbc.can.parser import CANParser
   from tools.lib.logreader import MultiLogIterator
@@ -29,6 +30,7 @@ from tensorflow.keras import optimizers
 import pickle
 import binascii
 
+# os.chdir('/openpilot/pedal-ff')
 
 DT_CTRL = 0.01
 MIN_SAMPLES = 5 / DT_CTRL  # seconds to frames
@@ -100,7 +102,7 @@ def load_processed(file_name):
 
 def offset_accel(_data):
   # todo: manually calculated offset from 10 samples on cabana, might need to verify with data
-  accel_delay = int(0.85 / DT_CTRL)  # about .75 seconds from gas to a_ego
+  accel_delay = int(0.4 / DT_CTRL)  # about .75 seconds from gas to a_ego
   for i in range(len(_data)):  # accounts for delay (moves a_ego up by x samples since it lags behind gas)
     a_ego = [line['a_ego'] for line in _data[i]]
     # v_ego = [line['v_ego'] for line in _data[i]]
@@ -119,6 +121,7 @@ def load_and_process_rlogs(lrs, file_name):
 
   for lr in lrs:
     engaged, gas_enable, brake_pressed = False, False, False
+    sport_on = False
     v_ego, gas_command, a_ego, user_gas, car_gas, pitch, steering_angle, gear_shifter = None, None, None, None, None, None, None, None
     last_time = 0
     can_updated = False
@@ -131,6 +134,8 @@ def load_and_process_rlogs(lrs, file_name):
       ("INTERCEPTOR_GAS2", "GAS_SENSOR", 0),
       ("GAS_PEDAL", "GAS_PEDAL", 0),
       ("BRAKE_PRESSED", "BRAKE_MODULE", 0),
+      ("SPORT_ON", "GEAR_PACKET", 0),
+      ("GEAR", "GEAR_PACKET", 0),
     ]
     cp = CANParser("toyota_corolla_2017_pt_generated", signals)
 
@@ -170,6 +175,7 @@ def load_and_process_rlogs(lrs, file_name):
       car_gas = cp.vl['GAS_PEDAL']['GAS_PEDAL']  # for user AND openpilot/car (less noisy than interceptor but need to check we're not engaged)
 
       brake_pressed = bool(cp.vl['BRAKE_MODULE']['BRAKE_PRESSED'])
+      sport_on = bool(cp.vl['GEAR_PACKET']['SPORT_ON'])
 
       if msg.which() != 'can':  # only store when can is updated
         continue
@@ -178,7 +184,7 @@ def load_and_process_rlogs(lrs, file_name):
         print('TIME BREAK!')
         print(abs(msg.logMonoTime - last_time) * 1e-9)
 
-      if (v_ego is not None and can_updated and gear_shifter == car.CarState.GearShifter.drive and  # creates uninterupted sections of engaged data
+      if (v_ego is not None and can_updated and gear_shifter == car.CarState.GearShifter.drive and not sport_on and  # creates uninterupted sections of engaged data
               abs(msg.logMonoTime - last_time) * 1e-9 < 1 / 20):  # also split if there's a break in time
         data[-1].append({'v_ego': v_ego, 'gas_command': gas_command, 'a_ego': a_ego, 'user_gas': user_gas,
                          'car_gas': car_gas, 'brake_pressed': brake_pressed, 'pitch': pitch, 'engaged': engaged, 'gas_enable': gas_enable,
