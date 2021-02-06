@@ -65,7 +65,7 @@ class CarController():
       # +0.06 offset to reduce ABS pump usage when OP is engaged
       apply_accel = 0.06 - actuators.brake
     else:
-      # apply_gas = 0.
+      apply_gas = 0.
       apply_accel = actuators.gas - actuators.brake
 
     apply_accel, self.accel_steady = accel_hysteresis(apply_accel, self.accel_steady, enabled)
@@ -126,7 +126,7 @@ class CarController():
       else:
         can_sends.append(create_accel_command(self.packer, 0, pcm_cancel_cmd, False, lead))
 
-    if frame % 2 == 0 and CS.CP.enableGasInterceptor and CS.out.vEgo < MIN_ACC_SPEED:
+    if frame % 2 == 0 and CS.CP.enableGasInterceptor:
       # send exactly zero if apply_gas is zero. Interceptor will send the max between read value and apply_gas.
       # This prevents unexpected pedal range rescaling
       can_sends.append(create_gas_command(self.packer, apply_gas, frame//2))
