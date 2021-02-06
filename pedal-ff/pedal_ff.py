@@ -34,6 +34,7 @@ import binascii
 
 DT_CTRL = 0.01
 MIN_SAMPLES = 5 / DT_CTRL  # seconds to frames
+MAX_GAS_INTERCEPTOR = 232
 
 
 def coast_accel(speed):  # given a speed, output coasting acceleration
@@ -171,7 +172,7 @@ def load_and_process_rlogs(lrs, file_name):
       gas_command = max(round(cp.vl['GAS_COMMAND']['GAS_COMMAND'] / 255., 5), 0.0)  # unscale, round, and clip
       assert gas_command <= 1, "Gas command above 100%, look into this"
 
-      user_gas = ((cp.vl['GAS_SENSOR']['INTERCEPTOR_GAS'] + cp.vl['GAS_SENSOR']['INTERCEPTOR_GAS2']) / 2.) / 232.  # only for user todo: is the max 232?
+      user_gas = ((cp.vl['GAS_SENSOR']['INTERCEPTOR_GAS'] + cp.vl['GAS_SENSOR']['INTERCEPTOR_GAS2']) / 2.) / MAX_GAS_INTERCEPTOR  # only for user todo: is the max 232?
       car_gas = cp.vl['GAS_PEDAL']['GAS_PEDAL']  # for user AND openpilot/car (less noisy than interceptor but need to check we're not engaged)
 
       brake_pressed = bool(cp.vl['BRAKE_MODULE']['BRAKE_PRESSED'])
@@ -235,7 +236,7 @@ def fit_ff_model(use_dir, plot=False):
 
   # Data filtering
   def general_filters(_line):  # general filters
-    return _line['v_ego'] <= TOP_FIT_SPEED and not _line['brake_pressed'] and abs(_line['steering_angle']) <= 25  # and not _line['engaged']
+    return _line['v_ego'] <= TOP_FIT_SPEED and not _line['brake_pressed'] and abs(_line['steering_angle']) <= 25
 
   data_coasting = [line for line in data_coasting if general_filters(line) and line['car_gas'] == 0 and not line['engaged']]
 
@@ -243,16 +244,18 @@ def fit_ff_model(use_dir, plot=False):
   new_data = []
   for line in data:
     line = line.copy()
-    if general_filters(line) and not line['engaged']:
-      if not line['engaged']:  # and line['v_ego'] > 0.05 * CV.MPH_TO_MS:  # user is driving
-        line['gas'] = line['car_gas']  # user_gas (interceptor) doesn't map 1:1 with gas command so use car_gas which mostly does
-      elif line['engaged'] and line['gas_enable']:  # car is driving and giving gas
-        line['gas'] = line['gas_command']
-      else:  # engaged but not commanding gas
+    if general_filters(line):
+      USER_COAST_SAMPLES = False
+      # since car gas doesn't map to gas command perfectly, only use coasting samples while disengaged
+      if not line['engaged'] and line['car_gas'] == 0 and USER_COAST_SAMPLES:
+        line['gas'] = 0.
+      elif line['engaged'] and line['user_gas'] <= 15 / MAX_GAS_INTERCEPTOR:  # engaged and user not overriding
+        if line['car_gas'] == 0:  # always skip coasting
+          continue
+        line['gas'] = float(line['gas_command'])
+      else:
         continue
-      # if (line['car_gas'] >= 0 and line['a_ego'] > 0) or line['car_gas'] > 0:  # no coast samples if decelerating
-      if line['car_gas'] > 0:  # no coast samples if decelerating
-        new_data.append(line)
+      new_data.append(line)
 
   data = new_data
   # data = [line for line in data if line['a_ego'] > coast_accel(line['v_ego'])]
