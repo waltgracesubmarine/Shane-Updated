@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
-
+import os
 
 try:
   from opendbc.can.parser import CANParser
   from tools.lib.logreader import MultiLogIterator
   from tools.lib.route import Route
   from cereal import car
+  os.chdir('/openpilot/pedal-ff')
 except:
   pass
 
-import os
 import sys
 import matplotlib.pyplot as plt
 import numpy as np
@@ -25,12 +25,19 @@ import seaborn as sns
 from tensorflow.keras import layers
 from tensorflow.keras import models
 from tensorflow.keras import activations
+from tensorflow.keras import regularizers
 from tensorflow.keras import optimizers
+import tensorflow as tf
 
 import pickle
-import binascii
 
-# os.chdir('/openpilot/pedal-ff')
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+
+physical_devices = tf.config.list_physical_devices('GPU')
+try:
+  tf.config.experimental.set_memory_growth(physical_devices[0], True)
+except:
+  pass
 
 DT_CTRL = 0.01
 MIN_SAMPLES = 5 / DT_CTRL  # seconds to frames
@@ -56,17 +63,13 @@ def coasting_func(x_input, _c1, _c2, _c3):  # x is speed
 def build_model(shape):
   model = models.Sequential()
   model.add(layers.Input(shape=shape))
-  model.add(layers.Dense(6, layers.LeakyReLU()))
-  model.add(layers.Dropout(2/6))
-  model.add(layers.Dense(6, layers.LeakyReLU()))
-  model.add(layers.Dropout(2/6))
-  # model.add(layers.Dense(16, 'relu'))
-  # model.add(layers.Dropout(0.2))
+  model.add(layers.Dense(8, layers.LeakyReLU()))
+  model.add(layers.Dropout(1/8))
+  model.add(layers.Dense(8, layers.LeakyReLU()))
+  model.add(layers.Dropout(1/8))
   model.add(layers.Dense(1))
 
   # opt = optimizers.Adam(learning_rate=0.001 / 3, amsgrad=True)
-  opt = optimizers.Adadelta(learning_rate=1)
-  model.compile(opt, loss='mse', metrics=['mae'])
   return model
 
 
@@ -101,9 +104,7 @@ def load_processed(file_name):
     return pickle.load(f)
 
 
-def offset_accel(_data):
-  # todo: manually calculated offset from 10 samples on cabana, might need to verify with data
-  accel_delay = int(0.4 / DT_CTRL)  # about .75 seconds from gas to a_ego
+def offset_accel(_data, accel_delay):  # todo: offsetting both speed and accel seem to decrease model loss by a LOT. maybe we should just offset all gas instead of these two todo: maybe not?
   for i in range(len(_data)):  # accounts for delay (moves a_ego up by x samples since it lags behind gas)
     a_ego = [line['a_ego'] for line in _data[i]]
     # v_ego = [line['v_ego'] for line in _data[i]]
@@ -172,7 +173,7 @@ def load_and_process_rlogs(lrs, file_name):
       gas_command = max(round(cp.vl['GAS_COMMAND']['GAS_COMMAND'] / 255., 5), 0.0)  # unscale, round, and clip
       assert gas_command <= 1, "Gas command above 100%, look into this"
 
-      user_gas = ((cp.vl['GAS_SENSOR']['INTERCEPTOR_GAS'] + cp.vl['GAS_SENSOR']['INTERCEPTOR_GAS2']) / 2.) / MAX_GAS_INTERCEPTOR  # only for user todo: is the max 232?
+      user_gas = (cp.vl['GAS_SENSOR']['INTERCEPTOR_GAS'] + cp.vl['GAS_SENSOR']['INTERCEPTOR_GAS2']) / 2.  # only for user todo: is the max 232?
       car_gas = cp.vl['GAS_PEDAL']['GAS_PEDAL']  # for user AND openpilot/car (less noisy than interceptor but need to check we're not engaged)
 
       brake_pressed = bool(cp.vl['BRAKE_MODULE']['BRAKE_PRESSED'])
@@ -224,10 +225,23 @@ def fit_ff_model(use_dir, plot=False):
     coast_dir = os.path.join(os.path.dirname(use_dir), 'coast')
     data_coasting = load_and_process_rlogs([MultiLogIterator([os.path.join(coast_dir, f) for f in os.listdir(coast_dir) if '.ini' not in f], wraparound=False)], file_name='data_coasting')
 
-  if OFFSET_ACCEL := True:  # todo: play around with these
-    data = offset_accel(data)
+
+  accel_delay = int(0.4 / DT_CTRL)  # this seems to be variable and depends on engine rpm (and speed?). this is probably around the average though
+  if OFFSET_ACCEL := True:
+    data = offset_accel(data, accel_delay)
   if COAST_OFFSET_ACCEL := True:
-    data_coasting = offset_accel(data_coasting)
+    data_coasting = offset_accel(data_coasting, accel_delay)
+
+  data_sections = data.copy()
+
+  # data_tmp = [l for l in data[4] if l['engaged'] and l['gas_enable']]
+  #
+  # plt.plot([l['gas_command'] for l in data_tmp], label='cmd')
+  # plt.plot([l['car_gas'] * 0.89 + .029 for l in data_tmp], label='car gas modified')
+  # # plt.plot([l['car_gas'] for l in data_tmp], label='car gas')
+  # # plt.plot([l['user_gas'] / MAX_GAS_INTERCEPTOR for l in data_tmp], label='car gas')
+  # plt.legend()
+  # raise Exception
 
   data = [i for j in data for i in j]  # flatten
   data_coasting = [i for j in data_coasting for i in j]  # flatten
@@ -236,20 +250,18 @@ def fit_ff_model(use_dir, plot=False):
 
   # Data filtering
   def general_filters(_line):  # general filters
-    return _line['v_ego'] <= TOP_FIT_SPEED and not _line['brake_pressed'] and abs(_line['steering_angle']) <= 25
+    return _line['v_ego'] < TOP_FIT_SPEED and not _line['brake_pressed'] and abs(_line['steering_angle']) <= 25
 
   data_coasting = [line for line in data_coasting if general_filters(line) and line['car_gas'] == 0 and not line['engaged']]
 
-  # todo get rid of long periods of stopped ness
   new_data = []
   for line in data:
     line = line.copy()
     if general_filters(line):
-      USER_COAST_SAMPLES = False
-      # since car gas doesn't map to gas command perfectly, only use coasting samples while disengaged
-      if not line['engaged'] and line['car_gas'] == 0 and USER_COAST_SAMPLES:
-        line['gas'] = 0.
-      elif line['engaged'] and line['user_gas'] <= 15 / MAX_GAS_INTERCEPTOR:  # engaged and user not overriding
+      # since car gas doesn't map to gas command perfectly, only use user samples where gas is above certain threshold
+      if not line['engaged'] and 0.5 > line['car_gas'] >= 0.06:  # only use where i've verified car gas largely matches up with gas cmd
+        line['gas'] = line['car_gas'] * 0.89 + .029  # this roughly matches car gas up with gas cmd
+      elif line['engaged'] and line['gas_enable'] and line['user_gas'] < 15:  # engaged and user not overriding
         if line['car_gas'] == 0:  # always skip coasting
           continue
         line['gas'] = float(line['gas_command'])
@@ -258,6 +270,7 @@ def fit_ff_model(use_dir, plot=False):
       new_data.append(line)
 
   data = new_data
+
   # data = [line for line in data if line['a_ego'] > coast_accel(line['v_ego'])]
   # data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
   print(f'Samples (after filtering):  {len(data)}\n')
@@ -276,11 +289,15 @@ def fit_ff_model(use_dir, plot=False):
   y_train = np.array(data_gas)
 
   model = build_model(x_train.shape[1:])
+  opt = optimizers.Adadelta(learning_rate=1)
+  opt = optimizers.Adam(learning_rate=0.001 * 4, amsgrad=True)
+  model.compile(opt, loss='mse', metrics=['mae'])
   try:
     model.fit(x_train, y_train,
-              batch_size=64,
-              epochs=100,
-              validation_split=0.2)
+              batch_size=32,
+              epochs=1000,
+              validation_split=0.2,
+              callbacks=[tf.keras.callbacks.EarlyStopping('mae', patience=75)])
   except KeyboardInterrupt:
     print('Training stopped!')
 
@@ -345,12 +362,27 @@ def fit_ff_model(use_dir, plot=False):
   # print('Torque MAE: {} (standard) - {} (fitted)'.format(np.mean(std_func), np.mean(fitted_func)))
   # print('Torque STD: {} (standard) - {} (fitted)\n'.format(np.std(std_func), np.std(fitted_func)))
 
+  if PLOT_SECTION := True:
+    plt.figure()
+    plt.clf()
+    known_good = [known_good_accel_to_gas(l['a_ego'], l['v_ego']) for l in data]
+    pred = model.predict_on_batch(np.array([[l['a_ego'], l['v_ego']] for l in data])).reshape(-1)
+
+    # print(len(section))
+    plt.plot([l['gas'] for l in data], label='gas (ground truth)')
+    # plt.plot(known_good, label='polynomial function')
+    # plt.plot([l['a_ego'] / 3 for l in data], label='stock output')
+    plt.plot(pred, label='model (prediction)')
+    plt.legend()
+    plt.show()
+    plt.pause(0.01)
+    # raise Exception
+
 
   if ANALYZE_SPEED := True:
-    plt.clf()
+    plt.figure()
     sns.distplot([line['a_ego'] for line in data], bins=100)
     plt.savefig('plots/accel dist.png')
-    plt.clf()
 
     res = 100
     color = 'blue'
@@ -374,8 +406,7 @@ def fit_ff_model(use_dir, plot=False):
       if not len(temp_data):
         continue
       print(f'{accel_range} samples: {len(temp_data)}')
-      plt.figure(idx)
-      plt.clf()
+      plt.figure()
       speeds, gas = zip(*[[line['v_ego'], line['gas']] for line in temp_data])
       plt.scatter(np.array(speeds) * CV.MS_TO_MPH, gas, label=accel_range_str, color=color, s=0.05)
 
@@ -401,10 +432,9 @@ def fit_ff_model(use_dir, plot=False):
 
 
   if ANALYZE_ACCEL := True:
-    plt.clf()
+    plt.figure()
     sns.distplot([line['v_ego'] for line in data], bins=100)
     plt.savefig('plots/speed dist.png')
-    plt.clf()
 
     res = 100
 
@@ -422,8 +452,7 @@ def fit_ff_model(use_dir, plot=False):
       if not len(temp_data):
         continue
       print(f'{speed_range_str} samples: {len(temp_data)}')
-      plt.figure(idx)
-      plt.clf()
+      plt.figure()
       accels, gas, speeds = zip(*[[line['a_ego'], line['gas'], line['v_ego']] for line in temp_data])
       plt.scatter(accels, gas, label=speed_range_str, color=color, s=0.05)
 
