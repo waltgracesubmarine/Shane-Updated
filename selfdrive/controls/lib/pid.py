@@ -137,10 +137,14 @@ class LongPIDController:
 
   @property
   def k_p(self):
+    if self.op_params.get('briskspirit_long_tune'):
+      return interp(self.speed, [0., 5., 20.], [1.3, 1.0, 0.7]) * self.op_params.get('long_kp_multiplier')
     return interp(self.speed, self._k_p[0], self._k_p[1]) * self.op_params.get('long_kp_multiplier')
 
   @property
   def k_i(self):
+    if self.op_params.get('briskspirit_long_tune'):
+      return interp(self.speed, [0., 5., 12., 20., 27.], [.35, .23, .20, .17, .1]) * self.op_params.get('long_ki_multiplier')
     return interp(self.speed, self._k_i[0], self._k_i[1]) * self.op_params.get('long_ki_multiplier')
 
   @property

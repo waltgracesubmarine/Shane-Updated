@@ -108,6 +108,7 @@ class opParams:
                         'gas_output': Param(None, VT.none_or_number, 'Sent to accel to gas function first', live=True),
                         'accel_output': Param(None, VT.none_or_number, 'Raw acceleration sent from longcontrol to CC (-1 to 1). Overrides gas_output', live=True),
                         'min_accel': Param(None, VT.none_or_number, live=True),
+                        'briskspirit_long_tune': Param(False, bool, live=True),
 
                         'standstill_hack': Param(False, bool, 'Some cars support stop and go, you just need to enable this')}
 
