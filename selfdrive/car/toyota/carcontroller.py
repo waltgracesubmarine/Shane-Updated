@@ -94,7 +94,7 @@ class CarController():
       # +0.06 offset to reduce ABS pump usage when OP is engaged
       apply_gas = compute_gb_gas_interceptor(apply_accel * ACCEL_SCALE, CS.out.vEgo)
       apply_accel = 0.06 - actuators.brake
-     # else let car brake by sending positive accel under 19 mph where positive accel is LESS than coasting accel
+    # else let car brake by sending positive accel under 19 mph where positive accel is LESS than coasting accel
 
     apply_accel, self.accel_steady = accel_hysteresis(apply_accel, self.accel_steady, enabled)
     apply_accel = clip(apply_accel * ACCEL_SCALE, ACCEL_MIN, ACCEL_MAX)
