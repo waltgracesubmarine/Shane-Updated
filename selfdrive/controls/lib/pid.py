@@ -13,7 +13,6 @@ def apply_deadzone(error, deadzone):
     error = 0.
   return error
 
-
 class LatPIDController():
   def __init__(self, k_p, k_i, k_d, k_f=1., pos_limit=None, neg_limit=None, rate=100, sat_limit=0.8, convert=None):
     self._k_p = k_p  # proportional gain
@@ -110,7 +109,6 @@ class LatPIDController():
 
     self.control = clip(control, self.neg_limit, self.pos_limit)
     return self.control
-
 
 
 class LongPIDController:
