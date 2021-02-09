@@ -92,10 +92,12 @@ class CarController():
     if CS.CP.enableGasInterceptor and CS.out.vEgo < MIN_ACC_SPEED:
       # send only negative accel if interceptor is detected. otherwise, send the regular value
       # +0.06 offset to reduce ABS pump usage when OP is engaged
-      apply_accel = 0.06 - actuators.brake
       if apply_accel * ACCEL_SCALE > min_pedal_accel:
         apply_gas = compute_gb_gas_interceptor(apply_accel * ACCEL_SCALE, CS.out.vEgo)
-      elif apply_accel > 0:
+        apply_accel = 0.06 - actuators.brake
+      elif apply_accel <= 0:
+        apply_accel = 0.06 - actuators.brake
+      else:  # if not higher than coast accel, but not less than 0, send positive accel so car can decide how much to brake/coast
         apply_accel = actuators.gas - actuators.brake
 
     apply_accel, self.accel_steady = accel_hysteresis(apply_accel, self.accel_steady, enabled)
