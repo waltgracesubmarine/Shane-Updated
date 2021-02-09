@@ -7,7 +7,6 @@ from selfdrive.car import STD_CARGO_KG, scale_rot_inertia, scale_tire_stiffness,
 from selfdrive.swaglog import cloudlog
 from selfdrive.car.interfaces import CarInterfaceBase
 from common.op_params import opParams
-from selfdrive.car.toyota.accel_to_gas import predict as accel_to_gas
 
 op_params = opParams()
 use_lqr = op_params.get('use_lqr')
@@ -17,51 +16,13 @@ rav4TSS2_use_indi = op_params.get('rav4TSS2_use_indi')
 EventName = car.CarEvent.EventName
 
 
-def compute_gb_toyota(accel, speed):
-  return float(accel) / 3.0
-
-
-def compute_gb_gas_interceptor(accel, speed):
-  # This converts desired positive acceleration at a speed to gas percentage
-  # It's only accurate up to MIN_ACC_SPEED (19 mph) for now since the function was fitted on data up to that speed
-  # Once we reach that speed, we switch to sending acceleration anyway so this isn't a problem
-
-  def coast_accel(speed):  # given a speed, output coasting acceleration
-    points = [[0, .504], [1.697, .266],
-              [2.839, -.187], [3.413, -.233],
-              [MIN_ACC_SPEED, -.145]]
-    return interp(speed, *zip(*points))
-
-
-  # def accel_to_gas(accel, speed):  # given a speed and acceleration, output gas percentage for pedal
-  #   # averages x mae from 0 to 25 mph
-  #   # poly, accel_coef = [-0.00036742174834669726, 0.022650177688971165, -0.05711605265453139], 0.14408144749460255
-  #   # return (poly[0] * speed ** 2 + poly[1] * speed + poly[2]) + (accel_coef * accel)
-  #   _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
-  #   return (accel * _c1 + (_c4 * (speed * _c2 + 1))) * (speed * _c3 + 1)
-
-  if speed <= MIN_ACC_SPEED:
-    # todo: interpolate output near coast_accel, make it a smooth transition (but with the coast function it should be decent right now)
-    min_accel = coast_accel(speed)
-    if op_params.get('min_accel') is not None:
-      min_accel = op_params.get('min_accel')
-    if accel > min_accel:
-      return accel_to_gas([accel, speed])[0], True
-    # return accel_to_gas(accel, speed) if accel > coast_accel(speed) else compute_gb_toyota(accel, speed)
-  return compute_gb_toyota(accel, speed), False
-
-
 class CarInterface(CarInterfaceBase):
   def __init__(self, CP, CarController, CarState):
     super().__init__(CP, CarController, CarState)
-    if self.CP.enableGasInterceptor:
-      self.compute_gb = compute_gb_gas_interceptor
-    else:
-      self.compute_gb = compute_gb_toyota
 
   @staticmethod
   def compute_gb(accel, speed):
-    raise NotImplementedError
+    return float(accel) / 3.0
 
   @staticmethod
   def get_params(candidate, fingerprint=gen_empty_fingerprint(), has_relay=False, car_fw=[]):  # pylint: disable=dangerous-default-value

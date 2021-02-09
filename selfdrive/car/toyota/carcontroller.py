@@ -1,5 +1,5 @@
 from cereal import car
-from common.numpy_fast import clip
+from common.numpy_fast import clip, interp
 from selfdrive.car import apply_toyota_steer_torque_limits, create_gas_command, make_can_msg
 from selfdrive.car.toyota.toyotacan import create_steer_command, create_ui_command, \
                                            create_accel_command, create_acc_cancel_command, \
@@ -7,6 +7,7 @@ from selfdrive.car.toyota.toyotacan import create_steer_command, create_ui_comma
 from selfdrive.car.toyota.values import Ecu, CAR, STATIC_MSGS, NO_STOP_TIMER_CAR, MIN_ACC_SPEED, SteerLimitParams
 from opendbc.can.packer import CANPacker
 from common.op_params import opParams
+from selfdrive.car.toyota.accel_to_gas import predict as accel_to_gas
 
 VisualAlert = car.CarControl.HUDControl.VisualAlert
 
@@ -29,6 +30,29 @@ def accel_hysteresis(accel, accel_steady, enabled):
   accel = accel_steady
 
   return accel, accel_steady
+
+
+def coast_accel(speed):  # given a speed, output coasting acceleration
+  points = [[0, .504], [1.697, .266],
+            [2.839, -.187], [3.413, -.233],
+            [MIN_ACC_SPEED, -.145]]
+  return interp(speed, *zip(*points))
+
+
+def compute_gb_gas_interceptor(accel, speed):
+  # This converts desired positive acceleration at a speed to gas percentage
+  # It's only accurate up to MIN_ACC_SPEED (19 mph) for now since the function was fitted on data up to that speed
+  # Once we reach that speed, we switch to sending acceleration anyway so this isn't a problem
+
+
+  # def accel_to_gas(accel, speed):  # given a speed and acceleration, output gas percentage for pedal
+  #   # averages x mae from 0 to 25 mph
+  #   # poly, accel_coef = [-0.00036742174834669726, 0.022650177688971165, -0.05711605265453139], 0.14408144749460255
+  #   # return (poly[0] * speed ** 2 + poly[1] * speed + poly[2]) + (accel_coef * accel)
+  #   _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
+  #   return (accel * _c1 + (_c4 * (speed * _c2 + 1))) * (speed * _c3 + 1)
+
+  return accel_to_gas([accel, speed])[0]
 
 
 class CarController():
@@ -58,15 +82,19 @@ class CarController():
 
     # gas and brake
 
-    apply_gas = clip(actuators.gas, 0., 1.)
+    apply_accel = actuators.gas - actuators.brake
+    apply_gas = 0.
 
-    if CS.CP.enableGasInterceptor and CS.out.vEgo < MIN_ACC_SPEED:  # and actuators.isGas:
+    min_accel = coast_accel(CS.out.vEgo)
+    if self.op_params.get('min_accel') is not None:
+      min_accel = self.op_params.get('min_accel')
+
+    if CS.CP.enableGasInterceptor and CS.out.vEgo < MIN_ACC_SPEED and apply_accel * ACCEL_SCALE > min_accel:
       # send only negative accel if interceptor is detected. otherwise, send the regular value
       # +0.06 offset to reduce ABS pump usage when OP is engaged
+      apply_gas = compute_gb_gas_interceptor(apply_accel * ACCEL_SCALE, CS.out.vEgo)
       apply_accel = 0.06 - actuators.brake
-    else:
-      apply_gas = 0.
-      apply_accel = actuators.gas - actuators.brake
+     # else let car brake by sending positive accel under 19 mph where positive accel is LESS than coasting accel
 
     apply_accel, self.accel_steady = accel_hysteresis(apply_accel, self.accel_steady, enabled)
     apply_accel = clip(apply_accel * ACCEL_SCALE, ACCEL_MIN, ACCEL_MAX)
