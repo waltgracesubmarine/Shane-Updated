@@ -107,7 +107,7 @@ class opParams:
                         'long_ki_multiplier': Param(1, VT.number, live=True),
                         'loc_accel': Param(None, VT.none_or_number, 'Converted to gas with function first then sent to interceptor as gas (Max is about 1.5 m/s/s)', live=True),
                         'apply_gas': Param(None, VT.none_or_number, 'Raw gas percent sent to interceptor (0 to 1). Overrides loc_accel', live=True),
-                        'min_accel': Param(None, VT.none_or_number, live=True),
+                        'min_pedal_accel': Param(None, VT.none_or_number, live=True),
                         'briskspirit_long_tune': Param(False, bool, live=True),
 
                         'standstill_hack': Param(False, bool, 'Some cars support stop and go, you just need to enable this')}
