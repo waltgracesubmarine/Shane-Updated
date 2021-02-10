@@ -89,20 +89,20 @@ class CarController():
     if self.op_params.get('min_pedal_accel') is not None:
       min_pedal_accel = self.op_params.get('min_pedal_accel')
 
-    if CS.CP.enableGasInterceptor and CS.out.vEgo < MIN_ACC_SPEED:
+    if CS.CP.enableGasInterceptor and CS.out.vEgo < MIN_ACC_SPEED and enabled and apply_accel * ACCEL_SCALE > min_pedal_accel:
       # send only negative accel if interceptor is detected. otherwise, send the regular value
       # +0.06 offset to reduce ABS pump usage when OP is engaged
-      if apply_accel * ACCEL_SCALE > min_pedal_accel and enabled:  # if requesting more than coasting accel, apply gas
-        apply_gas = clip(compute_gb_gas_interceptor(apply_accel * ACCEL_SCALE, CS.out.vEgo), 0., 1.)
-        apply_accel = 0.06
+      apply_gas = compute_gb_gas_interceptor(apply_accel * ACCEL_SCALE, CS.out.vEgo)
+      apply_accel = 0.06  # if we're here we're giving gas
 
     apply_accel, self.accel_steady = accel_hysteresis(apply_accel, self.accel_steady, enabled)
     apply_accel = clip(apply_accel * ACCEL_SCALE, ACCEL_MIN, ACCEL_MAX)
 
-    if self.op_params.get('apply_gas') is not None and enabled:
+    if self.op_params.get('apply_gas') is not None and enabled:  # this is just for testing todo: remove me
       apply_gas = self.op_params.get('apply_gas')
       apply_accel = 0.06 * ACCEL_SCALE
-      print(apply_gas)
+
+    apply_gas = clip(apply_gas, 0., 1.)
 
     # steer torque
     new_steer = int(round(actuators.steer * SteerLimitParams.STEER_MAX))
