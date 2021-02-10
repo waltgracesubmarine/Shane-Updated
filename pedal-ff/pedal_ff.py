@@ -2,6 +2,10 @@
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 import os
+import sys
+
+from numpy.random import seed
+seed(2147483648)
 
 try:
   from opendbc.can.parser import CANParser
@@ -10,9 +14,9 @@ try:
   from cereal import car
   os.chdir('/openpilot/pedal-ff')
 except:
-  pass
+  sys.path.insert(0, 'C:/Git/openpilot-repos/op-smiskol')
+  os.environ['PYTHONPATH'] = '.'
 
-import sys
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import cm
@@ -28,11 +32,13 @@ from tensorflow.keras import activations
 from tensorflow.keras import regularizers
 from tensorflow.keras import optimizers
 import tensorflow as tf
-
 import pickle
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+import wandb
+from wandb.keras import WandbCallback
 
+
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 physical_devices = tf.config.list_physical_devices('GPU')
 try:
   tf.config.experimental.set_memory_growth(physical_devices[0], True)
@@ -42,6 +48,24 @@ except:
 DT_CTRL = 0.01
 MIN_SAMPLES = 5 / DT_CTRL  # seconds to frames
 MAX_GAS_INTERCEPTOR = 232
+
+CAR_GAS_TO_CMD_POLY = [0.86765184, 0.03172896]  # i was pretty close fitting by hand, but this is the most accurate
+
+
+hyperparameter_defaults = dict(
+  dropout_1=1/6,
+  dropout_2=1/6,
+
+  dense_1=6,
+  dense_2=6,
+
+  optimizer='adam',
+  batch_size=32,
+  learning_rate=0.001,
+  epochs=10,
+)
+wandb.init(project="pedal-fix", config=hyperparameter_defaults)
+config = wandb.config
 
 
 def coast_accel(speed):  # given a speed, output coasting acceleration
@@ -63,10 +87,10 @@ def coasting_func(x_input, _c1, _c2, _c3):  # x is speed
 def build_model(shape):
   model = models.Sequential()
   model.add(layers.Input(shape=shape))
-  model.add(layers.Dense(8, layers.LeakyReLU()))
-  model.add(layers.Dropout(1/8))
-  model.add(layers.Dense(8, layers.LeakyReLU()))
-  model.add(layers.Dropout(1/8))
+  model.add(layers.Dense(config.dense_1, layers.LeakyReLU()))
+  model.add(layers.Dropout(config.dropout_1))
+  model.add(layers.Dense(config.dense_2, layers.LeakyReLU()))
+  model.add(layers.Dropout(config.dropout_2))
   model.add(layers.Dense(1))
 
   # opt = optimizers.Adam(learning_rate=0.001 / 3, amsgrad=True)
@@ -123,8 +147,7 @@ def load_and_process_rlogs(lrs, file_name):
 
   for lr in lrs:
     engaged, gas_enable, brake_pressed = False, False, False
-    sport_on = False
-    v_ego, gas_command, a_ego, user_gas, car_gas, pitch, steering_angle, gear_shifter = None, None, None, None, None, None, None, None
+    v_ego, gas_command, a_ego, pitch, steering_angle, gear_shifter = None, None, None, None, None, None
     last_time = 0
     can_updated = False
 
@@ -232,15 +255,22 @@ def fit_ff_model(use_dir, plot=False):
   if COAST_OFFSET_ACCEL := True:
     data_coasting = offset_accel(data_coasting, accel_delay)
 
-  data_sections = data.copy()
-
-  # data_tmp = [l for l in data[4] if l['engaged'] and l['gas_enable']]
+  # data_tmp = [l for l in [i for j in data for i in j] if l['engaged'] and l['gas_enable'] and l['user_gas'] < 14]  # todo: this all is to convert car gas to gas cmd scale. can be removed when done experimenting with
+  # print(len(data_tmp))
   #
+  # plt.plot([l['car_gas'] for l in data_tmp], 'o', label='og car gas')
+  #
+  # # def fit_car_gas_to_cmd(car, _c1, _c2):
+  # #   return _c1 * car + _c2
+  #
+  # # params, _ = curve_fit(fit_car_gas_to_cmd, [l['car_gas'] for l in data_tmp], [l['gas_command'] for l in data_tmp])
+  # # print(params)
+  # plt.plot([np.polyval(CAR_GAS_TO_CMD_POLY, l['car_gas']) for l in data_tmp], label='car gas (FITTED)')
   # plt.plot([l['gas_command'] for l in data_tmp], label='cmd')
-  # plt.plot([l['car_gas'] * 0.89 + .029 for l in data_tmp], label='car gas modified')
-  # # plt.plot([l['car_gas'] for l in data_tmp], label='car gas')
-  # # plt.plot([l['user_gas'] / MAX_GAS_INTERCEPTOR for l in data_tmp], label='car gas')
+  #
   # plt.legend()
+  # plt.show()
+  # plt.pause(0.01)
   # raise Exception
 
   data = [i for j in data for i in j]  # flatten
@@ -254,22 +284,28 @@ def fit_ff_model(use_dir, plot=False):
 
   data_coasting = [line for line in data_coasting if general_filters(line) and line['car_gas'] == 0 and not line['engaged']]
 
+  engaged_samples = 0
+  user_samples = 0
+
   new_data = []
   for line in data:
     line = line.copy()
     if general_filters(line):
       # since car gas doesn't map to gas command perfectly, only use user samples where gas is above certain threshold
-      if not line['engaged'] and 0.5 > line['car_gas'] >= 0.06:  # only use where i've verified car gas largely matches up with gas cmd
-        line['gas'] = line['car_gas'] * 0.89 + .029  # this roughly matches car gas up with gas cmd
+      if not line['engaged'] and 0.65 >= line['car_gas'] > 0.01:  # verified for sure working up to 0.65, but probably could go further
+        line['gas'] = float(np.polyval(CAR_GAS_TO_CMD_POLY, line['car_gas']))  # this matches car gas up with gas cmd fairly accurately
+        user_samples += 1
       elif line['engaged'] and line['gas_enable'] and line['user_gas'] < 15:  # engaged and user not overriding
         if line['car_gas'] == 0:  # always skip coasting
           continue
+        engaged_samples += 1
         line['gas'] = float(line['gas_command'])
       else:
         continue
       new_data.append(line)
 
   data = new_data
+  print('There are {} engaged samples and {} user samples!'.format(engaged_samples, user_samples))
 
   # data = [line for line in data if line['a_ego'] > coast_accel(line['v_ego'])]
   # data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
@@ -289,17 +325,26 @@ def fit_ff_model(use_dir, plot=False):
   y_train = np.array(data_gas)
 
   model = build_model(x_train.shape[1:])
-  opt = optimizers.Adadelta(learning_rate=1)
-  opt = optimizers.Adam(learning_rate=0.001 * 4, amsgrad=True)
+  if config.optimizer == 'adam':
+    opt = optimizers.Adam(learning_rate=config.learning_rate, amsgrad=True)
+  else:
+    opt = optimizers.Adadelta(learning_rate=config.learning_rate)
+
   model.compile(opt, loss='mse', metrics=['mae'])
   try:
     model.fit(x_train, y_train,
-              batch_size=32,
-              epochs=1000,
+              batch_size=config.batch_size,
+              epochs=config.epochs,
               validation_split=0.2,
-              callbacks=[tf.keras.callbacks.EarlyStopping('mae', patience=75)])
+              callbacks=[
+                # tf.keras.callbacks.EarlyStopping('mae', patience=75),
+                WandbCallback()
+              ])
   except KeyboardInterrupt:
     print('Training stopped!')
+  exit(0)
+
+  model = models.load_model('models/model-best.h5')
 
   params, covs = curve_fit(fit_all, x_train.T, y_train, maxfev=1000)
   print('Params: {}'.format(params.tolist()))
@@ -362,7 +407,7 @@ def fit_ff_model(use_dir, plot=False):
   # print('Torque MAE: {} (standard) - {} (fitted)'.format(np.mean(std_func), np.mean(fitted_func)))
   # print('Torque STD: {} (standard) - {} (fitted)\n'.format(np.std(std_func), np.std(fitted_func)))
 
-  if PLOT_SECTION := True:
+  if PLOT_MODEL := True:
     plt.figure()
     plt.clf()
     known_good = [known_good_accel_to_gas(l['a_ego'], l['v_ego']) for l in data]
