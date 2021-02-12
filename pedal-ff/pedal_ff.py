@@ -49,20 +49,23 @@ DT_CTRL = 0.01
 MIN_SAMPLES = 5 / DT_CTRL  # seconds to frames
 MAX_GAS_INTERCEPTOR = 232
 
-CAR_GAS_TO_CMD_POLY = [0.86765184, 0.03172896]  # i was pretty close fitting by hand, but this is the most accurate
+
+def transform_car_gas(car_gas):
+  CAR_GAS_TO_CMD_POLY = [0.86765184, 0.03172896]  # i was pretty close fitting by hand, but this is the most accurate
+  return float(np.polyval(CAR_GAS_TO_CMD_POLY, car_gas))
 
 
 hyperparameter_defaults = dict(
-  dropout_1=1/6,
-  dropout_2=1/6,
+  dropout_1=1/4/2,
+  dropout_2=1/6/2,
 
-  dense_1=6,
+  dense_1=4,
   dense_2=6,
 
-  optimizer='adam',
-  batch_size=32,
-  learning_rate=0.001,
-  epochs=10,
+  optimizer='adadelta',
+  batch_size=12,
+  learning_rate=0.075,
+  epochs=1000,
 )
 wandb.init(project="pedal-fix", config=hyperparameter_defaults)
 config = wandb.config
@@ -255,7 +258,7 @@ def fit_ff_model(use_dir, plot=False):
   if COAST_OFFSET_ACCEL := True:
     data_coasting = offset_accel(data_coasting, accel_delay)
 
-  # data_tmp = [l for l in [i for j in data for i in j] if l['engaged'] and l['gas_enable'] and l['user_gas'] < 14]  # todo: this all is to convert car gas to gas cmd scale. can be removed when done experimenting with
+  # data_tmp = [l for l in [i for j in data for i in j] if l['engaged'] and l['user_gas'] < 14]  # todo: this all is to convert car gas to gas cmd scale. can be removed when done experimenting with
   # print(len(data_tmp))
   #
   # plt.plot([l['car_gas'] for l in data_tmp], 'o', label='og car gas')
@@ -265,7 +268,7 @@ def fit_ff_model(use_dir, plot=False):
   #
   # # params, _ = curve_fit(fit_car_gas_to_cmd, [l['car_gas'] for l in data_tmp], [l['gas_command'] for l in data_tmp])
   # # print(params)
-  # plt.plot([np.polyval(CAR_GAS_TO_CMD_POLY, l['car_gas']) for l in data_tmp], label='car gas (FITTED)')
+  # plt.plot([transform_car_gas(l['car_gas']) for l in data_tmp], label='car gas (FITTED)')
   # plt.plot([l['gas_command'] for l in data_tmp], label='cmd')
   #
   # plt.legend()
@@ -280,38 +283,62 @@ def fit_ff_model(use_dir, plot=False):
 
   # Data filtering
   def general_filters(_line):  # general filters
-    return _line['v_ego'] < TOP_FIT_SPEED and not _line['brake_pressed'] and abs(_line['steering_angle']) <= 25
+    return 0.01 * CV.MPH_TO_MS < _line['v_ego'] < TOP_FIT_SPEED and not _line['brake_pressed'] and abs(_line['steering_angle']) <= 15
 
   data_coasting = [line for line in data_coasting if general_filters(line) and line['car_gas'] == 0 and not line['engaged']]
 
   engaged_samples = 0
   user_samples = 0
+  # coast_user = []
 
   new_data = []
   for line in data:
     line = line.copy()
     if general_filters(line):
       # since car gas doesn't map to gas command perfectly, only use user samples where gas is above certain threshold
-      if not line['engaged'] and 0.65 >= line['car_gas'] > 0.01:  # verified for sure working up to 0.65, but probably could go further
-        line['gas'] = float(np.polyval(CAR_GAS_TO_CMD_POLY, line['car_gas']))  # this matches car gas up with gas cmd fairly accurately
-        user_samples += 1
+      if not line['engaged'] and 0.65 >= line['car_gas']:  # verified for sure working up to 0.65, but probably could go further
+        if line['car_gas'] >= 0.01:  # if giving gas
+          line['gas'] = transform_car_gas(line['car_gas'])  # this matches car gas up with gas cmd fairly accurately
+          user_samples += 1
+        # elif line['car_gas'] == 0 and line['user_gas'] < 15 and line['v_ego'] > 0.05:  # elif coasting and not stopped  todo: only allow under 5 mph?
+        #   line['gas'] = 0.
+        #   user_samples += 1
+        #   # if line['v_ego'] < 5 * CV.MPH_TO_MS:
+        #   #   coast_user.append(line)
+        else:  # coasting but speed not in range
+          continue
       elif line['engaged'] and line['gas_enable'] and line['user_gas'] < 15:  # engaged and user not overriding
-        if line['car_gas'] == 0:  # always skip coasting
+        # if line['gas_command'] >= 0.1:
+        #   continue
+        # todo this is a hacky fix for bad data. i let op accidentally send gas cmd while not engaged and interceptor didn't like that so it wouldn't apply commanded gas WHILE ENGAGED sometimes. this gets rid of those samples
+        if line['gas_command'] == 0. or line['car_gas'] == 0 or abs(line['gas_command'] - transform_car_gas(line['car_gas'])) > 0.05:  # function avgs 0.011 error
           continue
         engaged_samples += 1
         line['gas'] = float(line['gas_command'])
       else:
         continue
+
       new_data.append(line)
 
   data = new_data
+  del new_data
   print('There are {} engaged samples and {} user samples!'.format(engaged_samples, user_samples))
+
+  # print('There are {} user coast samples!'.format(len(coast_user)))
+  # sns.distplot([line['a_ego'] for line in coast_user], bins=75)
+
+  # raise Exception
 
   # data = [line for line in data if line['a_ego'] > coast_accel(line['v_ego'])]
   # data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
   print(f'Samples (after filtering):  {len(data)}\n')
 
   print(f"Coasting samples: {len(data_coasting)}")
+
+  temp_gas = [l['gas'] for l in data]
+  print('Gas min: {} max: {}'.format(round(min(temp_gas), 5), round(max(temp_gas), 5)))
+  sns.distplot(temp_gas, bins=75)
+  plt.savefig('plots/gas dist.png')
 
   assert len(data) > MIN_SAMPLES, 'too few valid samples found in route'
 
@@ -342,9 +369,9 @@ def fit_ff_model(use_dir, plot=False):
               ])
   except KeyboardInterrupt:
     print('Training stopped!')
-  exit(0)
+  # exit(0)
 
-  model = models.load_model('models/model-best.h5')
+  # model = models.load_model('models/model-best.h5')
 
   params, covs = curve_fit(fit_all, x_train.T, y_train, maxfev=1000)
   print('Params: {}'.format(params.tolist()))
