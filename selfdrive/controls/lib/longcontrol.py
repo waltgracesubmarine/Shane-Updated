@@ -84,7 +84,7 @@ class LongControl():
   def update(self, active, CS, v_target, v_target_future, a_target, CP, extras):
     """Update longitudinal control. This updates the state machine and runs a PID loop"""
     # Actuation limits
-    gas_max = interp(CS.vEgo, CP.gasMaxBP, CP.gasMaxV)
+    gas_max = self.op_params.get('gas_max')  # interp(CS.vEgo, CP.gasMaxBP, CP.gasMaxV)
     brake_max = interp(CS.vEgo, CP.brakeMaxBP, CP.brakeMaxV)
 
     if self.enable_dg:
