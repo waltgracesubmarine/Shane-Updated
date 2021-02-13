@@ -56,15 +56,15 @@ def transform_car_gas(car_gas):
 
 
 hyperparameter_defaults = dict(
-  dropout_1=1/4/2,
-  dropout_2=1/6/2,
+  dropout_1=2/6,
+  dropout_2=2/6,
 
-  dense_1=4,
+  dense_1=6,
   dense_2=6,
 
   optimizer='adadelta',
-  batch_size=12,
-  learning_rate=0.075,
+  batch_size=32,
+  learning_rate=1.0,
   epochs=1000,
 )
 wandb.init(project="pedal-fix", config=hyperparameter_defaults)
