@@ -56,15 +56,15 @@ def transform_car_gas(car_gas):
 
 
 hyperparameter_defaults = dict(
-  dropout_1=2/6,
-  dropout_2=2/6,
+  dropout_1=1/10,
+  dropout_2=1/10,
 
-  dense_1=6,
-  dense_2=6,
+  dense_1=2,
+  dense_2=4,
 
   optimizer='adadelta',
-  batch_size=32,
-  learning_rate=1.0,
+  batch_size=16,
+  learning_rate=1.,
   epochs=1000,
 )
 wandb.init(project="pedal-fix", config=hyperparameter_defaults)
@@ -139,6 +139,7 @@ def offset_accel(_data, accel_delay):  # todo: offsetting both speed and accel s
     for j in range(data_len):
       if j + accel_delay >= data_len:
         break
+      _data[i][j]['a_ego_current'] = float(_data[i][j]['a_ego'])
       _data[i][j]['a_ego'] = a_ego[j + accel_delay]
       # _data[i][j]['v_ego'] = v_ego[j + accel_delay]
     _data[i] = _data[i][:-accel_delay]  # removes trailing samples
@@ -296,18 +297,14 @@ def fit_ff_model(use_dir, plot=False):
     line = line.copy()
     if general_filters(line):
       # since car gas doesn't map to gas command perfectly, only use user samples where gas is above certain threshold
-      if not line['engaged'] and 0.65 >= line['car_gas']:  # verified for sure working up to 0.65, but probably could go further
-        if line['car_gas'] >= 0.01:  # if giving gas
-          line['gas'] = transform_car_gas(line['car_gas'])  # this matches car gas up with gas cmd fairly accurately
-          user_samples += 1
-        # elif line['car_gas'] == 0 and line['user_gas'] < 15 and line['v_ego'] > 0.05:  # elif coasting and not stopped  todo: only allow under 5 mph?
-        #   line['gas'] = 0.
-        #   user_samples += 1
-        #   # if line['v_ego'] < 5 * CV.MPH_TO_MS:
-        #   #   coast_user.append(line)
-        else:  # coasting but speed not in range
-          continue
+      if not line['engaged']:  # and 0.65 >= line['car_gas']:  # verified for sure working up to 0.65, but probably could go further
+        # if line['car_gas'] >= 0.1:  # if giving gas
+        line['gas'] = float(line['car_gas'])  # transform_car_gas(line['car_gas'])  # this matches car gas up with gas cmd fairly accurately
+        user_samples += 1
+        # else:  # coasting but speed not in range
+        #   continue
       elif line['engaged'] and line['gas_enable'] and line['user_gas'] < 15:  # engaged and user not overriding
+        continue  # todo: skip engaged samples for now
         # if line['gas_command'] >= 0.1:
         #   continue
         # todo this is a hacky fix for bad data. i let op accidentally send gas cmd while not engaged and interceptor didn't like that so it wouldn't apply commanded gas WHILE ENGAGED sometimes. this gets rid of those samples
@@ -345,6 +342,7 @@ def fit_ff_model(use_dir, plot=False):
   # Now prepare for function fitting
   data_speeds = np.array([line['v_ego'] for line in data])
   data_accels = np.array([line['a_ego'] for line in data])
+  data_cur_accels = np.array([line['a_ego_current'] for line in data])
   data_gas = np.array([line['gas'] for line in data])
   print('MIN ACCEL: {}'.format(min(data_accels)))
 
@@ -448,6 +446,7 @@ def fit_ff_model(use_dir, plot=False):
     plt.legend()
     plt.show()
     plt.pause(0.01)
+    plt.savefig('plots/model_plot.png')
     # raise Exception
 
 
