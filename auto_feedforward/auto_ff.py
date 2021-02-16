@@ -1,36 +1,39 @@
 #!/usr/bin/env python3
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 import os
 import sys
+
+try:
+  from opendbc.can.parser import CANParser
+  from tools.lib.logreader import MultiLogIterator
+  from tools.lib.route import Route
+  from cereal import car
+except:  # running on pc
+  # sys.path.insert(0, 'C:/Git/openpilot-repos/op-smiskol')
+  # os.environ['PYTHONPATH'] = '.'
+  pass
+
+os.chdir(os.path.dirname(os.path.realpath(__file__)))
+
+
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from matplotlib import cm
 from tqdm import tqdm   # type: ignore
 from scipy.optimize import curve_fit
-from selfdrive.car.toyota.values import STEER_THRESHOLD
 
-from common.realtime import DT_CTRL
 from selfdrive.config import Conversions as CV
-from selfdrive.car.toyota.values import SteerLimitParams as TOYOTA_PARAMS
-from selfdrive.car.subaru.carcontroller import CarControllerParams as SUBARU_PARAMS
-from tools.lib.route import Route
-import seaborn as sns
-from tools.lib.logreader import MultiLogIterator
 import pickle
 import binascii
 
-old_kf = 0.0000795769068  # for plotting old function compared to new polynomial function
+STEER_THRESHOLD = 100
+DT_CTRL = 0.01
+
+old_kf = 0.00007818594  # for plotting old function compared to new polynomial function
 MIN_SAMPLES = 60 * 100
 
-
-def to_signed(n, bits):
-  if n >= (1 << max((bits - 1), 0)):
-    n = n - (1 << max(bits, 0))
-  return n
-
-
-def hex_to_binary(hexdata):
-  return (bin(int(binascii.hexlify(hexdata), 16))[2:]).zfill(len(hexdata) * 8)  # adds leading/trailing zeros so data matches up with 8x8 array on cabana
 
 
 def old_feedforward(v_ego, angle_steers, angle_offset=0):
@@ -87,80 +90,108 @@ class CustomFeedforward:
     return steer_feedforward * self.kf
 
 
-CF = CustomFeedforward(to_fit='poly')
+CF = CustomFeedforward(to_fit='kf')
 
 
+def load_processed(file_name):
+  with open(file_name, 'rb') as f:
+    return pickle.load(f)
 
-def fit_ff_model(use_dir, plot=False):
-  CAR_MAKE = 'toyota'
-  MAX_TORQUE = TOYOTA_PARAMS.STEER_MAX if CAR_MAKE == 'toyota' else SUBARU_PARAMS().STEER_MAX
 
-  steer_delay = None
-
-  files = os.listdir(use_dir)
-  files = [f for f in files if '.ini' not in f]
-
-  routes = [[files[0]]]  # this mess ensures we process each route's segments independantly since sorting will join samples from random routes
-  for rt in files[1:]:  # todo: clean up
-    rt_name = ''.join(rt.split('--')[:2])
-    if rt_name != ''.join(routes[-1][-1].split('--')[:2]):
-      routes.append([rt])
-    else:
-      routes[-1].append(rt)
-
-  print(list(map(len, routes)))
-  lrs = []
-  for _routes in routes:
-    lrs.append(MultiLogIterator([os.path.join(use_dir, i) for i in _routes], wraparound=False))
-
+def load_and_process_rlogs(lrs, file_name):
   data = [[]]
+
   for lr in lrs:
-    engaged, steering_pressed = False, False
-    torque_cmd, angle_steers, angle_steers_des, angle_offset, v_ego = None, None, None, None, None
+    v_ego, angle_offset, angle_steers_des, angle_steers_cs, torque_cmd = None, None, None, None, None
     last_time = 0
+    can_updated = False
+
+    angle_offset_can = 0
+    needs_angle_offset = True
+    accurate_steer_angle_seen = False
+
+    signals = [
+      ("STEER_REQUEST", "STEERING_LKA", 0),
+      ("STEER_TORQUE_CMD", "STEERING_LKA", 0),
+      ("STEER_TORQUE_DRIVER", "STEER_TORQUE_SENSOR", 0),
+      ("STEER_ANGLE", "STEER_TORQUE_SENSOR", 0),
+      ("STEER_ANGLE", "STEER_ANGLE_SENSOR", 0),
+      ("STEER_FRACTION", "STEER_ANGLE_SENSOR", 0),
+    ]
+    cp = CANParser("toyota_corolla_2017_pt_generated", signals)
 
     all_msgs = sorted(lr, key=lambda msg: msg.logMonoTime)
 
     for msg in tqdm(all_msgs):
-      if msg.which() == 'carParams':
-        if steer_delay is None:
-          steer_delay = round(msg.carParams.steerActuatorDelay / DT_CTRL)
-
-      elif msg.which() == 'carState':
+      if msg.which() == 'carState':
         v_ego = msg.carState.vEgo
+        angle_steers_cs = msg.carState.steeringAngle  # this is offset from can by 1 frame. it's within acceptable margin of error and we get more accuracy for TSS2
 
       elif msg.which() == 'pathPlan':
         angle_steers_des = msg.pathPlan.angleSteers
         angle_offset = msg.pathPlan.angleOffset
 
-      if msg.which() != 'can':
+      if msg.which() not in ['can', 'sendcan']:
         continue
+      cp_updated = cp.update_string(msg.as_builder().to_bytes())
+      for u in cp_updated:
+        if u == 0x2e4:  # STEERING_LKA
+          can_updated = True
 
-      for m in msg.can:
-        if m.address == 0x2e4 and m.src == 128:  # STEERING_LKA
-          engaged = bool(m.dat[0] & 1)
-          torque_cmd = to_signed((m.dat[1] << 8) | m.dat[2], 16)
-        elif m.address == 0x260 and m.src == 0:  # STEER_TORQUE_SENSOR
-          steering_pressed = abs(to_signed((m.dat[1] << 8) | m.dat[2], 16)) > STEER_THRESHOLD
-        elif m.address == 0x25 and m.src == 0:  # STEER_ANGLE_SENSOR
-          steer_angle = to_signed(int(bin(m.dat[0])[2:].zfill(8)[4:] + bin(m.dat[1])[2:].zfill(8), 2), 12) * 1.5
-          steer_fraction = to_signed(int(bin(m.dat[4])[2:].zfill(8)[:4], 2), 4) * 0.1
-          angle_steers = steer_angle + steer_fraction
+      if msg.which() == 'sendcan':
+        torque_cmd = int(cp.vl['STEERING_LKA']['STEER_TORQUE_CMD'])
+        continue  # only store when can is updated (would store at 200hz if not for this (can and sendcan))
+      else:  # can
+        steer_req = bool(cp.vl['STEERING_LKA']['STEER_REQUEST'])
+        steering_pressed = abs(cp.vl['STEER_TORQUE_SENSOR']['STEER_TORQUE_DRIVER']) > STEER_THRESHOLD
+        angle_steers = float(cp.vl['STEER_ANGLE_SENSOR']['STEER_ANGLE'] + cp.vl['STEER_ANGLE_SENSOR']['STEER_FRACTION'])
 
-      if (engaged and not steering_pressed and None not in [angle_steers, v_ego, angle_steers_des, angle_offset, torque_cmd] and  # creates uninterupted sections of engaged data
+        if abs(cp.vl["STEER_TORQUE_SENSOR"]['STEER_ANGLE']) > 1e-3:
+          accurate_steer_angle_seen = True
+
+        angle_steers_accurate = cp.vl["STEER_TORQUE_SENSOR"]['STEER_ANGLE'] - angle_offset_can
+
+        if accurate_steer_angle_seen:
+          if needs_angle_offset:
+            needs_angle_offset = False
+            angle_offset_can = cp.vl["STEER_TORQUE_SENSOR"]['STEER_ANGLE'] - angle_steers
+            angle_steers_accurate = cp.vl["STEER_TORQUE_SENSOR"]['STEER_ANGLE'] - angle_offset_can
+
+      if (steer_req and not steering_pressed and can_updated and torque_cmd is not None and v_ego is not None and not needs_angle_offset and  # creates uninterupted sections of engaged data
               abs(msg.logMonoTime - last_time) * 1e-9 < 1 / 20):  # also split if there's a break in time
-
         data[-1].append({'angle_steers': angle_steers, 'v_ego': v_ego, 'angle_steers_des': angle_steers_des,
-                         'angle_offset': angle_offset, 'torque': torque_cmd, 'time': msg.logMonoTime * 1e-9})
-
+                         'angle_offset': angle_offset, 'torque': torque_cmd, 'angle_steers_accurate': angle_steers_accurate, 'angle_offset_can': angle_offset_can,
+                         'angle_steers_cs': angle_steers_cs, 'time': msg.logMonoTime * 1e-9})
       elif len(data[-1]):  # if last list has items in it, append new empty section
         data.append([])
-
       last_time = msg.logMonoTime
 
+  print('Max seq. len: {}'.format(max([len(line) for line in data])))
   del all_msgs
-  assert steer_delay is not None, 'Never received a carParams msg'
-  assert steer_delay > 0, 'Steer actuator delay is not positive'
+  data = [sec for sec in data if len(sec) > 5 / DT_CTRL]  # long enough sections
+
+  with open(file_name, 'wb') as f:  # now dump
+    pickle.dump(data, f)
+  return data
+
+
+def fit_ff_model(use_dir, plot=False):
+  CAR_MAKE = 'toyota'
+  MAX_TORQUE = 1500 if CAR_MAKE == 'toyota' else 2047  # fixme: 2047 is subaru
+
+  # TSS2 Corolla looks to be around 0.5 to 0.6
+  STEER_DELAY = round(0.55 / DT_CTRL)  # to be manually input since PP now adds 0.2 seconds outside of cereal msg
+
+  if os.path.exists('processed_data'):
+    print('exists')
+    data = load_processed('processed_data')
+  else:
+    print('processing')
+    route_dirs = [f for f in os.listdir(use_dir) if '.ini' not in f and f != 'exclude']
+    route_files = [[os.path.join(use_dir, i, f) for f in os.listdir(os.path.join(use_dir, i)) if f != 'exclude' and '.ini' not in f] for i in route_dirs]
+    lrs = [MultiLogIterator(rd, wraparound=False) for rd in route_files]
+    data = load_and_process_rlogs(lrs, file_name='processed_data')
+
 
   print('Max seq. len: {}'.format(max([len(line) for line in data])))
 
@@ -168,22 +199,40 @@ def fit_ff_model(use_dir, plot=False):
   for i in range(len(data)):  # accounts for steer actuator delay (moves torque cmd up by 12 samples)
     torque = [line['torque'] for line in data[i]]
     for j in range(len(data[i])):
-      if j < steer_delay:
+      if j < STEER_DELAY:
         continue
-      data[i][j]['torque'] = torque[j - steer_delay]
-    data[i] = data[i][steer_delay:]  # removes leading samples
+      data[i][j]['torque'] = torque[j - STEER_DELAY]
+    data[i] = data[i][STEER_DELAY:]  # removes leading samples
   data = [i for j in data for i in j]  # flatten
 
-  if WRITE_DATA := False:  # todo: temp, for debugging
-    with open('auto_feedforward/data', 'wb') as f:
-      pickle.dump(data, f)
+
+  NOT_OFFSET_CORRECTLY = True  # if TSS2 and uses more accurate angle from STEER_TORQUE_SENSOR then angle_offset is incorrect
+  if NOT_OFFSET_CORRECTLY:
+    for line in data:
+      line['angle_offset'] = line['angle_offset'] - line['angle_offset_can']
+      line['angle_steers_des'] = line['angle_steers_des'] - line['angle_offset_can']
+      line['angle_steers'] = line['angle_steers_accurate']
 
   print(f'Samples (before filtering): {len(data)}')
-
   # Data filtering
-  max_angle_error = 0.75
+  max_angle_error = 0.5
   data = [line for line in data if 1e-4 <= abs(line['angle_steers']) <= 90]
   data = [line for line in data if abs(line['v_ego']) > 1 * CV.MPH_TO_MS]
+
+  # A1 = np.array([line['angle_steers'] for line in data])
+  # A2 = np.array([line['torque'] for line in data])
+  # A1 = (A1 - np.mean(A1)) / np.std(A1)
+  # A2 = (A2 - np.mean(A2)) / np.std(A2)
+  # plt.plot([line['angle_steers'] for line in data], label='angle from can')
+  # plt.plot([line['angle_steers_accurate'] for line in data], label='angle from can accurate')
+  # plt.plot([line['angle_steers_accurate'] - line['angle_offset'] for line in data], label='offset')
+  # # plt.plot(A2, label='torque')
+  # # plt.plot([line['angle_steers_des'] for line in data], label='desired')
+  # plt.legend()
+  # # plt.title('{} sec. steer delay'.format(STEER_DELAY * DT_CTRL))
+  # plt.show()
+  # raise Exception
+
   # data = [line for line in data if np.sign(line['angle_steers'] - line['angle_offset']) == np.sign(line['torque'])]  # todo see if this helps at all
   data = [line for line in data if abs(line['angle_steers'] - line['angle_steers_des']) < max_angle_error]  # no need for offset since des is already offset in pathplanner
 
@@ -255,8 +304,7 @@ def fit_ff_model(use_dir, plot=False):
       if not len(temp_data):
         continue
       print(f'{angle_range} samples: {len(temp_data)}')
-      plt.figure(idx)
-      plt.clf()
+      plt.figure()
       speeds, torque = zip(*[[line['v_ego'], line['torque']] for line in temp_data])
       plt.scatter(np.array(speeds) * CV.MS_TO_MPH, torque, label=angle_range_str, color=color, s=0.05)
 
@@ -270,7 +318,7 @@ def fit_ff_model(use_dir, plot=False):
       plt.legend()
       plt.xlabel('speed (mph)')
       plt.ylabel('torque')
-      plt.savefig('auto_feedforward/plots/{}.png'.format(angle_range_str))
+      plt.savefig('plots/{}.png'.format(angle_range_str))
 
   if ANGLE_DATA_ANALYSIS := True:  # analyzes how angle changes need of torque (RESULT: seems to be relatively linear, can be tuned by k_f)
     if PLOT_ANGLE_DIST := False:
@@ -296,8 +344,7 @@ def fit_ff_model(use_dir, plot=False):
       if not len(temp_data):
         continue
       print(f'{speed_range_str} samples: {len(temp_data)}')
-      plt.figure(idx)
-      plt.clf()
+      plt.figure()
       angles, torque, speeds = zip(*[[line['angle_steers'], line['torque'], line['v_ego']] for line in temp_data])
       plt.scatter(angles, torque, label=speed_range_str, color=color, s=0.05)
 
@@ -311,7 +358,7 @@ def fit_ff_model(use_dir, plot=False):
       plt.legend()
       plt.xlabel('angle (deg)')
       plt.ylabel('torque')
-      plt.savefig('auto_feedforward/plots/{}.png'.format(speed_range_str))
+      plt.savefig('plots/{}.png'.format(speed_range_str))
 
   # if PLOT_3D := False:
   #   X_test = np.linspace(0, max(data_speeds), 20)
@@ -351,6 +398,6 @@ def fit_ff_model(use_dir, plot=False):
 if __name__ == "__main__":
   # r = Route("14431dbeedbf3558%7C2020-11-10--22-24-34")
   # lr = MultiLogIterator(r.log_paths(), wraparound=False)
-  use_dir = '/openpilot/auto_feedforward/rlogs/shane/good'
+  use_dir = 'rlogs/birdman'
   # lr = MultiLogIterator([os.path.join(use_dir, i) for i in os.listdir(use_dir)], wraparound=False)
   n = fit_ff_model(use_dir, plot="--plot" in sys.argv)
