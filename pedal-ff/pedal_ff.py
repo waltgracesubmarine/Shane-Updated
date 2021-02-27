@@ -52,15 +52,15 @@ MAX_GAS_INTERCEPTOR = 232
 
 def transform_car_gas(car_gas):
   CAR_GAS_TO_CMD_POLY = [0.86765184, 0.03172896]  # i was pretty close fitting by hand, but this is the most accurate
-  return float(np.polyval(CAR_GAS_TO_CMD_POLY, car_gas))
+  return np.polyval(CAR_GAS_TO_CMD_POLY, car_gas)
 
 
 hyperparameter_defaults = dict(
-  dropout_1=1/10,
-  dropout_2=1/10,
+  dropout_1=0,  # 1/15,
+  dropout_2=0,  # 1/20,
 
   dense_1=2,
-  dense_2=4,
+  dense_2=2,
 
   optimizer='adadelta',
   batch_size=16,
@@ -72,9 +72,9 @@ config = wandb.config
 
 
 def coast_accel(speed):  # given a speed, output coasting acceleration
-  points = [[0, .504], [1.697, .266],
-            [2.839, -.187], [3.413, -.233],
-            [19 * CV.MPH_TO_MS, -.145]]
+  points = [[0.0, 0.538], [1.697, 0.28],
+            [2.853, -0.199], [3.443, -0.249],
+            [19.0 * CV.MPH_TO_MS, -0.145]]
   return interp(speed, *zip(*points))
 
 
@@ -100,7 +100,7 @@ def build_model(shape):
   return model
 
 
-def fit_all(x_input, _c1, _c2, _c3, _c4, _c5):
+def fit_all(x_input, _c1, _c2, _c3, _c4):
   """
     x_input is array of a_ego and v_ego
     all _params are to be fit by curve_fit
@@ -108,8 +108,8 @@ def fit_all(x_input, _c1, _c2, _c3, _c4, _c5):
     c1-c3 are poly coefficients
   """
   a_ego, v_ego = x_input.copy()
-  poly, accel_coef = [_c1, _c2, _c3], _c4
-  return (poly[0] * v_ego ** 2 + poly[1] * v_ego + poly[2]) + (accel_coef * a_ego ** 2 + _c5 * a_ego)
+  # return (_c1 * v_ego + _c2) + (_c3 * a_ego + (_c4 * v_ego))
+  return (_c1 * v_ego + _c2) + (_c3 * a_ego ** 2 + _c4 * a_ego)
   # return _c1 * v_ego + _c2 * a_ego + _c3
 
   # return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
@@ -228,7 +228,7 @@ def load_and_process_rlogs(lrs, file_name):
 
   print('Max seq. len: {}'.format(max([len(line) for line in data])))
 
-  data = [sec for sec in data if len(sec) > 2 / DT_CTRL]  # long enough sections
+  data = [sec for sec in data if len(sec) > 5 / DT_CTRL]  # long enough sections
 
   with open(file_name, 'wb') as f:  # now dump
     pickle.dump(data, f)
@@ -253,7 +253,7 @@ def fit_ff_model(use_dir, plot=False):
     data_coasting = load_and_process_rlogs([MultiLogIterator([os.path.join(coast_dir, f) for f in os.listdir(coast_dir) if '.ini' not in f], wraparound=False)], file_name='data_coasting')
 
 
-  accel_delay = int(0.4 / DT_CTRL)  # this seems to be variable and depends on engine rpm (and speed?). this is probably around the average though
+  accel_delay = int(0.45 / DT_CTRL)  # this seems to be variable and depends on engine rpm (and speed?). this is probably around the average though
   if OFFSET_ACCEL := True:
     data = offset_accel(data, accel_delay)
   if COAST_OFFSET_ACCEL := True:
@@ -284,7 +284,7 @@ def fit_ff_model(use_dir, plot=False):
 
   # Data filtering
   def general_filters(_line):  # general filters
-    return 0.01 * CV.MPH_TO_MS < _line['v_ego'] < TOP_FIT_SPEED and not _line['brake_pressed'] and abs(_line['steering_angle']) <= 15
+    return 0.01 * CV.MPH_TO_MS < _line['v_ego'] < TOP_FIT_SPEED and not _line['brake_pressed'] and abs(_line['steering_angle']) <= 25
 
   data_coasting = [line for line in data_coasting if general_filters(line) and line['car_gas'] == 0 and not line['engaged']]
 
@@ -298,18 +298,24 @@ def fit_ff_model(use_dir, plot=False):
     if general_filters(line):
       # since car gas doesn't map to gas command perfectly, only use user samples where gas is above certain threshold
       if not line['engaged']:  # and 0.65 >= line['car_gas']:  # verified for sure working up to 0.65, but probably could go further
+        continue
         # if line['car_gas'] >= 0.1:  # if giving gas
-        line['gas'] = float(line['car_gas'])  # transform_car_gas(line['car_gas'])  # this matches car gas up with gas cmd fairly accurately
+        if line['car_gas'] == 0.:  # don't use these. very small gas is probably good enough
+          line['gas'] = 0  # todo: this is experimental. test before reverting
+        else:
+          line['gas'] = transform_car_gas(line['car_gas'])  # this matches car gas up with gas cmd fairly accurately
+        # line['gas'] = float(line['car_gas'])
         user_samples += 1
         # else:  # coasting but speed not in range
         #   continue
-      elif line['engaged'] and line['gas_enable'] and line['user_gas'] < 15:  # engaged and user not overriding
-        continue  # todo: skip engaged samples for now
+      elif line['engaged'] and line['user_gas'] < 15:  # engaged and user not overriding
+        # continue  # todo: skip engaged samples for now
         # if line['gas_command'] >= 0.1:
         #   continue
-        # todo this is a hacky fix for bad data. i let op accidentally send gas cmd while not engaged and interceptor didn't like that so it wouldn't apply commanded gas WHILE ENGAGED sometimes. this gets rid of those samples
-        if line['gas_command'] == 0. or line['car_gas'] == 0 or abs(line['gas_command'] - transform_car_gas(line['car_gas'])) > 0.05:  # function avgs 0.011 error
-          continue
+        # # todo this is a hacky fix for bad data. i let op accidentally send gas cmd while not engaged and interceptor didn't like that so it wouldn't apply commanded gas WHILE ENGAGED sometimes. this gets rid of those samples
+        # if line['gas_command'] == 0. or line['car_gas'] == 0 or abs(line['gas_command'] - transform_car_gas(line['car_gas'])) > 0.05:  # function avgs 0.011 error
+        #   print('SHOULDNT BE HERE')
+        #   continue
         engaged_samples += 1
         line['gas'] = float(line['gas_command'])
       else:
@@ -326,7 +332,7 @@ def fit_ff_model(use_dir, plot=False):
 
   # raise Exception
 
-  # data = [line for line in data if line['a_ego'] > coast_accel(line['v_ego'])]
+  data = [line for line in data if line['a_ego'] > coast_accel(line['v_ego']) - 0.1]  # this is experimental
   # data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
   print(f'Samples (after filtering):  {len(data)}\n')
 
@@ -399,6 +405,7 @@ def fit_ff_model(use_dir, plot=False):
 
     plt.plot(x, [coast_accel(_x) for _x in x], 'r', label='piecewise function')
     plt.savefig('imgs/coasting plot.png')
+    raise Exception
 
     plt.clf()
     x = np.linspace(0, 19 * CV.MPH_TO_MS, 100)
@@ -435,14 +442,15 @@ def fit_ff_model(use_dir, plot=False):
   if PLOT_MODEL := True:
     plt.figure()
     plt.clf()
-    known_good = [known_good_accel_to_gas(l['a_ego'], l['v_ego']) for l in data]
+    # known_good = [known_good_accel_to_gas(l['a_ego'], l['v_ego']) for l in data]
     pred = model.predict_on_batch(np.array([[l['a_ego'], l['v_ego']] for l in data])).reshape(-1)
+    fitted_function = [compute_gb_new(l['a_ego'], l['v_ego']) for l in data]
 
     # print(len(section))
     plt.plot([l['gas'] for l in data], label='gas (ground truth)')
-    # plt.plot(known_good, label='polynomial function')
     # plt.plot([l['a_ego'] / 3 for l in data], label='stock output')
     plt.plot(pred, label='model (prediction)')
+    plt.plot(fitted_function, label='fitted function')
     plt.legend()
     plt.show()
     plt.pause(0.01)
