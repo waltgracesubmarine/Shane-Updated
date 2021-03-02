@@ -100,7 +100,7 @@ def build_model(shape):
   return model
 
 
-def fit_all(x_input, _c1, _c2, _c3, _c4):
+def fit_all(x_input, _c1, _c2, _c3, _c4, _c5):
   """
     x_input is array of a_ego and v_ego
     all _params are to be fit by curve_fit
@@ -109,7 +109,7 @@ def fit_all(x_input, _c1, _c2, _c3, _c4):
   """
   a_ego, v_ego = x_input.copy()
   # return (_c1 * v_ego + _c2) + (_c3 * a_ego + (_c4 * v_ego))
-  return (_c1 * v_ego + _c2) + (_c3 * a_ego ** 2 + _c4 * a_ego)
+  return (_c1 * v_ego ** 2 + _c2 * v_ego + _c5) + (_c3 * a_ego ** 2 + _c4 * a_ego)
   # return _c1 * v_ego + _c2 * a_ego + _c3
 
   # return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
@@ -121,9 +121,9 @@ def known_bad_accel_to_gas(accel, speed):
   return (poly[0] * speed ** 2 + poly[1] * speed + poly[2]) + (accel_coef * accel)
 
 
-def known_good_accel_to_gas(accel, speed):
-  _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]
-  return (accel * _c1 + (_c4 * (speed * _c2 + 1))) * (speed * _c3 + 1)
+def known_good_accel_to_gas(desired_accel, speed):
+  _c1, _c2, _c3, _c4 = [0.015332129994618495, -0.013848089187675144, -0.05406226668839383, 0.180209019025656]
+  return (_c1 * speed + _c2) + (_c3 * desired_accel ** 2 + _c4 * desired_accel)
 
 
 def load_processed(file_name):
@@ -298,10 +298,12 @@ def fit_ff_model(use_dir, plot=False):
     if general_filters(line):
       # since car gas doesn't map to gas command perfectly, only use user samples where gas is above certain threshold
       if not line['engaged']:  # and 0.65 >= line['car_gas']:  # verified for sure working up to 0.65, but probably could go further
-        continue
+        # continue
         # if line['car_gas'] >= 0.1:  # if giving gas
         if line['car_gas'] == 0.:  # don't use these. very small gas is probably good enough
           line['gas'] = 0  # todo: this is experimental. test before reverting
+        elif line['car_gas'] < .05:
+          continue
         else:
           line['gas'] = transform_car_gas(line['car_gas'])  # this matches car gas up with gas cmd fairly accurately
         # line['gas'] = float(line['car_gas'])
@@ -405,7 +407,6 @@ def fit_ff_model(use_dir, plot=False):
 
     plt.plot(x, [coast_accel(_x) for _x in x], 'r', label='piecewise function')
     plt.savefig('imgs/coasting plot.png')
-    raise Exception
 
     plt.clf()
     x = np.linspace(0, 19 * CV.MPH_TO_MS, 100)
@@ -442,14 +443,15 @@ def fit_ff_model(use_dir, plot=False):
   if PLOT_MODEL := True:
     plt.figure()
     plt.clf()
-    # known_good = [known_good_accel_to_gas(l['a_ego'], l['v_ego']) for l in data]
-    pred = model.predict_on_batch(np.array([[l['a_ego'], l['v_ego']] for l in data])).reshape(-1)
+    known_good = [known_good_accel_to_gas(l['a_ego'], l['v_ego']) for l in data]
+    # pred = model.predict_on_batch(np.array([[l['a_ego'], l['v_ego']] for l in data])).reshape(-1)
     fitted_function = [compute_gb_new(l['a_ego'], l['v_ego']) for l in data]
 
     # print(len(section))
     plt.plot([l['gas'] for l in data], label='gas (ground truth)')
     # plt.plot([l['a_ego'] / 3 for l in data], label='stock output')
-    plt.plot(pred, label='model (prediction)')
+    # plt.plot(pred, label='model (prediction)')
+    plt.plot(known_good, label='last good')
     plt.plot(fitted_function, label='fitted function')
     plt.legend()
     plt.show()
