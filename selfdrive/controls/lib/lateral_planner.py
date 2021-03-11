@@ -119,6 +119,7 @@ class LateralPlanner():
     cur_time = sec_since_boot()
     one_blinker = sm['carState'].leftBlinker != sm['carState'].rightBlinker
     if one_blinker and not self.prev_one_blinker:
+      print(one_blinker, self.prev_one_blinker)
       self.one_blinker_rising_time = cur_time
 
     intention_lane_change = False
@@ -204,7 +205,7 @@ class LateralPlanner():
       else:
         self.desire = DESIRES[self.lane_change_direction][self.lane_change_state]  # None
 
-      self.prev_one_blinker = one_blinker
+    self.prev_one_blinker = one_blinker
 
     # Turn off lanes during lane change
     if self.desire == log.LateralPlan.Desire.laneChangeRight or self.desire == log.LateralPlan.Desire.laneChangeLeft:
