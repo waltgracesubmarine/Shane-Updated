@@ -126,10 +126,13 @@ class LateralPlanner():
     if sm['carState'].sportOn:
       if one_blinker:
         intention_turn = True
+        print('intention_turn')
     elif cur_time - self.one_blinker_rising_time < self.lane_change_min_blinker_time:
       if not one_blinker:
+        print('intention_keep')
         self.intention_keep = True
     elif one_blinker:
+      print('intention_lane_change')
       intention_lane_change = True
 
     below_lane_change_speed = v_ego < self.alca_min_speed
