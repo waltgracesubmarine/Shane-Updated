@@ -27,18 +27,24 @@ DESIRES = {
     LaneChangeState.preLaneChange: log.LateralPlan.Desire.none,
     LaneChangeState.laneChangeStarting: log.LateralPlan.Desire.none,
     LaneChangeState.laneChangeFinishing: log.LateralPlan.Desire.none,
+    'keep': log.LateralPlan.Desire.none,
+    'turn': log.LateralPlan.Desire.none,
   },
   LaneChangeDirection.left: {
     LaneChangeState.off: log.LateralPlan.Desire.none,
     LaneChangeState.preLaneChange: log.LateralPlan.Desire.none,
     LaneChangeState.laneChangeStarting: log.LateralPlan.Desire.laneChangeLeft,
     LaneChangeState.laneChangeFinishing: log.LateralPlan.Desire.laneChangeLeft,
+    'keep': log.LateralPlan.Desire.keepLeft,
+    'turn': log.LateralPlan.Desire.turnLeft,
   },
   LaneChangeDirection.right: {
     LaneChangeState.off: log.LateralPlan.Desire.none,
     LaneChangeState.preLaneChange: log.LateralPlan.Desire.none,
     LaneChangeState.laneChangeStarting: log.LateralPlan.Desire.laneChangeRight,
     LaneChangeState.laneChangeFinishing: log.LateralPlan.Desire.laneChangeRight,
+    'keep': log.LateralPlan.Desire.keepRight,
+    'turn': log.LateralPlan.Desire.turnRight,
   },
 }
 
@@ -59,6 +65,10 @@ class LateralPlanner():
     self.lane_change_ll_prob = 1.0
     self.prev_one_blinker = False
     self.desire = log.LateralPlan.Desire.none
+
+    self.one_blinker_rising_time = 0
+    self.lane_change_min_blinker_time = 0.5  # in seconds how long to wait before issuing lane change. also dictates the max time blinker allowed on for keeping
+    self.intention_keep = False
 
     self.path_xyz = np.zeros((TRAJECTORY_SIZE,3))
     self.plan_yaw = np.zeros((TRAJECTORY_SIZE,))
@@ -106,7 +116,22 @@ class LateralPlanner():
       self.plan_yaw = list(md.orientation.z)
 
     # Lane change logic
+    cur_time = sec_since_boot()
     one_blinker = sm['carState'].leftBlinker != sm['carState'].rightBlinker
+    if one_blinker and not self.prev_one_blinker:
+      self.one_blinker_rising_time = cur_time
+
+    intention_lane_change = False
+    intention_turn = False
+    if sm['carState'].sportOn:
+      if one_blinker:
+        intention_turn = True
+    elif cur_time - self.one_blinker_rising_time < self.lane_change_min_blinker_time:
+      if not one_blinker:
+        self.intention_keep = True
+    elif one_blinker:
+      intention_lane_change = True
+
     below_lane_change_speed = v_ego < self.alca_min_speed
 
     if sm['carState'].leftBlinker:
@@ -115,6 +140,7 @@ class LateralPlanner():
       self.lane_change_direction = LaneChangeDirection.right
 
     if (not active) or (self.lane_change_timer > LANE_CHANGE_TIME_MAX) or (not self.lane_change_enabled):
+      self.intention_keep = False
       self.lane_change_state = LaneChangeState.off
       self.lane_change_direction = LaneChangeDirection.none
     else:
@@ -131,42 +157,51 @@ class LateralPlanner():
 
       # State transitions
       # off
-      if self.lane_change_state == LaneChangeState.off and one_blinker and not self.prev_one_blinker and not below_lane_change_speed:
-        self.lane_change_state = LaneChangeState.preLaneChange
-        self.lane_change_ll_prob = 1.0
-
-      # pre
-      elif self.lane_change_state == LaneChangeState.preLaneChange:
-        if not one_blinker or below_lane_change_speed:
-          self.lane_change_state = LaneChangeState.off
-        elif torque_applied and not blindspot_detected:
-          self.lane_change_state = LaneChangeState.laneChangeStarting
-
-      # starting
-      elif self.lane_change_state == LaneChangeState.laneChangeStarting:
-        # fade out over .5s
-        self.lane_change_ll_prob = max(self.lane_change_ll_prob - 2*DT_MDL, 0.0)
-        # 98% certainty
-        if lane_change_prob < 0.02 and self.lane_change_ll_prob < 0.01:
-          self.lane_change_state = LaneChangeState.laneChangeFinishing
-
-      # finishing
-      elif self.lane_change_state == LaneChangeState.laneChangeFinishing:
-        # fade in laneline over 1s
-        self.lane_change_ll_prob = min(self.lane_change_ll_prob + DT_MDL, 1.0)
-        if one_blinker and self.lane_change_ll_prob > 0.99:
+      if intention_lane_change or self.intention_keep:
+        if self.lane_change_state == LaneChangeState.off and (one_blinker or self.intention_keep) and not self.prev_one_blinker and not below_lane_change_speed:
           self.lane_change_state = LaneChangeState.preLaneChange
-        elif self.lane_change_ll_prob > 0.99:
-          self.lane_change_state = LaneChangeState.off
+          self.lane_change_ll_prob = 1.0
 
-    if self.lane_change_state in [LaneChangeState.off, LaneChangeState.preLaneChange]:
-      self.lane_change_timer = 0.0
-    else:
-      self.lane_change_timer += DT_MDL
+        # pre
+        elif self.lane_change_state == LaneChangeState.preLaneChange:
+          if (not one_blinker and not self.intention_keep) or below_lane_change_speed:
+            self.lane_change_state = LaneChangeState.off
+          elif torque_applied and not blindspot_detected:
+            self.lane_change_state = LaneChangeState.laneChangeStarting
 
-    self.prev_one_blinker = one_blinker
+        # starting
+        elif self.lane_change_state == LaneChangeState.laneChangeStarting:
+          # fade out over .5s
+          self.lane_change_ll_prob = max(self.lane_change_ll_prob - 2*DT_MDL, 0.0)
+          # 98% certainty
+          if lane_change_prob < 0.02 and self.lane_change_ll_prob < 0.01:
+            self.lane_change_state = LaneChangeState.laneChangeFinishing
 
-    self.desire = DESIRES[self.lane_change_direction][self.lane_change_state]
+        # finishing
+        elif self.lane_change_state == LaneChangeState.laneChangeFinishing:
+          # fade in laneline over 1s
+          self.lane_change_ll_prob = min(self.lane_change_ll_prob + DT_MDL, 1.0)
+          if one_blinker and self.lane_change_ll_prob > 0.99:
+            self.lane_change_state = LaneChangeState.preLaneChange
+          elif self.lane_change_ll_prob > 0.99:
+            self.intention_keep = False
+            self.lane_change_state = LaneChangeState.off
+
+        if self.lane_change_state in [LaneChangeState.off, LaneChangeState.preLaneChange]:
+          self.lane_change_timer = 0.0
+        else:
+          self.lane_change_timer += DT_MDL
+
+        if not self.intention_keep:
+          self.desire = DESIRES[self.lane_change_direction][self.lane_change_state]
+        elif self.lane_change_state not in [LaneChangeState.off, LaneChangeState.preLaneChange]:
+          self.desire = DESIRES[self.lane_change_direction]['keep']
+      elif intention_turn:
+        self.desire = DESIRES[self.lane_change_direction]['turn']
+      else:
+        self.desire = DESIRES[self.lane_change_direction][self.lane_change_state]  # None
+
+      self.prev_one_blinker = one_blinker
 
     # Turn off lanes during lane change
     if self.desire == log.LateralPlan.Desire.laneChangeRight or self.desire == log.LateralPlan.Desire.laneChangeLeft:
