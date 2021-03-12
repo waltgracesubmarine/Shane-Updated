@@ -376,8 +376,8 @@ def fit_ff_model(use_dir, plot=False):
   for line in data:
     if line['engaged'] and line['gas_enable'] and line['gas_command'] > 0.001:  # reduce gas near 0 accel and speed to bias the final function/model
       if line['v_ego'] < 18 * CV.MPH_TO_MS and line['a_ego'] < 1.1:
-        reduction = np.interp(line['v_ego'], [0, 4 * CV.MPH_TO_MS, 12 * CV.MPH_TO_MS, 18 * CV.MPH_TO_MS], [1.0, 0.9, 0.1, -0.075])
-        reduction *= np.interp(line['a_ego'], [0, 0.25, .8, 1.2], [1.1, 1.2, .1, 0])
+        reduction = np.interp(line['v_ego'], [0, 5 * CV.MPH_TO_MS, 8 * CV.MPH_TO_MS, 18 * CV.MPH_TO_MS], [1.0, 0.75, 0.6, 0])
+        reduction *= np.interp(line['a_ego'], [0.25, .9], [1, 0])
         reduction *= 0.055
         line['gas_command'] = max(line['gas_command'] - reduction, 0)
 
