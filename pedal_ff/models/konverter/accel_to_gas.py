@@ -3,8 +3,9 @@
 """
 
 import numpy as np
+import os
 
-wb = np.load('C:/Git/openpilot-repos/op-smiskol-temp/selfdrive/model_weights.npz', allow_pickle=True)
+wb = np.load('{}/model_weights.npz'.format(os.path.dirname(os.path.realpath(__file__))), allow_pickle=True)
 w, b = wb['wb']
 
 def predict(x):

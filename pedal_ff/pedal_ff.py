@@ -13,7 +13,7 @@ try:
   from tools.lib.logreader import MultiLogIterator
   from tools.lib.route import Route
   from cereal import car
-  os.chdir('/openpilot/pedal-ff')
+  os.chdir('/openpilot/pedal_ff')
 except:
   sys.path.insert(0, 'C:/Git/openpilot-repos/op-smiskol')
   os.environ['PYTHONPATH'] = '.'
@@ -49,7 +49,8 @@ except:
 DT_CTRL = 0.01
 MIN_SAMPLES = 5 / DT_CTRL  # seconds to frames
 MAX_GAS_INTERCEPTOR = 232
-TOP_FIT_SPEED = 25 * CV.MPH_TO_MS
+MIN_ACC_SPEED = 19 * CV.MPH_TO_MS
+TOP_FIT_SPEED = (19 + 3) * CV.MPH_TO_MS
 
 
 def transform_car_gas(car_gas):
@@ -79,7 +80,7 @@ def coast_accel(speed):  # given a speed, output coasting acceleration
   #           [19.0 * CV.MPH_TO_MS, -0.145]]
   points_new = [[0.0, 0.03], [.166, .424], [.335, .568],
                 [.731, .440], [1.886, 0.262], [2.809, -0.207],
-                [3.443, -0.249], [TOP_FIT_SPEED, -0.145]]
+                [3.443, -0.249], [MIN_ACC_SPEED, -0.145]]
   return interp(speed, *zip(*points_new))
 
 
@@ -135,15 +136,20 @@ def known_good_accel_to_gas(desired_accel, speed):
   # _c1, _c2, _c3, _c4 = [0.015332129994618495, -0.013848089187675144, -0.05406226668839383, 0.180209019025656]  # this function is smooth at low speed
   # return (_c1 * speed + _c2) + (_c3 * desired_accel ** 2 + _c4 * desired_accel)  # but didn't give enough gas above 10 mph
 
+  # ----
   # this function was accurate at high speeds and fairly smooth at low speeds but mashed on the gas sometimes
-  _s1, offset = [((0.011 + .02) / 2 + .0155) / 2, 0.011371989131620245 - .02 - (.016 + .0207) / 2]  # these two have been tuned manually since the curve_fit function didn't seem exactly right
-  _a1, _a2, _a3 = [0.022130745681601702, -0.09109186615316711, 0.20997207156680778]
-  speed_part = (_s1 * speed)
-  accel_part = (_a1 * desired_accel ** 3 + _a2 * desired_accel ** 2) * np.interp(speed, [10. * CV.MPH_TO_MS, 19. * CV.MPH_TO_MS], [1, 0.6])  # todo make this a linear function and clip (quicker)
-  accel_part += (_a3 * desired_accel)
-  accel_part *= np.interp(desired_accel, [0, 2], [0.8, 1])
-  # offset -= np.interp(speed, [0 * CV.MPH_TO_MS, 6 * CV.MPH_TO_MS], [.04, 0]) * np.interp(a_ego, [0.5, 2], [1, 0])  # np.clip(1 - a_ego, 0, 1)
-  return accel_part + speed_part + offset
+  # _s1, offset = [((0.011 + .02) / 2 + .0155) / 2, 0.011371989131620245 - .02 - (.016 + .0207) / 2]  # these two have been tuned manually since the curve_fit function didn't seem exactly right
+  # _a1, _a2, _a3 = [0.022130745681601702, -0.09109186615316711, 0.20997207156680778]
+  # speed_part = (_s1 * speed)
+  # accel_part = (_a1 * desired_accel ** 3 + _a2 * desired_accel ** 2) * np.interp(speed, [10. * CV.MPH_TO_MS, 19. * CV.MPH_TO_MS], [1, 0.6])  # todo make this a linear function and clip (quicker)
+  # accel_part += (_a3 * desired_accel)
+  # accel_part *= np.interp(desired_accel, [0, 2], [0.8, 1])
+  # # offset -= np.interp(speed, [0 * CV.MPH_TO_MS, 6 * CV.MPH_TO_MS], [.04, 0]) * np.interp(a_ego, [0.5, 2], [1, 0])  # np.clip(1 - a_ego, 0, 1)
+  # return accel_part + speed_part + offset
+  # ----
+
+  _c1, _c2, _c3, _c4 = [0.04412016647510183, 0.018224465923095633, 0.09983653162564889, 0.08837909527049172]  # too much gas at low accel but good gas at higher accels
+  return (desired_accel * _c1 + (_c4 * (speed * _c2 + 1))) * (speed * _c3 + 1)
 
 
 def load_processed(file_name):
@@ -181,6 +187,7 @@ def load_and_process_rlogs(lrs, file_name):
   for lr in lrs:
     engaged, gas_enable, brake_pressed = False, False, False
     v_ego, gas_command, a_ego, pitch, steering_angle, gear_shifter = None, None, None, None, None, None
+    a_target, v_target = None, None
     last_time = 0
     can_updated = False
 
@@ -207,6 +214,9 @@ def load_and_process_rlogs(lrs, file_name):
         steering_angle = msg.carState.steeringAngle
         engaged = msg.carState.cruiseState.enabled
         gear_shifter = msg.carState.gearShifter
+      elif msg.which() == 'controlsState':
+        a_target = msg.controlsState.aTarget
+        v_target = msg.controlsState.vTargetLead
       # elif msg.which() == 'sensorEvents':
       #   for sensor_reading in msg.sensorEvents:
       #     if sensor_reading.sensor == 4 and sensor_reading.type == 4:
@@ -246,7 +256,7 @@ def load_and_process_rlogs(lrs, file_name):
               abs(msg.logMonoTime - last_time) * 1e-9 < 1 / 20):  # also split if there's a break in time
         data[-1].append({'v_ego': v_ego, 'gas_command': gas_command, 'a_ego': a_ego, 'user_gas': user_gas,
                          'car_gas': car_gas, 'brake_pressed': brake_pressed, 'pitch': pitch, 'engaged': engaged, 'gas_enable': gas_enable,
-                         'steering_angle': steering_angle,
+                         'steering_angle': steering_angle, 'a_target': a_target, 'v_target': v_target,
                          'time': msg.logMonoTime * 1e-9})
       elif len(data[-1]):  # if last list has items in it, append new empty section
         data.append([])
@@ -279,6 +289,20 @@ def fit_ff_model(use_dir, plot=False):
   else:
     coast_dir = os.path.join(os.path.dirname(use_dir), 'coast')
     data_coasting = load_and_process_rlogs([MultiLogIterator([os.path.join(coast_dir, f) for f in os.listdir(coast_dir) if '.ini' not in f], wraparound=False)], file_name='data_coasting')
+
+  # print(len(data))
+  # print([len(l) for l in data])
+  # data = data[2]
+  # data = [l for l in data if l['v_ego'] < 19 * CV.MPH_TO_MS and l['engaged'] and l['user_gas'] < 15]
+  # plt.plot([l['a_target'] for l in data], label='a_target')
+  # plt.plot([l['a_ego'] for l in data], label='a_ego')
+  # plt.legend()
+  # plt.figure()
+  # plt.plot([l['v_target'] for l in data], label='v_target')
+  # plt.plot([l['v_ego'] for l in data], label='v_ego')
+  # plt.legend()
+  # plt.show()
+  # raise Exception
 
   # for data_0 in data:
   #   data_0 = [l for l in data_0 if not l['engaged']]
@@ -350,11 +374,11 @@ def fit_ff_model(use_dir, plot=False):
   # data += data_coasting
 
   for line in data:
-    if line['engaged'] and line['gas_enable'] and line['gas_command'] > 0.001:
-      if line['v_ego'] < 5 * CV.MPH_TO_MS and line['a_ego'] < 1:
-        reduction = np.interp(line['v_ego'], [1, 5 * CV.MPH_TO_MS], [1, 0])
-        reduction *= np.interp(line['a_ego'], [0.1, 0.75], [1, 0])
-        reduction *= 0.05
+    if line['engaged'] and line['gas_enable'] and line['gas_command'] > 0.001:  # reduce gas near 0 accel and speed to bias the final function/model
+      if line['v_ego'] < 18 * CV.MPH_TO_MS and line['a_ego'] < 1.1:
+        reduction = np.interp(line['v_ego'], [0, 4 * CV.MPH_TO_MS, 12 * CV.MPH_TO_MS, 18 * CV.MPH_TO_MS], [1.0, 0.9, 0.1, -0.075])
+        reduction *= np.interp(line['a_ego'], [0, 0.25, .8, 1.2], [1.1, 1.2, .1, 0])
+        reduction *= 0.055
         line['gas_command'] = max(line['gas_command'] - reduction, 0)
 
 
@@ -389,8 +413,11 @@ def fit_ff_model(use_dir, plot=False):
         # if line['car_gas'] == 0 or abs(line['gas_command'] - transform_car_gas(line['car_gas'])) > 0.05:  # function avgs 0.011 error
         #   print('SHOULDNT BE HERE')
         #   continue
-        engaged_samples += 1
+        # if line['v_ego'] > MIN_ACC_SPEED:
+        #   print(line)
+        #   continue
         line['gas'] = float(line['gas_command'])
+        engaged_samples += 1
       else:
         continue
 
@@ -426,6 +453,7 @@ def fit_ff_model(use_dir, plot=False):
   print('MIN ACCEL: {}'.format(min(data_accels)))
   print(f'accel: {np.min(data_accels), np.max(data_accels)}')
   print(f'speed: {np.min(data_speeds), np.max(data_speeds)}')
+  print('Samples below {} mph: {}, samples above: {}'.format(round(MIN_ACC_SPEED * CV.MS_TO_MPH, 2), len([_ for _ in data_speeds if _ < MIN_ACC_SPEED]), len([_ for _ in data_speeds if _ > MIN_ACC_SPEED])))
 
   x_train = np.array([data_accels, data_speeds]).T
   y_train = np.array(data_gas)
@@ -587,7 +615,7 @@ def fit_ff_model(use_dir, plot=False):
       plt.legend()
       plt.xlabel('speed (mph)')
       plt.ylabel('gas')
-      plt.savefig('plots/s{}_2.png'.format(accel_range_str.replace('/', '')))
+      plt.savefig('plots/s{}.png'.format(accel_range_str.replace('/', '')))
 
 
   if ANALYZE_ACCEL := True:
@@ -604,8 +632,9 @@ def fit_ff_model(use_dir, plot=False):
       [8, 11],
       [11, 14],
       [14, 18],
-      [18, 19],
-      [19, TOP_FIT_SPEED * CV.MS_TO_MPH],
+      [18, 20],
+      [20, 22],
+      [22, 25],
     ]] * CV.MPH_TO_MS
     color = 'blue'
 
@@ -638,7 +667,7 @@ def fit_ff_model(use_dir, plot=False):
       plt.legend()
       plt.xlabel('accel (m/s/s)')
       plt.ylabel('gas')
-      plt.savefig('plots/a{}_2.png'.format(speed_range_str))
+      plt.savefig('plots/a{}.png'.format(speed_range_str))
 
   plt.show()
 
@@ -682,6 +711,6 @@ def fit_ff_model(use_dir, plot=False):
 if __name__ == "__main__":
   # r = Route("14431dbeedbf3558%7C2020-11-10--22-24-34")
   # lr = MultiLogIterator(r.log_paths(), wraparound=False)
-  use_dir = '/openpilot/pedal-ff/rlogs/use'
+  use_dir = '/openpilot/pedal_ff/rlogs/use'
   # lr = MultiLogIterator([os.path.join(use_dir, i) for i in os.listdir(use_dir)], wraparound=False)
   model, data = fit_ff_model(use_dir, plot="--plot" in sys.argv)
