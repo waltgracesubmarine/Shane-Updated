@@ -106,6 +106,7 @@ def build_model(shape):
   return model
 
 
+# def fit_all(x_input, _a1, _offset, _e1, _e2, _e3, _e4, _e5, _e6, _e7, _e8, _e9, _e10, _e11, _e12):
 def fit_all(x_input, _a3, _a4, _a5, _offset, _e1, _e2, _e3, _e4, _e5, _e6, _e7, _e8):
   """
     x_input is array of a_ego and v_ego
@@ -114,9 +115,18 @@ def fit_all(x_input, _a3, _a4, _a5, _offset, _e1, _e2, _e3, _e4, _e5, _e6, _e7, 
     c1-c3 are poly coefficients
   """
   a_ego, v_ego = x_input.copy()
+
+  coast = coast_accel(v_ego)
+  if coast >= 0 and a_ego >= 0 and a_ego >= coast:
+    weight = np.interp(a_ego, [coast, coast * 2], [0, 1])
+    a_ego = ((a_ego - coast) * (weight) + a_ego * (1-weight))
+
   speed_part = (_e5 * a_ego + _e6) * v_ego ** 2 + (_e7 * a_ego + _e8) * v_ego
+  # accel_part = ((_e1 * v_ego + _e2) * a_ego ** 5 + (_e3 * v_ego + _e4) * a_ego ** 4 + (_e9 * v_ego + _e10) * a_ego ** 3 + (_e11 * v_ego + _e12) * a_ego ** 2 + _a1 * a_ego)
   accel_part = ((_e1 * v_ego + _e2) * a_ego ** 5 + (_e3 * v_ego + _e4) * a_ego ** 4 + _a3 * a_ego ** 3 + _a4 * a_ego ** 2 + _a5 * a_ego)
-  return speed_part + accel_part + _offset
+  ret = speed_part + accel_part + _offset
+
+  return ret
 
   # return (a_ego * _c1 + (_c4 * (v_ego * _c2 + 1))) * (v_ego * _c3 + 1)
   # return _c4 * a_ego + np.polyval([_c1, _c2, _c3], v_ego)  # use this if we think there is a non-linear speed relationship
@@ -188,6 +198,7 @@ def load_and_process_rlogs(lrs, file_name):
     engaged, gas_enable, brake_pressed = False, False, False
     v_ego, gas_command, a_ego, pitch, steering_angle, gear_shifter = None, None, None, None, None, None
     a_target, v_target = None, None
+    apply_accel = None
     last_time = 0
     can_updated = False
 
@@ -217,6 +228,8 @@ def load_and_process_rlogs(lrs, file_name):
       elif msg.which() == 'controlsState':
         a_target = msg.controlsState.aTarget
         v_target = msg.controlsState.vTargetLead
+      elif msg.which() == 'carControl':
+        apply_accel = msg.carControl.actuators.gas - msg.carControl.actuators.brake
       # elif msg.which() == 'sensorEvents':
       #   for sensor_reading in msg.sensorEvents:
       #     if sensor_reading.sensor == 4 and sensor_reading.type == 4:
@@ -256,7 +269,7 @@ def load_and_process_rlogs(lrs, file_name):
               abs(msg.logMonoTime - last_time) * 1e-9 < 1 / 20):  # also split if there's a break in time
         data[-1].append({'v_ego': v_ego, 'gas_command': gas_command, 'a_ego': a_ego, 'user_gas': user_gas,
                          'car_gas': car_gas, 'brake_pressed': brake_pressed, 'pitch': pitch, 'engaged': engaged, 'gas_enable': gas_enable,
-                         'steering_angle': steering_angle, 'a_target': a_target, 'v_target': v_target,
+                         'steering_angle': steering_angle, 'a_target': a_target, 'v_target': v_target, 'apply_accel': apply_accel,
                          'time': msg.logMonoTime * 1e-9})
       elif len(data[-1]):  # if last list has items in it, append new empty section
         data.append([])
@@ -292,9 +305,10 @@ def fit_ff_model(use_dir, plot=False):
 
   # print(len(data))
   # print([len(l) for l in data])
-  # data = data[2]
+  # data = data[0]
   # data = [l for l in data if l['v_ego'] < 19 * CV.MPH_TO_MS and l['engaged'] and l['user_gas'] < 15]
-  # plt.plot([l['a_target'] for l in data], label='a_target')
+  # # plt.plot([l['a_target'] for l in data], label='a_target')
+  # plt.plot([l['apply_accel'] * 3 for l in data], label='apply_accel')
   # plt.plot([l['a_ego'] for l in data], label='a_ego')
   # plt.legend()
   # plt.figure()
@@ -376,10 +390,16 @@ def fit_ff_model(use_dir, plot=False):
   for line in data:
     if line['engaged'] and line['gas_enable'] and line['gas_command'] > 0.001:  # reduce gas near 0 accel and speed to bias the final function/model
       if line['v_ego'] < 18 * CV.MPH_TO_MS and line['a_ego'] < 1.1:
+        # # reduction = np.interp(line['v_ego'], [2 * CV.MPH_TO_MS, 12 * CV.MPH_TO_MS], [1.0, 0])
+        # reduction = np.interp(line['a_ego'], [0.8, 1.4], [np.interp(line['v_ego'] * CV.MS_TO_MPH, [2, 10], [1.0, 0]), 0.0])
+        # reduction *= 0.08
         reduction = np.interp(line['v_ego'], [0, 5 * CV.MPH_TO_MS, 8 * CV.MPH_TO_MS, 18 * CV.MPH_TO_MS], [1.0, 0.75, 0.6, 0])
         reduction *= np.interp(line['a_ego'], [0.25, .9], [1, 0])
         reduction *= 0.055
         line['gas_command'] = max(line['gas_command'] - reduction, 0)
+
+        # reduction = np.interp(line['a_ego'], [-0.2, 0.6], [1, 0]) * np.interp(line['v_ego'], [4 * CV.MPH_TO_MS, 8 * CV.MPH_TO_MS, 19 * CV.MPH_TO_MS], [1.0, 0.6, 0.1])
+        # line['gas_command'] -= reduction * line['gas_command']
 
 
   # Data filtering
@@ -480,7 +500,8 @@ def fit_ff_model(use_dir, plot=False):
 
   # model = models.load_model('models/model-best.h5')
 
-  params, covs = curve_fit(fit_all, x_train.T, y_train)
+  # params, covs = curve_fit(fit_all, x_train.T, y_train)
+  params = np.array([-0.07264304340456754, -0.007522016704006004, 0.16234124452228196, 0.0029096574419830296, 1.1674372321165579e-05, -0.008010070095545522, -5.834025253616562e-05, 0.04722441060805912, 0.001887454016549489, -0.0014370672920621269, -0.007577594283906699, 0.01943515032956308])
   # params = np.array([0.003837992717277964, -0.01235990011251591, 0.06510535652024786, 0.06600037259754446, -0.0006187306447074457, 0.000597369586548703, 0.0018908153873958748, -0.0004395380613128306, 0.00015113406209297302, 0.0003499560967296682, 0.002631675718307645, 0.0034227193219598844])
   print('Params: {}'.format(params.tolist()))
   # params = [((0.011+.02)/2 + .02) / 2, 0.022130745681601702, -0.09109186615316711, 0.20997207156680778, 0.011371989131620245 - .02 - (.016+.0207)/2]
@@ -615,7 +636,7 @@ def fit_ff_model(use_dir, plot=False):
       plt.legend()
       plt.xlabel('speed (mph)')
       plt.ylabel('gas')
-      plt.savefig('plots/s{}.png'.format(accel_range_str.replace('/', '')))
+      plt.savefig('plots/s{}_3.png'.format(accel_range_str.replace('/', '')))
 
 
   if ANALYZE_ACCEL := True:
@@ -667,7 +688,7 @@ def fit_ff_model(use_dir, plot=False):
       plt.legend()
       plt.xlabel('accel (m/s/s)')
       plt.ylabel('gas')
-      plt.savefig('plots/a{}.png'.format(speed_range_str))
+      plt.savefig('plots/a{}_3.png'.format(speed_range_str))
 
   plt.show()
 
