@@ -303,20 +303,20 @@ def fit_ff_model(use_dir, plot=False):
     coast_dir = os.path.join(os.path.dirname(use_dir), 'coast')
     data_coasting = load_and_process_rlogs([MultiLogIterator([os.path.join(coast_dir, f) for f in os.listdir(coast_dir) if '.ini' not in f], wraparound=False)], file_name='data_coasting')
 
-  # print(len(data))
-  # print([len(l) for l in data])
-  # data = data[0]
-  # data = [l for l in data if l['v_ego'] < 19 * CV.MPH_TO_MS and l['engaged'] and l['user_gas'] < 15]
-  # # plt.plot([l['a_target'] for l in data], label='a_target')
-  # plt.plot([l['apply_accel'] * 3 for l in data], label='apply_accel')
-  # plt.plot([l['a_ego'] for l in data], label='a_ego')
-  # plt.legend()
-  # plt.figure()
-  # plt.plot([l['v_target'] for l in data], label='v_target')
-  # plt.plot([l['v_ego'] for l in data], label='v_ego')
-  # plt.legend()
-  # plt.show()
-  # raise Exception
+  print(len(data))
+  print([len(l) for l in data])
+  data = data[0]
+  data = [l for l in data if l['v_ego'] < 25 * CV.MPH_TO_MS and l['engaged'] and l['user_gas'] < 15]
+  # plt.plot([l['a_target'] for l in data], label='a_target')
+  plt.plot([l['apply_accel'] * 3 for l in data], label='apply_accel')
+  plt.plot([l['a_ego'] for l in data], label='a_ego')
+  plt.legend()
+  plt.figure()
+  plt.plot([l['v_target'] for l in data], label='v_target')
+  plt.plot([l['v_ego'] for l in data], label='v_ego')
+  plt.legend()
+  plt.show()
+  raise Exception
 
   # for data_0 in data:
   #   data_0 = [l for l in data_0 if not l['engaged']]
