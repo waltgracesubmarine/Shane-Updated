@@ -60,8 +60,8 @@ class opParams:
     """
 
     self.fork_params = {'camera_offset': Param(0.06, NUMBER, 'Your camera offset to use in lane_planner.py', live=True),
-                        'dynamic_follow': Param('auto', str, 'Can be: (\'traffic\', \'relaxed\', \'stock\'): Left to right increases in following distance.\n'
-                                                             'All profiles support dynamic follow except stock so you\'ll get your preferred distance while\n'
+                        'dynamic_follow': Param('auto', str, 'Can be: (\'traffic\', \'relaxed\', \'roadtrip\'): Left to right increases in following distance.\n'
+                                                             'All profiles support dynamic follow so you\'ll get your preferred distance while\n'
                                                              'retaining the smoothness and safety of dynamic follow!'),
                         'global_df_mod': Param(1.0, NUMBER, 'The multiplier for the current distance used by dynamic follow. The range is limited from 0.85 to 2.5\n'
                                                             'Smaller values will get you closer, larger will get you farther\n'
@@ -82,7 +82,7 @@ class opParams:
                         'update_behavior': Param('auto', str, 'Can be: (\'off\', \'alert\', \'auto\') without quotes\n'
                                                               'off will never update, alert shows an alert on-screen\n'
                                                               'auto will reboot the device when an update is seen'),
-                        'dynamic_gas': Param(False, bool, 'Whether to use dynamic gas if your car is supported'),
+                        'dynamic_gas': Param(True, bool, 'Whether to use dynamic gas if your car is supported'),
                         'hide_auto_df_alerts': Param(False, bool, 'Hides the alert that shows what profile the model has chosen'),
                         'log_auto_df': Param(False, bool, 'Logs dynamic follow data for auto-df'),
                         # 'dynamic_camera_offset': Param(False, bool, 'Whether to automatically keep away from oncoming traffic.\n'
@@ -90,7 +90,26 @@ class opParams:
                         # 'dynamic_camera_offset_time': Param(3.5, NUMBER, 'How long to keep away from oncoming traffic in seconds after losing lead'),
                         'support_white_panda': Param(False, bool, 'Enable this to allow engagement with the deprecated white panda.\n'
                                                                   'localizer might not work correctly'),
-                        'disable_charging': Param(30, NUMBER, 'How many hours until charging is disabled while idle'),
+                        'slowdown_for_curves': Param(True, bool, 'Whether your car will slow down for curves using the old planner code from 0.5/0.6'),
+                        # 'send_max_accel': Param(False, bool, 'Send 1.5m/s/s when des. accel is above coast accel/using pedal. Else just offsets apply_accel by 0.06*3', live=True),
+                        # 'always_apply_accel_offset': Param(False, bool, 'Whether to always offset accel by 0.06, only at low speed', live=True),
+                        # '0_coast_accel': Param(0.538, NUMBER, 'coast accel threshold at 0 (default: 0.538)', live=True),
+                        'apply_accel': Param(0, NONE_OR_NUMBER, live=True),
+                        'apply_gas': Param(0, NONE_OR_NUMBER, live=True),
+                        'lat_p': Param(.1, NUMBER, live=True),
+                        'lat_i': Param(.01, NUMBER, live=True),
+                        'lat_d': Param(.1, NUMBER, live=True),
+                        'lat_f_multiplier': Param(1, NUMBER, live=True),
+                        'gas_max': Param(0.5, NUMBER, '0.5 is stock (1.5 m/s/s), 0.666_ is 2.0 m/s/s', live=True),
+                        'ff_function': Param(0, int, '0: original\n'
+                                                     '1: original but fitted up to 25 mph so the transition should be smoother\n'
+                                                     '2: original fitted to only 22 mph\n'
+                                                     '3: fitted to 22 mph with more data, reduced gas FURTHER around 0 accel\n'
+                                                     '4: Average of last two functions (too fast, too slow)\n'
+                                                     '5: Less gas under 5 mph and low accel, more gas above 5 mph and high accel\n'
+                                                     '6: 5 but less gas all around\n'
+                                                     '7: 4 but more coefficients', live=True),
+                        'weight': Param(0.5, NUMBER, 'Try 0.5 to 1.0', live=True),
 
                         'prius_use_pid': Param(False, bool, 'This enables the PID lateral controller with new a experimental derivative tune\n'
                                                             'False: stock INDI, True: TSS2-tuned PID'),
@@ -104,7 +123,7 @@ class opParams:
     self._last_read_time = sec_since_boot()
     self.read_frequency = 3  # max frequency to read with self.get(...) (sec)
     self._to_delete = ['steer_rate_fix']  # a list of unused params you want to delete from users' params file
-    self._to_reset = ['dynamic_gas']  # a list of params you want reset to their default values
+    self._to_reset = []  # a list of params you want to be reset to the default value
     self._run_init()  # restores, reads, and updates params
 
   def _run_init(self):  # does first time initializing of default params
