@@ -88,9 +88,9 @@ class opParams:
                         # 'dynamic_camera_offset': Param(False, bool, 'Whether to automatically keep away from oncoming traffic.\n'
                         #                                             'Works from 35 to ~60 mph (requires radar)'),
                         # 'dynamic_camera_offset_time': Param(3.5, NUMBER, 'How long to keep away from oncoming traffic in seconds after losing lead'),
-                        'disable_charging': Param(30, NUMBER, 'How many hours until charging is disabled while idle'),
                         'support_white_panda': Param(False, bool, 'Enable this to allow engagement with the deprecated white panda.\n'
                                                                   'localizer might not work correctly'),
+                        'disable_charging': Param(30, NUMBER, 'How many hours until charging is disabled while idle'),
                         'slowdown_for_curves': Param(True, bool, 'Whether your car will slow down for curves using the old planner code from 0.5/0.6'),
                         # 'send_max_accel': Param(False, bool, 'Send 1.5m/s/s when des. accel is above coast accel/using pedal. Else just offsets apply_accel by 0.06*3', live=True),
                         # 'always_apply_accel_offset': Param(False, bool, 'Whether to always offset accel by 0.06, only at low speed', live=True),
