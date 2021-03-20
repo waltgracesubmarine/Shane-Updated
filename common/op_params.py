@@ -76,7 +76,7 @@ class opParams:
                         # 'lane_speed_alerts': Param('silent', str, 'Can be: (\'off\', \'silent\', \'audible\')\n'
                         #                                           'Whether you want openpilot to alert you of faster-traveling adjacent lanes'),
                         'upload_on_hotspot': Param(False, bool, 'If False, openpilot will not upload driving data while connected to your phone\'s hotspot'),
-                        'steer_fault_fix': Param(False, bool),
+                        'steer_fault_fix': Param(False, bool, live=True),
                         'enable_long_derivative': Param(False, bool, 'If you have longitudinal overshooting, enable this! This enables derivative-based\n'
                                                                      'integral wind-down to help reduce overshooting within the long PID loop'),
                         'disengage_on_gas': Param(False, bool, 'Whether you want openpilot to disengage on gas input or not'),
