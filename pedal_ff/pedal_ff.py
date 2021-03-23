@@ -121,7 +121,7 @@ def fit_all(x_input, _a3, _a4, _a5, _offset, _e1, _e2, _e3, _e4, _e5, _e6, _e7, 
     kf is multiplier from angle to torque
     c1-c3 are poly coefficients
   """
-  a_ego, v_ego = x_input.copy()
+  accel, speed = x_input.copy()
 
   # if coast >= 0 and a_ego >= 0 and a_ego >= coast:
   #   weight = np.interp(a_ego, [coast, coast * 2], [0, 1])
@@ -133,11 +133,22 @@ def fit_all(x_input, _a3, _a4, _a5, _offset, _e1, _e2, _e3, _e4, _e5, _e6, _e7, 
     ret = speed_part + accel_part + _offset
     return ret
 
-  coast = coast_accel(v_ego)
-  coast_spread = 0 if v_ego < 0.555 else 0.05
-  gas = accel_to_gas(a_ego, v_ego)
-  if a_ego >= coast - coast_spread:
-    coast_spread_weight = np.interp(a_ego, [coast - coast_spread, coast + coast_spread], [0, 1])  # apply to final gas
+  gas = accel_to_gas(accel, speed)
+
+  if apply_coast_reduction := False:
+    coast = coast_accel(speed)
+    coast_spread = 0.08  # np.interp(speed, [], [0.08])
+    if accel >= coast - coast_spread:
+      gas *= interp(accel, [coast - coast_spread, coast + coast_spread * 2], [0, 1])
+
+  # if coast >= 0:
+  #   accel = accel - np.interp(speed, [0, 5 * CV.MPH_TO_MS], [.5, 0]) * coast
+  return gas
+
+  coast_spread = 0 if speed < 0.555 else 0.05
+  gas = accel_to_gas(accel, speed)
+  if accel >= coast - coast_spread:
+    coast_spread_weight = np.interp(accel, [coast - coast_spread, coast + coast_spread], [0, 1])  # apply to final gas
     gas *= coast_spread_weight
 
 
@@ -337,53 +348,60 @@ def fit_ff_model(use_dir, plot=False):
     coast_dir = os.path.join(os.path.dirname(use_dir), 'coast')
     data_coasting = load_and_process_rlogs([MultiLogIterator([os.path.join(coast_dir, f) for f in os.listdir(coast_dir) if '.ini' not in f], wraparound=False)], file_name='data_coasting')
 
-  def compute_gb_pedal(accel, speed, coast):
-    def accel_to_gas(a_ego, v_ego):
-      speed_part = (_e5 * a_ego + _e6) * v_ego ** 2 + (_e7 * a_ego + _e8) * v_ego
-      # accel_part = ((_e1 * v_ego + _e2) * a_ego ** 5 + (_e3 * v_ego + _e4) * a_ego ** 4 + (_e9 * v_ego + _e10) * a_ego ** 3 + (_e11 * v_ego + _e12) * a_ego ** 2 + _a1 * a_ego)
-      accel_part = ((_e1 * v_ego + _e2) * a_ego ** 5 + (_e3 * v_ego + _e4) * a_ego ** 4 + _a3 * a_ego ** 3 + _a4 * a_ego ** 2 + _a5 * a_ego)
-      ret = speed_part + accel_part + _offset
-      return ret
-
-    _a3, _a4, _a5, _offset, _e1, _e2, _e3, _e4, _e5, _e6, _e7, _e8 = [-0.0783068519841404, -0.02425620872221965, 0.13060194634915956, 0.048408210211338176, 5.543874388291277e-05,
-                                                                      -0.011102981702528086, -0.0003173850406700908, 0.0604232557901408, 0.0012248938828813751, -0.0010763810268259095,
-                                                                      0.0017804236356551181, 0.011950706937897477]
-
-    coast_spread = 0.08
-    if accel >= coast - coast_spread:
-      coast_spread_weight = interp(accel, [coast - coast_spread, coast + coast_spread], [0, 1])
-      if coast >= 0:
-        accel_weight = 0# interp(accel, [coast - coast_spread, coast + (coast_spread * 3)], [0., 1])
-        print(accel, (coast - coast_spread), accel - (coast - coast_spread))
-        accel = (accel - (coast + coast_spread*2)) * (1 - accel_weight) + accel * accel_weight
-        # print(accel)
-        print()
-      gas = accel_to_gas(accel, speed)
-
-      return np.clip(gas * coast_spread_weight, 0., 1.)
-    else:
-      return 0.
-
-
-  print(len(data))
-  print([len(l) for l in data])
-  data = data[1]
-  data = [l for l in data if l['v_ego'] <= 19 * CV.MPH_TO_MS and l['engaged'] and l['user_gas'] < 15][23100:][:700]
-  # plt.plot([l['a_target'] for l in data], label='a_target')
-  plt.plot([l['apply_accel'] * 3 for l in data], label='apply_accel')
-  plt.plot([l['a_ego'] for l in data], label='a_ego')
-  plt.legend()
-  plt.figure()
-  plt.plot([l['v_target'] for l in data], label='v_target')
-  plt.plot([l['v_ego'] for l in data], label='v_ego')
-  plt.legend()
-  plt.figure()
-  plt.plot([l['gas_command'] for l in data], label='gas_command')
-  plt.plot([compute_gb_pedal(l['apply_accel']*3, l['v_ego'], coast_accel(l['v_ego'])) for l in data], label='new gas_command')
-  plt.legend()
-  plt.show()
-  return data, None
-  raise Exception
+  # def compute_gb_pedal(accel, speed, coast):
+  #   def accel_to_gas(a_ego, v_ego):
+  #     speed_part = (_e5 * a_ego + _e6) * v_ego ** 2 + (_e7 * a_ego + _e8) * v_ego
+  #     # accel_part = ((_e1 * v_ego + _e2) * a_ego ** 5 + (_e3 * v_ego + _e4) * a_ego ** 4 + (_e9 * v_ego + _e10) * a_ego ** 3 + (_e11 * v_ego + _e12) * a_ego ** 2 + _a1 * a_ego)
+  #     accel_part = ((_e1 * v_ego + _e2) * a_ego ** 5 + (_e3 * v_ego + _e4) * a_ego ** 4 + _a3 * a_ego ** 3 + _a4 * a_ego ** 2 + _a5 * a_ego)
+  #     ret = speed_part + accel_part + _offset
+  #     return ret
+  #
+  #   _a3, _a4, _a5, _offset, _e1, _e2, _e3, _e4, _e5, _e6, _e7, _e8 = [-0.0783068519841404, -0.02425620872221965, 0.13060194634915956, 0.048408210211338176, 5.543874388291277e-05,
+  #                                                                     -0.011102981702528086, -0.0003173850406700908, 0.0604232557901408, 0.0012248938828813751, -0.0010763810268259095,
+  #                                                                     0.0017804236356551181, 0.011950706937897477]
+  #
+  #   coast_spread = 0.08
+  #   coast_spread_weight = 0
+  #   if accel >= coast - coast_spread:
+  #     coast_spread_weight = interp(accel, [coast - coast_spread, coast + coast_spread * 2], [0, 1])
+  #     # if coast >= 0:
+  #     #   accel_weight = 0# interp(accel, [coast - coast_spread, coast + (coast_spread * 3)], [0., 1])
+  #     #   print(accel, (coast - coast_spread), accel - (coast - coast_spread))
+  #     #   accel = (accel - (coast + coast_spread*2)) * (1 - accel_weight) + accel * accel_weight
+  #     #   # print(accel)
+  #     #   print()
+  #   gas = accel_to_gas(accel, speed) * coast_spread_weight
+  #   # if coast >= 0:
+  #   # gas_at_coast = accel_to_gas(coast - coast_spread, speed)
+  #   # print(gas, gas_at_coast)
+  #   # print(accel, coast)
+  #   # print()
+  #   # gas = gas - (gas_at_coast * np.interp(accel, [coast - coast_spread, 1.5], [1, 0]))
+  #
+  #   return np.clip(gas, 0., 1.)
+  #   # else:
+  #   #   return 0.
+  #
+  #
+  # print(len(data))
+  # print([len(l) for l in data])
+  # data = data[1]
+  # data = [l for l in data if l['v_ego'] <= 19 * CV.MPH_TO_MS and l['engaged'] and l['user_gas'] < 15]#[23100:][:700]
+  # # plt.plot([l['a_target'] for l in data], label='a_target')
+  # plt.plot([l['apply_accel'] * 3 for l in data], label='apply_accel')
+  # plt.plot([l['a_ego'] for l in data], label='a_ego')
+  # plt.legend()
+  # plt.figure()
+  # plt.plot([l['v_target'] for l in data], label='v_target')
+  # plt.plot([l['v_ego'] for l in data], label='v_ego')
+  # plt.legend()
+  # plt.figure()
+  # plt.plot([l['gas_command'] for l in data], label='gas_command')
+  # plt.plot([compute_gb_pedal(l['apply_accel']*3, l['v_ego'], coast_accel(l['v_ego'])) for l in data], label='new gas_command')
+  # plt.legend()
+  # plt.show()
+  # return data, None
+  # raise Exception
 
   # for data_0 in data:
   #   data_0 = [l for l in data_0 if not l['engaged']]
@@ -603,11 +621,11 @@ def fit_ff_model(use_dir, plot=False):
     plt.plot(x, [coast_accel(_x) for _x in x], 'r', label='piecewise function')
     # plt.plot(x, [coast_accel(_x) * 1.5 if coast_accel(_x) > 0 else coast_accel(_x)/2 for _x in x], color='orange', label='threshold')
     plt.plot(x, [coast_accel(_x) - 0.08 for _x in x], color='orange', label='threshold')
-    plt.plot(x, [coast_accel(_x) + 0.08 for _x in x], color='orange', label='threshold')
+    plt.plot(x, [coast_accel(_x) + 0.08*2 for _x in x], color='orange', label='threshold')
     plt.plot([0, 8.9], [0, 0])
     plt.legend()
     plt.savefig('imgs/coasting plot.png')
-    raise Exception
+    # raise Exception
 
     plt.figure()
     x = np.linspace(0, TOP_FIT_SPEED, 100)
@@ -725,7 +743,10 @@ def fit_ff_model(use_dir, plot=False):
     res = 100
 
     _speeds = np.r_[[
-      [0, 3],
+      [0, 0.5],
+      [0.5, 1],
+      [1, 2],
+      [2, 3],
       [3, 6],
       [6, 8],
       [8, 11],
@@ -747,7 +768,7 @@ def fit_ff_model(use_dir, plot=False):
       accels, gas, speeds = zip(*[[line['a_ego'], line['gas'], line['v_ego']] for line in temp_data])
       plt.scatter(accels, gas, label=speed_range_str, color=color, s=0.05)
 
-      _x_ff = np.linspace(min(accels), max(accels), res)
+      _x_ff = np.linspace(min(accels), 1.5, res)  # max(accels)
 
       # _y_ff = [known_bad_accel_to_gas(_i, np.mean(speed_range)) for _i in _x_ff]
       # plt.plot(_x_ff, _y_ff, color='red', label='bad ff function')
@@ -766,6 +787,7 @@ def fit_ff_model(use_dir, plot=False):
       plt.legend()
       plt.xlabel('accel (m/s/s)')
       plt.ylabel('gas')
+      plt.xlim(right=1.5)
       plt.savefig('plots/a{}_4.png'.format(speed_range_str))
 
   plt.show()
