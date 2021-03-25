@@ -102,15 +102,12 @@ class CarController():
 
   def compute_gb_pedal(self, accel, speed, braking):
     def accel_to_gas(a_ego, v_ego):
-      speed_part = (_e5 * a_ego + _e6) * v_ego ** 2 + (_e7 * a_ego + _e8) * v_ego
-      # accel_part = ((_e1 * v_ego + _e2) * a_ego ** 5 + (_e3 * v_ego + _e4) * a_ego ** 4 + (_e9 * v_ego + _e10) * a_ego ** 3 + (_e11 * v_ego + _e12) * a_ego ** 2 + _a1 * a_ego)
-      accel_part = ((_e1 * v_ego + _e2) * a_ego ** 5 + (_e3 * v_ego + _e4) * a_ego ** 4 + _a3 * a_ego ** 3 + _a4 * a_ego ** 2 + _a5 * a_ego)
+      speed_part = (_s5 * a_ego + _s6) * v_ego ** 3 + (_s1 * a_ego + _s2) * v_ego ** 2 + (_s3 * a_ego + _s4) * v_ego
+      accel_part = (_a3 * v_ego + _a4) * a_ego ** 3 + (_a5 * v_ego + _a6) * a_ego ** 2 + (_a7 * v_ego + _a8) * a_ego
       ret = speed_part + accel_part + _offset
       return ret
 
-    _a3, _a4, _a5, _offset, _e1, _e2, _e3, _e4, _e5, _e6, _e7, _e8 = [-0.035860008785737016, -0.13270885701544577, 0.16287789486981336, 0.04424352150662014, 0.0030009560785156483,
-                                                                      -0.05384402259777075, -0.005789426762701948, 0.13945992675121233, 0.0015935644731739753, -0.0014145123652998105,
-                                                                      0.0006828099331243252, 0.014897262380888478]
+    _a3, _a4, _a5, _a6, _a7, _a8, _s1, _s2, _s3, _s4, _s5, _s6, _offset = [0.006385226000512668, -0.0007776357488877029, -0.01704592871904161, -0.019976213166278945, 33.444453816293766, 0.17460916273282936, 0.012271715427248557, -0.003862357948310419, -33.485658789288976, 0.02815887319512673, -0.0006898477953165216, 0.000152532211513055, 0.01663204894350977]
     coast = coast_accel(speed)
     gas = accel_to_gas(accel, speed)
     coast_spread = 0.08
