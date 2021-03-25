@@ -113,6 +113,7 @@ class opParams:
                         'weight': Param(0.5, NUMBER, 'Try 0.5 to 1.0', live=True),
                         'coast_smoother': Param(False, bool, 'Smoothly ramps up gas output across the coasting accel at that speed', live=True),
                         'convert_accel_to_gas': Param(False, bool, 'If False no gas is ever commanded, only use apply_accel with no + offset', live=True),
+                        'use_brakelights': Param(False, bool, 'True uses brakeLights to disable gas, False uses coast accel function', live=True),
 
                         'prius_use_pid': Param(False, bool, 'This enables the PID lateral controller with new a experimental derivative tune\n'
                                                             'False: stock INDI, True: TSS2-tuned PID'),
