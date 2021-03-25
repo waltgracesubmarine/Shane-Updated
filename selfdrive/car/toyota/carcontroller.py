@@ -29,7 +29,7 @@ def accel_hysteresis(accel, accel_steady, enabled):
 op_params = opParams()
 
 def coast_accel(speed):  # given a speed, output coasting acceleration
-  points = [[0.01, op_params.get('0_accel')], [.21, .425], [.3107, .535], [.431, .555],  # with no delay
+  points = [[.0, op_params.get('0_coast_accel')], [.431, .555],  # with no delay
             [.777, .438], [1.928, 0.265], [2.66, -0.179],
             [3.336, -0.250], [MIN_ACC_SPEED, -0.145]]
   return interp(speed, *zip(*points))
@@ -102,19 +102,19 @@ class CarController():
 
   def compute_gb_pedal(self, accel, speed, braking):
     def accel_to_gas(a_ego, v_ego):
-      speed_part = (_s5 * a_ego + _s6) * v_ego ** 3 + (_s1 * a_ego + _s2) * v_ego ** 2 + (_s3 * a_ego + _s4) * v_ego
-      accel_part = (_a3 * v_ego + _a4) * a_ego ** 3 + (_a5 * v_ego + _a6) * a_ego ** 2 + (_a7 * v_ego + _a8) * a_ego
+      speed_part = (_s5 * a_ego + _s6) * v_ego ** 3 + (_s1 * a_ego + _s2) * v_ego ** 2 + _s3 * v_ego
+      accel_part = (_a3 * v_ego + _a4) * a_ego ** 3 + (_a5 * v_ego + _a6) * a_ego ** 2 + _a7 * a_ego
       ret = speed_part + accel_part + _offset
       return ret
 
-    _a3, _a4, _a5, _a6, _a7, _a8, _s1, _s2, _s3, _s4, _s5, _s6, _offset = [0.006385226000512668, -0.0007776357488877029, -0.01704592871904161, -0.019976213166278945, 33.444453816293766, 0.17460916273282936, 0.012271715427248557, -0.003862357948310419, -33.485658789288976, 0.02815887319512673, -0.0006898477953165216, 0.000152532211513055, 0.01663204894350977]
+    _a3, _a4, _a5, _a6, _a7, _s1, _s2, _s3, _s5, _s6, _offset = [0.011143149413443703, -0.030042410032745586, -0.028470234183083067, 0.049490503664649, 0.08975208150117915, 0.0051703171301793905, -0.0008325266011624599, 0.013085588877025624, -0.0002620409995744663, -2.840690666163853e-05, 0.0373440404114688]
     coast = coast_accel(speed)
     gas = accel_to_gas(accel, speed)
-    coast_spread = 0.08
+    coast_spread = self.op_params.get('coast_spread')
     if self.op_params.get('use_brakelights'):
       if not braking:
         if self.op_params.get('coast_smoother'):
-          gas *= interp(accel, [coast - coast_spread, coast + coast_spread * 2], [0, 1])
+          gas *= interp(accel, [coast, coast + coast_spread * 2], [0, 1])
         return clip(gas, 0, 1)
     elif self.op_params.get('use_brakelights') == False:
       if accel >= coast:
@@ -122,9 +122,9 @@ class CarController():
           gas *= interp(accel, [coast - coast_spread, coast + coast_spread * 2], [0, 1])
         return clip(gas, 0, 1)
     else:
-      if accel >= coast and not braking:  # both, probably safer
+      if accel >= coast or not braking:  # both, probably safer
         if self.op_params.get('coast_smoother'):
-          gas *= interp(accel, [coast - coast_spread, coast + coast_spread * 2], [0, 1])
+          gas *= interp(accel, [coast, coast + coast_spread * 2], [0, 1])
         return clip(gas, 0, 1)
     return 0.
 
