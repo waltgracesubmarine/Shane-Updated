@@ -114,8 +114,9 @@ class CarController():
 
     gas = accel_to_gas(accel, speed)
     coast_spread = 0.08
-    if accel >= coast and self.op_params.get('coast_smoother'):
-      gas *= interp(accel, [coast - coast_spread, coast + coast_spread * 2], [0, 1])
+    if accel >= coast:
+      if self.op_params.get('coast_smoother'):
+        gas *= interp(accel, [coast - coast_spread, coast + coast_spread * 2], [0, 1])
       return clip(gas, 0, 1)
     return 0.
 
