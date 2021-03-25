@@ -145,13 +145,13 @@ class CarController():
     apply_gas = 0.
     apply_accel = actuators.gas - actuators.brake
 
-    # if CS.CP.enableGasInterceptor and enabled and CS.out.vEgo < MIN_ACC_SPEED:
-    #   # converts desired acceleration to gas percentage for pedal
-    #   # +0.06 offset to reduce ABS pump usage when applying very small gas
-    #   coast = coast_accel(CS.out.vEgo)
-    #   apply_accel *= CarControllerParams.ACCEL_SCALE
-    #   apply_gas = self.compute_gb_pedal(apply_accel, CS.out.vEgo, coast)
-    #   apply_accel = 0.06 - actuators.brake
+    if CS.CP.enableGasInterceptor and enabled and CS.out.vEgo < MIN_ACC_SPEED and self.op_params.get('convert_accel_to_gas'):
+      # converts desired acceleration to gas percentage for pedal
+      # +0.06 offset to reduce ABS pump usage when applying very small gas
+      coast = coast_accel(CS.out.vEgo)
+      apply_accel *= CarControllerParams.ACCEL_SCALE
+      apply_gas = self.compute_gb_pedal(apply_accel, CS.out.vEgo, coast)
+      apply_accel = 0.06 - actuators.brake
 
     # apply_accel, self.accel_steady = accel_hysteresis(apply_accel, self.accel_steady, enabled)
     apply_accel = clip(apply_accel * CarControllerParams.ACCEL_SCALE, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX)
