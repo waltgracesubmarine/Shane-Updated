@@ -114,7 +114,7 @@ class CarController():
     if self.op_params.get('use_brakelights'):
       if not braking:
         if self.op_params.get('coast_smoother'):
-          gas *= interp(accel, [coast - coast_spread, coast + coast spread * 2], [0, 1])
+          gas *= interp(accel, [coast - coast_spread, coast + coast_spread * 2], [0, 1])
         return clip(gas, 0, 1)
     elif self.op_params.get('use_brakelights') == False:
       if accel >= coast:
