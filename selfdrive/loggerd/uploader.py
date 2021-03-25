@@ -226,6 +226,7 @@ def uploader_fn(exit_event):
 
     d = None
     on_hotspot = is_on_hotspot()
+    print(sm['deviceState'].networkType, NetworkType.wifi)
     print(allow_raw_upload, on_wifi, on_hotspot)
     if (on_hotspot and upload_on_hotspot) or not on_hotspot:
       print('here')
