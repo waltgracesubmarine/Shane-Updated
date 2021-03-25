@@ -35,41 +35,6 @@ def coast_accel(speed):  # given a speed, output coasting acceleration
   return interp(speed, *zip(*points))
 
 
-def compute_gb_pedal(accel, speed, coast, which_func):
-  def accel_to_gas(a_ego, v_ego):
-    speed_part = (_e5 * a_ego + _e6) * v_ego ** 2 + (_e7 * a_ego + _e8) * v_ego
-    # accel_part = ((_e1 * v_ego + _e2) * a_ego ** 5 + (_e3 * v_ego + _e4) * a_ego ** 4 + (_e9 * v_ego + _e10) * a_ego ** 3 + (_e11 * v_ego + _e12) * a_ego ** 2 + _a1 * a_ego)
-    accel_part = ((_e1 * v_ego + _e2) * a_ego ** 5 + (_e3 * v_ego + _e4) * a_ego ** 4 + _a3 * a_ego ** 3 + _a4 * a_ego ** 2 + _a5 * a_ego)
-    ret = speed_part + accel_part + _offset
-    return ret
-
-  _a3, _a4, _a5, _offset, _e1, _e2, _e3, _e4, _e5, _e6, _e7, _e8 = [-0.035860008785737016, -0.13270885701544577, 0.16287789486981336, 0.04424352150662014, 0.0030009560785156483, -0.05384402259777075, -0.005789426762701948, 0.13945992675121233, 0.0015935644731739753, -0.0014145123652998105, 0.0006828099331243252, 0.014897262380888478]
-
-  gas = accel_to_gas(accel, speed)
-  coast_spread = 0.08
-  if accel >= coast - coast_spread:
-    gas *= interp(accel, [coast - coast_spread, coast + coast_spread * 2], [0, 1])
-    return clip(gas, 0, 1)
-  return 0.
-
-  # gas = accel_to_gas(accel, speed)
-  # if accel >= coast - coast_spread:
-  #   coast_spread_weight = interp(accel, [coast - coast_spread, coast + coast_spread], [0, 1])
-  #   return clip(gas * coast_spread_weight, 0., 1.)
-  # else:
-  #   return 0.
-
-
-  # gas = accel_to_gas(accel, speed)
-  # gas_at_coast = accel_to_gas(coast, speed)
-  #
-  # if coast > 0:
-  #   weight = interp(accel, [coast, coast * 1.5], [0.5, 1])
-  #   gas = (gas - gas_at_coast) * (1 - weight) + gas * weight
-
-  return gas
-
-
 # def compute_gb_pedal(accel, speed, coast, which_func):
 #   # return accel_to_gas([accel, speed])[0]
 #   if which_func == 0:
@@ -135,6 +100,41 @@ class CarController():
 
     self.packer = CANPacker(dbc_name)
 
+  def compute_gb_pedal(self, accel, speed, coast):
+    def accel_to_gas(a_ego, v_ego):
+      speed_part = (_e5 * a_ego + _e6) * v_ego ** 2 + (_e7 * a_ego + _e8) * v_ego
+      # accel_part = ((_e1 * v_ego + _e2) * a_ego ** 5 + (_e3 * v_ego + _e4) * a_ego ** 4 + (_e9 * v_ego + _e10) * a_ego ** 3 + (_e11 * v_ego + _e12) * a_ego ** 2 + _a1 * a_ego)
+      accel_part = ((_e1 * v_ego + _e2) * a_ego ** 5 + (_e3 * v_ego + _e4) * a_ego ** 4 + _a3 * a_ego ** 3 + _a4 * a_ego ** 2 + _a5 * a_ego)
+      ret = speed_part + accel_part + _offset
+      return ret
+
+    _a3, _a4, _a5, _offset, _e1, _e2, _e3, _e4, _e5, _e6, _e7, _e8 = [-0.035860008785737016, -0.13270885701544577, 0.16287789486981336, 0.04424352150662014, 0.0030009560785156483,
+                                                                      -0.05384402259777075, -0.005789426762701948, 0.13945992675121233, 0.0015935644731739753, -0.0014145123652998105,
+                                                                      0.0006828099331243252, 0.014897262380888478]
+
+    gas = accel_to_gas(accel, speed)
+    coast_spread = 0.08
+    if accel >= coast - coast_spread and self.op_params.get('coast_smoother'):
+      gas *= interp(accel, [coast - coast_spread, coast + coast_spread * 2], [0, 1])
+      return clip(gas, 0, 1)
+    return 0.
+
+    # gas = accel_to_gas(accel, speed)
+    # if accel >= coast - coast_spread:
+    #   coast_spread_weight = interp(accel, [coast - coast_spread, coast + coast_spread], [0, 1])
+    #   return clip(gas * coast_spread_weight, 0., 1.)
+    # else:
+    #   return 0.
+
+    # gas = accel_to_gas(accel, speed)
+    # gas_at_coast = accel_to_gas(coast, speed)
+    #
+    # if coast > 0:
+    #   weight = interp(accel, [coast, coast * 1.5], [0.5, 1])
+    #   gas = (gas - gas_at_coast) * (1 - weight) + gas * weight
+
+    # return gas
+
   def update(self, enabled, CS, frame, actuators, pcm_cancel_cmd, hud_alert,
              left_line, right_line, lead, left_lane_depart, right_lane_depart):
 
@@ -155,7 +155,7 @@ class CarController():
       #   #   apply_accel = (apply_accel - coast) * weight + apply_accel * (1 - weight)
       #
       #   apply_gas = compute_gb_pedal(apply_accel, CS.out.vEgo, coast, self.op_params.get('ff_function'))
-      apply_gas = compute_gb_pedal(apply_accel, CS.out.vEgo, coast, self.op_params.get('ff_function'))
+      apply_gas = self.compute_gb_pedal(apply_accel, CS.out.vEgo, coast)
       apply_accel = 0.06 - actuators.brake
 
     apply_accel, self.accel_steady = accel_hysteresis(apply_accel, self.accel_steady, enabled)
