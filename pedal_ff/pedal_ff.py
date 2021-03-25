@@ -262,7 +262,6 @@ def load_and_process_rlogs(lrs, file_name):
 
     all_msgs = sorted(lr, key=lambda msg: msg.logMonoTime)
 
-    # gyro_counter = 0
     for msg in tqdm(all_msgs):
       if msg.which() == 'carState':
         v_ego = msg.carState.vEgo
@@ -275,15 +274,6 @@ def load_and_process_rlogs(lrs, file_name):
         v_target = msg.controlsState.vTargetLead
       elif msg.which() == 'carControl':
         apply_accel = msg.carControl.actuators.gas - msg.carControl.actuators.brake
-      # elif msg.which() == 'sensorEvents':
-      #   for sensor_reading in msg.sensorEvents:
-      #     if sensor_reading.sensor == 4 and sensor_reading.type == 4:
-      #       gyro_counter += 1
-      #       if gyro_counter % 10 == 0:
-      #         print(sensor_reading.gyro.v)
-      #         pitch = float(np.degrees(sensor_reading.gyro.v[2]))
-      # elif msg.which() == 'liveCalibration':
-      #   pitch = float(np.degrees(msg.liveCalibration.rpyCalib[1]))
 
       if msg.which() not in ['can', 'sendcan']:
         continue
@@ -589,8 +579,8 @@ def fit_ff_model(use_dir, plot=False):
 
   # model = models.load_model('models/model-best.h5')
 
-  # params, covs = curve_fit(fit_all, x_train.T, y_train)
-  params = np.array([-0.0783068519841404, -0.02425620872221965, 0.13060194634915956, 0.048408210211338176, 5.543874388291277e-05, -0.011102981702528086, -0.0003173850406700908, 0.0604232557901408, 0.0012248938828813751, -0.0010763810268259095, 0.0017804236356551181, 0.011950706937897477])
+  params, covs = curve_fit(fit_all, x_train.T, y_train)
+  # params = np.array([-0.0783068519841404, -0.02425620872221965, 0.13060194634915956, 0.048408210211338176, 5.543874388291277e-05, -0.011102981702528086, -0.0003173850406700908, 0.0604232557901408, 0.0012248938828813751, -0.0010763810268259095, 0.0017804236356551181, 0.011950706937897477])
   # params = np.array([-0.059593129912793315, -0.04577402603783469, 0.14512438169245576, 0.04943206089162375, 4.829796740317816e-06, -0.009924418151981399, -0.00020755632476486248, 0.052758381188947025, 0.0015371659949146228, -0.001104170167117192, -0.00012929098933089165, 0.011347420516706773])
   print('Params: {}'.format(params.tolist()))
   # params = [((0.011+.02)/2 + .02) / 2, 0.022130745681601702, -0.09109186615316711, 0.20997207156680778, 0.011371989131620245 - .02 - (.016+.0207)/2]
