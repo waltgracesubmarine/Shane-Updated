@@ -226,12 +226,8 @@ def uploader_fn(exit_event):
 
     d = None
     on_hotspot = is_on_hotspot()
-    print(sm['deviceState'].networkType, NetworkType.wifi)
-    print(allow_raw_upload, on_wifi, on_hotspot)
     if (on_hotspot and upload_on_hotspot) or not on_hotspot:
-      print('here')
       d = uploader.next_file_to_upload(with_raw=allow_raw_upload and on_wifi and offroad)
-      print(d)
 
     if d is None:  # Nothing to upload
       if allow_sleep:
