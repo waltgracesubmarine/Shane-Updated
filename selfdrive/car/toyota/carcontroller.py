@@ -29,7 +29,7 @@ def accel_hysteresis(accel, accel_steady, enabled):
 op_params = opParams()
 
 def coast_accel(speed):  # given a speed, output coasting acceleration
-  points = [[0.01, 0.0], [.21, .425], [.3107, .535], [.431, .555],  # with no delay
+  points = [[0.01, op_params.get('0_coast_accel')], [.21, .425], [.3107, .535], [.431, .555],  # with no delay
             [.777, .438], [1.928, 0.265], [2.66, -0.179],
             [3.336, -0.250], [MIN_ACC_SPEED, -0.145]]
   # points = [[.0, op_params.get('0_coast_accel')], [.431, .555],  # with no delay
