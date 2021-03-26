@@ -112,13 +112,13 @@ class CarController():
 
     _a3, _a4, _a5, _a6, _a7, _s1, _s2, _s3, _s4, _offset = [0.008695917086843731, -0.015614254828356712, -0.02079982940031632, 0.005221453888746468, 0.10533890343060712, 0.0013891995056737531, -0.001231083282494525, 0.009798923905618475, 0.014437517069650387, 0.03717726005999608]
     coast = coast_accel(speed)
-    gas = accel_to_gas(accel, speed)
+    gas = 0.
     coast_spread = self.op_params.get('coast_spread')
     if not braking or accel - self.op_params.get('max_accel_gap') > actual_accel:  # if car not braking or gap between desired accel and actual is too high
+      gas = accel_to_gas(accel, speed)
       if self.op_params.get('coast_smoother'):
         gas *= interp(accel, [coast, coast + coast_spread * 2], [0, 1])
-      return clip(gas, 0, 1)
-    return 0.
+    return gas
 
     # gas = accel_to_gas(accel, speed)
     # if accel >= coast - coast_spread:
@@ -143,17 +143,19 @@ class CarController():
 
     # gas and brake
     apply_gas = 0.
-    apply_accel = actuators.gas - actuators.brake
+    apply_accel = (actuators.gas - actuators.brake) * CarControllerParams.ACCEL_SCALE
 
     if CS.CP.enableGasInterceptor and enabled and CS.out.vEgo < MIN_ACC_SPEED and self.op_params.get('convert_accel_to_gas'):
       # converts desired acceleration to gas percentage for pedal
       # +0.06 offset to reduce ABS pump usage when applying very small gas
       # apply_accel *= CarControllerParams.ACCEL_SCALE
-      apply_gas = self.compute_gb_pedal(apply_accel * CarControllerParams.ACCEL_SCALE, CS.out.vEgo, CS.out.brakeLights, CS.out.aEgo)
-      # apply_accel = 0.06 - actuators.brake
+      apply_gas = self.compute_gb_pedal(apply_accel, CS.out.vEgo, CS.out.brakeLights, CS.out.aEgo)
+      if apply_accel > 0 and CS.out.vEgo <= CS.CP.minSpeedCan:  # artifically increase accel to release brake quicker
+        apply_accel *= CarControllerParams.ACCEL_SCALE
 
     # apply_accel, self.accel_steady = accel_hysteresis(apply_accel, self.accel_steady, enabled)
-    apply_accel = clip(apply_accel * CarControllerParams.ACCEL_SCALE, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX)
+    apply_accel = clip(apply_accel, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX)
+    apply_gas = clip(apply_gas, 0., 1.)
 
     if enabled and self.op_params.get('apply_gas') is not None:
       apply_gas = self.op_params.get('apply_gas')
