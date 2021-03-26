@@ -29,9 +29,12 @@ def accel_hysteresis(accel, accel_steady, enabled):
 op_params = opParams()
 
 def coast_accel(speed):  # given a speed, output coasting acceleration
-  points = [[.0, op_params.get('0_coast_accel')], [.431, .555],  # with no delay
+  points = [[0.01, 0.0], [.21, .425], [.3107, .535], [.431, .555],  # with no delay
             [.777, .438], [1.928, 0.265], [2.66, -0.179],
             [3.336, -0.250], [MIN_ACC_SPEED, -0.145]]
+  # points = [[.0, op_params.get('0_coast_accel')], [.431, .555],  # with no delay
+  #           [.777, .438], [1.928, 0.265], [2.66, -0.179],
+  #           [3.336, -0.250], [MIN_ACC_SPEED, -0.145]]
   return interp(speed, *zip(*points))
 
 
@@ -100,7 +103,7 @@ class CarController():
 
     self.packer = CANPacker(dbc_name)
 
-  def compute_gb_pedal(self, accel, speed, braking):
+  def compute_gb_pedal(self, accel, speed, braking, actual_accel):
     def accel_to_gas(a_ego, v_ego):
       speed_part = (_s5 * a_ego + _s6) * v_ego ** 3 + (_s1 * a_ego + _s2) * v_ego ** 2 + _s3 * v_ego
       accel_part = (_a3 * v_ego + _a4) * a_ego ** 3 + (_a5 * v_ego + _a6) * a_ego ** 2 + _a7 * a_ego
@@ -111,21 +114,10 @@ class CarController():
     coast = coast_accel(speed)
     gas = accel_to_gas(accel, speed)
     coast_spread = self.op_params.get('coast_spread')
-    if self.op_params.get('use_brakelights'):
-      if not braking:
-        if self.op_params.get('coast_smoother'):
-          gas *= interp(accel, [coast, coast + coast_spread * 2], [0, 1])
-        return clip(gas, 0, 1)
-    elif self.op_params.get('use_brakelights') == False:
-      if accel >= coast:
-        if self.op_params.get('coast_smoother'):
-          gas *= interp(accel, [coast - coast_spread, coast + coast_spread * 2], [0, 1])
-        return clip(gas, 0, 1)
-    else:
-      if accel >= coast or not braking:  # both, probably safer
-        if self.op_params.get('coast_smoother'):
-          gas *= interp(accel, [coast, coast + coast_spread * 2], [0, 1])
-        return clip(gas, 0, 1)
+    if not braking or accel - self.op_params.get('max_accel_gap') > actual_accel:  # if car not braking or gap between desired accel and actual is too high
+      if self.op_params.get('coast_smoother'):
+        gas *= interp(accel, [coast, coast + coast_spread * 2], [0, 1])
+      return clip(gas, 0, 1)
     return 0.
 
     # gas = accel_to_gas(accel, speed)
@@ -157,7 +149,7 @@ class CarController():
       # converts desired acceleration to gas percentage for pedal
       # +0.06 offset to reduce ABS pump usage when applying very small gas
       # apply_accel *= CarControllerParams.ACCEL_SCALE
-      apply_gas = self.compute_gb_pedal(apply_accel * CarControllerParams.ACCEL_SCALE, CS.out.vEgo, CS.out.brakeLights)
+      apply_gas = self.compute_gb_pedal(apply_accel * CarControllerParams.ACCEL_SCALE, CS.out.vEgo, CS.out.brakeLights, CS.out.aEgo)
       # apply_accel = 0.06 - actuators.brake
 
     # apply_accel, self.accel_steady = accel_hysteresis(apply_accel, self.accel_steady, enabled)
