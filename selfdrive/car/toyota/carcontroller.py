@@ -141,7 +141,7 @@ class CarController():
       # +0.06 offset to reduce ABS pump usage when applying very small gas
       # apply_accel *= CarControllerParams.ACCEL_SCALE
       apply_gas = self.compute_gb_pedal(apply_accel, CS.out.vEgo, CS.out.brakeLights, CS.out.aEgo)
-      if apply_accel > 0 and CS.out.vEgo <= CS.CP.minSpeedCan:  # artifically increase accel to release brake quicker
+      if apply_accel > 0 and CS.out.vEgo <= CS.CP.minSpeedCan and self.op_params.get('standstill_accel'):  # artifically increase accel to release brake quicker
         apply_accel *= CarControllerParams.ACCEL_SCALE
 
     # apply_accel, self.accel_steady = accel_hysteresis(apply_accel, self.accel_steady, enabled)
