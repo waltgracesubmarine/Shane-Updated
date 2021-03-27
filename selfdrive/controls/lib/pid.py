@@ -28,6 +28,7 @@ class LatPIDController():
     self.i_rate = 1.0 / rate
     self.sat_limit = sat_limit
     self.convert = convert
+    self.op_params = opParams()
 
     self.reset()
 
