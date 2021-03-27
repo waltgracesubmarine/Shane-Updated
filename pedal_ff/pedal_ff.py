@@ -70,7 +70,7 @@ hyperparameter_defaults = dict(
 
 
 def random_chance(percent: int):
-  return np.random.randint(0, 100) < percent
+  return np.random.randint(0, 100) < percent or percent == 100
 
 
 def coast_accel(speed):  # given a speed, output coasting acceleration
@@ -118,23 +118,23 @@ def accel_to_gas_old(a_ego, v_ego, _a3, _a4, _a5, _offset, _e1, _e2, _e3, _e4, _
 
 
 # def fit_all(x_input, _a1, _offset, _e1, _e2, _e3, _e4, _e5, _e6, _e7, _e8, _e9, _e10, _e11, _e12):
-def fit_all(x_input, _a3, _a4, _a6, _a7, _a8, _a9, _s1, _s2, _s3, _s4, _offset):
+def fit_all(x_input, _p1, _a3, _a4, _a6, _a7, _a8, _a9, _s1, _s2, _s3, _s4, _offset):
   """
     x_input is array of a_ego and v_ego
     all _params are to be fit by curve_fit
     kf is multiplier from angle to torque
     c1-c3 are poly coefficients
   """
-  accel, speed = x_input.copy()
+  accel, speed, pitch = x_input.copy()
 
   # if coast >= 0 and a_ego >= 0 and a_ego >= coast:
   #   weight = np.interp(a_ego, [coast, coast * 2], [0, 1])
   #   a_ego = ((a_ego - coast) * (weight) + a_ego * (1-weight))
   def accel_to_gas(a_ego, v_ego):
     speed_part = (_s1 * a_ego + _s2) * v_ego ** 2 + (_s3 * a_ego + _s4) * v_ego
-    # accel_part = ((_e1 * v_ego + _e2) * a_ego ** 5 + (_e3 * v_ego + _e4) * a_ego ** 4 + (_e9 * v_ego + _e10) * a_ego ** 3 + (_e11 * v_ego + _e12) * a_ego ** 2 + _a1 * a_ego)
     accel_part = (_a8 * v_ego + _a9) * a_ego ** 4 + (_a3 * v_ego + _a4) * a_ego ** 3 + _a6 * a_ego ** 2 + _a7 * a_ego
-    ret = speed_part + accel_part + _offset
+    pitch_part = _p1 * pitch
+    ret = speed_part + accel_part + _offset + pitch_part
     return ret
 
   gas = accel_to_gas(accel, speed)
@@ -250,6 +250,10 @@ def load_and_process_rlogs(lrs, file_name):
     apply_accel = None
     last_time = 0
     can_updated = False
+    ned_orientation = []
+    ned_orientation_calib = []
+    ecef_orientation = []
+    ecef_orientation_calib = []
 
     signals = [
       ("GAS_COMMAND", "GAS_COMMAND", 0),
@@ -266,6 +270,9 @@ def load_and_process_rlogs(lrs, file_name):
 
     all_msgs = sorted(lr, key=lambda msg: msg.logMonoTime)
 
+    def Measurement(msmt):
+      return {'value': list(msmt.value), 'std': list(msmt.std), 'valid': bool(msmt.valid)}
+
     for msg in tqdm(all_msgs):
       if msg.which() == 'carState':
         v_ego = msg.carState.vEgo
@@ -278,6 +285,11 @@ def load_and_process_rlogs(lrs, file_name):
         v_target = msg.controlsState.vTargetLead
       elif msg.which() == 'carControl':
         apply_accel = msg.carControl.actuators.gas - msg.carControl.actuators.brake
+      elif msg.which() == 'liveLocationKalman':
+        ned_orientation = Measurement(msg.liveLocationKalman.orientationNED)
+        ned_orientation_calib = Measurement(msg.liveLocationKalman.orientationNEDCalibrated)
+        ecef_orientation = Measurement(msg.liveLocationKalman.orientationECEF)
+        ecef_orientation_calib = Measurement(msg.liveLocationKalman.calibratedOrientationECEF)
 
       if msg.which() not in ['can', 'sendcan']:
         continue
@@ -309,6 +321,7 @@ def load_and_process_rlogs(lrs, file_name):
         data[-1].append({'v_ego': v_ego, 'gas_command': gas_command, 'a_ego': a_ego, 'user_gas': user_gas,
                          'car_gas': car_gas, 'brake_pressed': brake_pressed, 'pitch': pitch, 'engaged': engaged, 'gas_enable': gas_enable,
                          'steering_angle': steering_angle, 'a_target': a_target, 'v_target': v_target, 'apply_accel': apply_accel,
+                         'ned_orientation': ned_orientation, 'ned_orientation_calib': ned_orientation_calib, 'ecef_orientation': ecef_orientation, 'ecef_orientation_calib': ecef_orientation_calib,
                          'time': msg.logMonoTime * 1e-9})
       elif len(data[-1]):  # if last list has items in it, append new empty section
         data.append([])
@@ -420,48 +433,18 @@ def fit_ff_model(use_dir, plot=False):
   #   input()
   # raise Exception
 
+  # data = [i for j in data for i in j]  # flatten
+  # return data
+  #
+  # raise Exception
+
   if OFFSET_ACCEL := True:
     data = offset_accel(data)
   if COAST_OFFSET_ACCEL := False:
     data_coasting = offset_accel(data_coasting, coast=True)
 
-  data_tmp = [l for l in [i for j in data for i in j] if not l['engaged']]  # todo: this all is to convert car gas to gas cmd scale. can be removed when done experimenting with
-  print(len(data_tmp))
-
-  plt.plot([l['car_gas'] for l in data_tmp], label='car_gas')
-  plt.plot([l['user_gas'] / 232 for l in data_tmp], label='user_gas')
-  plt.plot([transform_car_gas(l['car_gas']) for l in data_tmp], label='user_gas converted to car gas')
-  plt.legend()
-  raise Exception
-
-  min_gas = 0.00
-
-  def fit_car_gas_to_cmd(car, _c1, _c2, _c3):
-    car, v_ego = car.copy()
-    ret = []
-    for c, v in zip(car, v_ego):
-      r = _c1 * c + _c2 * v + _c3
-      ret.append(r if c > min_gas else 0)
-    return ret
-  def car_to_cmd(car, v_ego, _c1, _c2, _c3):
-    ret = _c1 * car + _c2 * v_ego + _c3
-    return ret if car > min_gas else 0
-
-  params, _ = curve_fit(fit_car_gas_to_cmd, np.array([[l['car_gas'], l['v_ego']] for l in data_tmp if l['car_gas'] > 0]).T, [l['gas_command'] for l in data_tmp if l['car_gas'] > 0])
-  print(params.tolist())
-  data_tmp = [l for l in data_tmp if l['car_gas'] > 0]
-
-  plt.plot([l['car_gas'] for l in data_tmp], 'o', label='og car gas')
-  mae = [car_to_cmd(l['car_gas'], l['v_ego'], *params) for l in data_tmp]
-  plt.plot(mae, label='car gas (FITTED)')
-  plt.plot([l['gas_command'] for l in data_tmp], label='cmd')
-  mae = np.mean(np.abs(np.array(mae) - np.array([l['gas_command'] for l in data_tmp])))
-  print('Avg. mae: {}'.format(mae))
-
-  plt.legend()
-  plt.show()
-  plt.pause(0.01)
-  raise Exception
+  max_car_gas_fit = max([l['car_gas'] for l in [i for j in data for i in j] if l['engaged'] and l['user_gas'] < 14])
+  print('Max fit car_gas for transform_car_gas function: {}'.format(max_car_gas_fit))
 
   new_data = []
   for sec in data:  # remove samples where we're braking in the future but not now
@@ -520,34 +503,29 @@ def fit_ff_model(use_dir, plot=False):
     line = line.copy()
     if general_filters(line):
       # since car gas doesn't map to gas command perfectly, only use user samples where gas is above certain threshold
-      if not line['engaged']:  # and 0.65 >= line['car_gas']:  # verified for sure working up to 0.65, but probably could go further
-        if line['car_gas'] >= 0.1:
+      if not line['engaged'] and line['car_gas'] <= max_car_gas_fit:  # verified for sure working up to 0.65, but probably could go further
+        if line['car_gas'] > 0.:
           line['gas'] = float(transform_car_gas(line['car_gas']))  # this matches car gas up with gas cmd fairly accurately
-        elif line['car_gas'] >= 0.05 and random_chance(35):  # the transorm function becomes less accurate under 10 percent, so use less of those samples
-          line['gas'] = float(transform_car_gas(line['car_gas']))
-        elif line['car_gas'] == 0 and line['user_gas'] < 15 and random_chance(35):
+        elif line['user_gas'] < 15 and random_chance(100):
           line['gas'] = 0.
         else:
           continue
         user_samples += 1
-        # else:  # coasting but speed not in range
-        #   continue
       elif line['engaged'] and line['gas_enable'] and line['gas_command'] > 0.001 and line['user_gas'] < 15:  # engaged and user not overriding
         if line['v_ego'] < 2 * CV.MPH_TO_MS and random_chance(35):
           continue
-        # continue  # todo: skip engaged samples for now
         # # todo this is a hacky fix for bad data. i let op accidentally send gas cmd while not engaged and interceptor didn't like that so it wouldn't apply commanded gas WHILE ENGAGED sometimes. this gets rid of those samples
-        # if line['car_gas'] == 0 or abs(line['gas_command'] - transform_car_gas(line['car_gas'])) > 0.05:  # function avgs 0.011 error
-        #   print('SHOULDNT BE HERE')
-        #   continue
-        # if line['v_ego'] > MIN_ACC_SPEED:
-        #   print(line)
-        #   continue
+        diff = abs(line['gas_command'] - transform_car_gas(line['car_gas']))
+        if line['car_gas'] == 0 or diff > 0.05:  # function avgs 0.011 error
+          # print('SHOULDN\'T BE HERE: {}'.format(diff))
+          # print(line)
+          continue
         line['gas'] = float(line['gas_command'])
         engaged_samples += 1
       else:
         continue
 
+      line['pitch'] = line['ned_orientation']['value'][1]
       new_data.append(line)
 
   data = new_data
@@ -562,11 +540,10 @@ def fit_ff_model(use_dir, plot=False):
 
   print(f'under 5 mph: {len([l for l in data if l["v_ego"] < 5 * CV.MPH_TO_MS])}')
 
-  data = [line for line in data if 1.75 > line['a_ego'] > coast_accel(line['v_ego']) - 0.2]  # this is experimental
+  data = [line for line in data if 3. > line['a_ego'] > coast_accel(line['v_ego']) - 0.4]  # this is experimental
   # data = [line for line in data if line['a_ego'] >= -0.5]  # sometimes a ego is -0.5 while gas is still being applied (todo: maybe remove going up hills? this should be okay for now)
   print(f'Samples (after filtering):  {len(data)}\n')
   print(f'under 5 mph: {len([l for l in data if l["v_ego"] < 5 * CV.MPH_TO_MS])}')
-  raise Exception
 
 
   print(f"Coasting samples: {len(data_coasting)}")
@@ -579,8 +556,9 @@ def fit_ff_model(use_dir, plot=False):
   assert len(data) > MIN_SAMPLES, 'too few valid samples found in route'
 
   # Now prepare for function fitting
-  data_speeds = np.array([line['v_ego'] for line in data])
   data_accels = np.array([line['a_ego'] for line in data])
+  data_speeds = np.array([line['v_ego'] for line in data])
+  data_pitches = np.array([line['pitch'] for line in data])
   # data_cur_accels = np.array([line['a_ego_current'] for line in data])
   data_gas = np.array([line['gas'] for line in data])
   print('MIN ACCEL: {}'.format(min(data_accels)))
@@ -588,7 +566,7 @@ def fit_ff_model(use_dir, plot=False):
   print(f'speed: {np.min(data_speeds), np.max(data_speeds)}')
   print('Samples below {} mph: {}, samples above: {}'.format(round(MIN_ACC_SPEED * CV.MS_TO_MPH, 2), len([_ for _ in data_speeds if _ < MIN_ACC_SPEED]), len([_ for _ in data_speeds if _ > MIN_ACC_SPEED])))
 
-  x_train = np.array([data_accels, data_speeds]).T
+  x_train = np.array([data_accels, data_speeds, data_pitches]).T
   y_train = np.array(data_gas)
 
   # model = build_model(x_train.shape[1:])
@@ -619,10 +597,10 @@ def fit_ff_model(use_dir, plot=False):
   print('Params: {}'.format(params.tolist()))
   # params = [((0.011+.02)/2 + .02) / 2, 0.022130745681601702, -0.09109186615316711, 0.20997207156680778, 0.011371989131620245 - .02 - (.016+.0207)/2]
 
-  def compute_gb_new(accel, speed):
-    return fit_all([accel, speed], *params)
+  def compute_gb_new(accel, speed, pitch):
+    return fit_all([accel, speed, pitch], *params)
 
-  from_function = np.array([compute_gb_new(line['a_ego'], line['v_ego']) for line in data])
+  from_function = np.array([compute_gb_new(line['a_ego'], line['v_ego'], line['pitch']) for line in data])
   print('Fitted function MAE: {}'.format(np.mean(np.abs(data_gas - from_function))))
 
 
@@ -653,7 +631,7 @@ def fit_ff_model(use_dir, plot=False):
 
     plt.figure()
     x = np.linspace(0, TOP_FIT_SPEED, 100)
-    y = [compute_gb_new(coast_accel(spd), spd) for spd in x]  # should be near 0
+    y = [compute_gb_new(coast_accel(spd), spd, 0) for spd in x]  # should be near 0
     plt.plot(x, y)
     plt.legend()
     plt.savefig('imgs/coasting plot-should-be-0.png')
@@ -685,7 +663,7 @@ def fit_ff_model(use_dir, plot=False):
   # print('Torque MAE: {} (standard) - {} (fitted)'.format(np.mean(std_func), np.mean(fitted_func)))
   # print('Torque STD: {} (standard) - {} (fitted)\n'.format(np.std(std_func), np.std(fitted_func)))
 
-  image_suffix = '_3'
+  image_suffix = '_2'
 
   if PLOT_MODEL := True:
     plt.figure()
@@ -693,7 +671,7 @@ def fit_ff_model(use_dir, plot=False):
     known_good = [known_good_accel_to_gas(l['a_ego'], l['v_ego']) for l in data]
     # pred = model.predict_on_batch(np.array([[l['a_ego'], l['v_ego']] for l in data])).reshape(-1)
     pred = best_model_predict(np.array([[l['a_ego'], l['v_ego']] for l in data])).reshape(-1)
-    fitted_function = [compute_gb_new(l['a_ego'], l['v_ego']) for l in data]
+    fitted_function = [compute_gb_new(l['a_ego'], l['v_ego'], l['pitch']) for l in data]
 
     # print(len(section))
     plt.plot([l['gas'] for l in data], label='gas (ground truth)')
@@ -751,7 +729,7 @@ def fit_ff_model(use_dir, plot=False):
 
       _y_ff = [compute_gb_old(np.mean(accel_range), _i) for _i in _x_ff]
       # plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='orange', label='standard ff model at {} m/s/s'.format(np.mean(accel_range)))
-      _y_ff = [compute_gb_new(np.mean(accel_range), _i) for _i in _x_ff]
+      _y_ff = [compute_gb_new(np.mean(accel_range), _i, 0) for _i in _x_ff]
       plt.plot(_x_ff * CV.MS_TO_MPH, _y_ff, color='purple', label='new fitted ff function')
 
       # _y_ff = [model.predict_on_batch(np.array([[np.mean(accel_range), _i]]))[0][0] for _i in _x_ff]
@@ -806,7 +784,7 @@ def fit_ff_model(use_dir, plot=False):
 
       _y_ff = [compute_gb_old(_i, np.mean(speed_range)) for _i in _x_ff]
       # plt.plot(_x_ff, _y_ff, color='orange', label='standard ff model at {} mph'.format(np.round(np.mean(speed_range) * CV.MS_TO_MPH, 1)))
-      _y_ff = [compute_gb_new(_i, np.mean(speed_range)) for _i in _x_ff]
+      _y_ff = [compute_gb_new(_i, np.mean(speed_range), 0) for _i in _x_ff]
       plt.plot(_x_ff, _y_ff, color='purple', label='new fitted ff function')
 
       # _y_ff = [model.predict_on_batch(np.array([[_i, np.mean(speed_range)]]))[0][0] for _i in _x_ff]
@@ -816,7 +794,7 @@ def fit_ff_model(use_dir, plot=False):
       plt.legend()
       plt.xlabel('accel (m/s/s)')
       plt.ylabel('gas')
-      # plt.xlim(coast_accel(np.mean(speed_range)) - 0.3, 1.5)
+      plt.xlim(coast_accel(np.mean(speed_range)), 1.5)
       plt.savefig('plots/a{}{}.png'.format(speed_range_str, image_suffix))
 
   plt.show()
@@ -863,4 +841,4 @@ if __name__ == "__main__":
   # lr = MultiLogIterator(r.log_paths(), wraparound=False)
   use_dir = '/openpilot/pedal_ff/rlogs/use'
   # lr = MultiLogIterator([os.path.join(use_dir, i) for i in os.listdir(use_dir)], wraparound=False)
-  data, params = fit_ff_model(use_dir, plot="--plot" in sys.argv)
+  data = fit_ff_model(use_dir, plot="--plot" in sys.argv)
