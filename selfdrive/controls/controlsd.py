@@ -248,9 +248,10 @@ class Controls:
     else:
       self.logged_comm_issue = False
 
-    print(list(self.sm['liveLocationKalman'].orientationNED.value))
-    print(math.degrees(self.sm['liveLocationKalman'].orientationNED.value[1]))
-    print()
+    if len(self.sm['liveLocationKalman'].orientationNED.value) > 0:
+      print(list(self.sm['liveLocationKalman'].orientationNED.value))
+      print(math.degrees(self.sm['liveLocationKalman'].orientationNED.value[1]))
+      print()
 
     if not self.sm['lateralPlan'].mpcSolutionValid:
       self.events.add(EventName.plannerError)
