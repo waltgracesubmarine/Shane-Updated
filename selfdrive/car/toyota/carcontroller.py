@@ -106,34 +106,25 @@ class CarController():
   def compute_gb_pedal(self, accel, speed, braking, actual_accel):
     def accel_to_gas(a_ego, v_ego):
       speed_part = (_s1 * a_ego + _s2) * v_ego ** 2 + (_s3 * a_ego + _s4) * v_ego
-      accel_part = (_a3 * v_ego + _a4) * a_ego ** 3 + (_a5 * v_ego + _a6) * a_ego ** 2 + _a7 * a_ego
+      accel_part = (_a8 * v_ego + _a9) * a_ego ** 4 + (_a3 * v_ego + _a4) * a_ego ** 3 + _a6 * a_ego ** 2 + _a7 * a_ego
       ret = speed_part + accel_part + _offset
       return ret
 
-    _a3, _a4, _a5, _a6, _a7, _s1, _s2, _s3, _s4, _offset = [0.008695917086843731, -0.015614254828356712, -0.02079982940031632, 0.005221453888746468, 0.10533890343060712, 0.0013891995056737531, -0.001231083282494525, 0.009798923905618475, 0.014437517069650387, 0.03717726005999608]
+    _a3, _a4, _a6, _a7, _a8, _a9, _s1, _s2, _s3, _s4, _offset = [-0.003705030476784167, -0.022559785625973505, -0.006043320774972937, 0.1365573372786136, 0.0015085405555863522, 0.006770616730616903, 0.0009528920381910715, -0.0017151029060025645, 0.003231645268943276, 0.021256307111157384, -0.005451883616806365]
     coast = coast_accel(speed)
     gas = 0.
     coast_spread = self.op_params.get('coast_spread')
-    if not braking or accel - self.op_params.get('max_accel_gap') > actual_accel:  # if car not braking or gap between desired accel and actual is too high
+    if accel >= coast:
       gas = accel_to_gas(accel, speed)
       if self.op_params.get('coast_smoother'):
         gas *= interp(accel, [coast, coast + coast_spread * 2], [0, 1])
     return gas
 
-    # gas = accel_to_gas(accel, speed)
-    # if accel >= coast - coast_spread:
-    #   coast_spread_weight = interp(accel, [coast - coast_spread, coast + coast_spread], [0, 1])
-    #   return clip(gas * coast_spread_weight, 0., 1.)
-    # else:
-    #   return 0.
-
-    # gas = accel_to_gas(accel, speed)
-    # gas_at_coast = accel_to_gas(coast, speed)
-    #
-    # if coast > 0:
-    #   weight = interp(accel, [coast, coast * 1.5], [0.5, 1])
-    #   gas = (gas - gas_at_coast) * (1 - weight) + gas * weight
-
+    # coast_spread = self.op_params.get('coast_spread')
+    # if not braking or accel - self.op_params.get('max_accel_gap') > actual_accel:  # if car not braking or gap between desired accel and actual is too high
+    #   gas = accel_to_gas(accel, speed)
+    #   if self.op_params.get('coast_smoother'):
+    #     gas *= interp(accel, [coast, coast + coast_spread * 2], [0, 1])
     # return gas
 
   def update(self, enabled, CS, frame, actuators, pcm_cancel_cmd, hud_alert,
