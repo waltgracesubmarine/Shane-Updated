@@ -33,14 +33,17 @@ class LatPIDController():
 
   @property
   def k_p(self):
+    return self.op_params.get('lat_p')
     return interp(self.speed, self._k_p[0], self._k_p[1])
 
   @property
   def k_i(self):
+    return self.op_params.get('lat_i')
     return interp(self.speed, self._k_i[0], self._k_i[1])
 
   @property
   def k_d(self):
+    return self.op_params.get('lat_d')
     return interp(self.speed, self._k_d[0], self._k_d[1])
 
   def _check_saturation(self, control, check_saturation, error):
@@ -64,22 +67,27 @@ class LatPIDController():
     self.control = 0
     self.errors = []
 
+  def gain_response(self, error):
+    return (45 / (abs(error) + 45)) ** self.op_params.get('effectiveness_falloff')
+
   def update(self, setpoint, measurement, speed=0.0, check_saturation=True, override=False, feedforward=0., deadzone=0., freeze_integrator=False):
     self.speed = speed
 
     error = float(apply_deadzone(setpoint - measurement, deadzone))
-    self.p = error * self.k_p
+    response = gain_response(error)
+
+    self.p = error * self.k_p * response
     self.f = feedforward * self.k_f
 
     d = 0
     if len(self.errors) >= 5:  # makes sure list is long enough
       d = (error - self.errors[-5]) / 5  # get deriv in terms of 100hz (tune scale doesn't change)
-      d *= self.k_d
+      d *= self.k_d * response
 
     if override:
       self.i -= self.i_unwind_rate * float(np.sign(self.i))
     else:
-      i = self.i + error * self.k_i * self.i_rate
+      i = self.i + error * self.k_i * self.i_rate * response
       control = self.p + self.f + i + d
 
       if self.convert is not None:

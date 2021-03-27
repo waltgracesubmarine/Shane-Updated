@@ -129,6 +129,10 @@ class opParams:
                         'support_white_panda': Param(False, bool, 'Enable this to allow engagement with the deprecated white panda.\n'
                                                                   'localizer might not work correctly', static=True),
                         'disable_charging': Param(30, NUMBER, 'How many hours until charging is disabled while idle', static=True),
+                        'lat_p': Param(.2, NUMBER, live=True),
+                        'lat_i': Param(.05, NUMBER, live=True),
+                        'lat_d': Param(0., NUMBER, live=True),
+                        'effectiveness_falloff': Param(10, NUMBER, 'How quickly torque response drops off from error', live=True),
 
                         'prius_use_pid': Param(False, bool, 'This enables the PID lateral controller with new a experimental derivative tune\n'
                                                             'False: stock INDI, True: TSS2-tuned PID', static=True),
