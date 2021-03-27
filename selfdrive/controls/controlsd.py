@@ -248,6 +248,8 @@ class Controls:
     else:
       self.logged_comm_issue = False
 
+    print(list(self.sm['liveLocationKalman'].orientationNED.value))
+
     if not self.sm['lateralPlan'].mpcSolutionValid:
       self.events.add(EventName.plannerError)
     if not self.sm['liveLocationKalman'].sensorsOK and not NOSENSOR:
