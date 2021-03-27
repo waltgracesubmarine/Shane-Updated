@@ -74,7 +74,7 @@ class LatPIDController():
     self.speed = speed
 
     error = float(apply_deadzone(setpoint - measurement, deadzone))
-    response = gain_response(error)
+    response = self.gain_response(error)
 
     self.p = error * self.k_p * response
     self.f = feedforward * self.k_f
