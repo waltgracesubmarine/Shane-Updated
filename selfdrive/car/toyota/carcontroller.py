@@ -117,7 +117,11 @@ class CarController():
     if accel >= coast:
       gas = accel_to_gas(accel, speed)
       if self.op_params.get('coast_smoother'):
-        gas *= interp(accel, [coast, coast + coast_spread * 2], [0, 1])
+        if coast + coast_spread * 2 >= accel:
+          x = accel - coast
+          l = coast_spread * 2
+          p = 2
+          gas *= 1 / (1 + (x / (l - x)) ** -p) if x != 0 else 0
     return gas
 
     # coast_spread = self.op_params.get('coast_spread')
@@ -141,8 +145,8 @@ class CarController():
       # +0.06 offset to reduce ABS pump usage when applying very small gas
       # apply_accel *= CarControllerParams.ACCEL_SCALE
       apply_gas = self.compute_gb_pedal(apply_accel, CS.out.vEgo, CS.out.brakeLights, CS.out.aEgo)
-      if apply_accel > 0 and CS.out.vEgo <= CS.CP.minSpeedCan and self.op_params.get('standstill_accel'):  # artifically increase accel to release brake quicker
-        apply_accel *= CarControllerParams.ACCEL_SCALE
+      if apply_accel > 0 and CS.out.vEgo <= 0.1:  # artifically increase accel to release brake quicker
+        apply_accel *= self.op_params.get('standstill_accel_multiplier')
 
     # apply_accel, self.accel_steady = accel_hysteresis(apply_accel, self.accel_steady, enabled)
     apply_accel = clip(apply_accel, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX)

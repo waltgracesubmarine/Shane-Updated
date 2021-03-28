@@ -111,10 +111,10 @@ class opParams:
                         #                              '6: 5 but less gas all around\n'
                         #                              '7: 4 but more coefficients', live=True),
                         'coast_smoother': Param(False, bool, 'Smoothly ramps up gas output across the coasting accel at that speed', live=True),
-                        'standstill_accel': Param(False, bool, '', live=True),
-                        'convert_accel_to_gas': Param(False, bool, 'If False no gas is ever commanded, only use apply_accel with no + offset', live=True),
+                        'standstill_accel_multiplier': Param(1, NUMBER, 'Multiplier for accel when at a standstill to resume quicker. 1 disables this', live=True),
+                        'convert_accel_to_gas': Param(True, bool, 'If False no gas is ever commanded, only use apply_accel with no + offset', live=True),
                         'coast_spread': Param(0.08, NUMBER, live=True),
-                        'max_accel_gap': Param(1.0, NUMBER, 'In m/s/s, how big of a gap between desired and actual accel until we apply gas (as well as not braking)', live=True),
+                        # 'max_accel_gap': Param(1.0, NUMBER, 'In m/s/s, how big of a gap between desired and actual accel until we apply gas (as well as not braking)', live=True),
 
                         'prius_use_pid': Param(False, bool, 'This enables the PID lateral controller with new a experimental derivative tune\n'
                                                             'False: stock INDI, True: TSS2-tuned PID'),
