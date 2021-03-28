@@ -117,9 +117,9 @@ class CarController():
     if accel >= coast:
       gas = accel_to_gas(accel, speed)
       if self.op_params.get('coast_smoother'):
-        if coast + coast_spread * 2 >= accel:
+        if coast + coast_spread > accel:  # make sure we don't do 1/(l - l) (.16 - .16)
           x = accel - coast
-          l = coast_spread * 2
+          l = coast_spread
           p = 2
           gas *= 1 / (1 + (x / (l - x)) ** -p) if x != 0 else 0
     return gas
