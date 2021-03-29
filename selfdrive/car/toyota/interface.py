@@ -105,7 +105,7 @@ class CarInterface(CarInterfaceBase):
       ret.safetyParam = 88
       ret.wheelbase = 2.70
       ret.steerRatio = 17.43
-      ret.minSpeedCan = 0.1 * CV.KPH_TO_MS
+      ret.minSpeedCan = 0.4 * CV.KPH_TO_MS
       tire_stiffness_factor = 0.444  # not optimized yet
       ret.mass = 2860. * CV.LB_TO_KG + STD_CARGO_KG  # mean between normal and hybrid
       ret.lateralTuning.pid.kpBP, ret.lateralTuning.pid.kpV = [[20, 31], [0.06, 0.08]]  # 45 to 70 mph
