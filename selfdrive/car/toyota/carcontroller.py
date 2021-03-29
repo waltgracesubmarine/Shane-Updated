@@ -67,16 +67,18 @@ class CarController():
 
     _a3, _a4, _a5, _a6, _a7, _a8, _s1, _s2, _s3, _s4, _offset = [-0.0034109221270790142, -0.02989942810035373, 0.002005326552420498, 0.1356381902353583, 0.0014222019070588158, 0.008436894892099946, 0.0009439048033890968, -0.0017786568461504919, 0.002986433642380856, 0.021810785976030644, -0.007020501995388009]
     coast = coast_accel(speed)
-    gas = 0.
     coast_spread = self.op_params.get('coast_spread')
+    gas = 0.
     if accel >= coast:
       gas = accel_to_gas(accel, speed)
       if self.op_params.get('coast_smoother'):
         if coast + coast_spread > accel:  # make sure we don't do 1/(l - l) (.16 - .16)
           x = accel - coast
           l = coast_spread
-          p = 2
-          gas *= 1 / (1 + (x / (l - x)) ** -p) if x != 0 else 0
+          p = 2  # controls how quickly it ramps up (higher, it waits for a longer time to ramp up gas output)
+          gas *= 1 / (1 + (x / (l - x)) ** -p) if x != 0 else 0  # nice sigmoid style curve
+      if braking:  # while car is braking for any reason, reduce gas output to reduce jerking and have a smoother ramp up
+        gas /= 2
     return gas
 
     # coast_spread = self.op_params.get('coast_spread')
