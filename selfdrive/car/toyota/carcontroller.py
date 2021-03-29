@@ -58,7 +58,7 @@ class CarController():
 
     self.packer = CANPacker(dbc_name)
 
-  def compute_gb_pedal(self, accel, speed, braking, actual_accel):
+  def compute_gb_pedal(self, accel, speed, braking):
     def accel_to_gas(a_ego, v_ego):
       speed_part = (_s1 * a_ego + _s2) * v_ego ** 2 + (_s3 * a_ego + _s4) * v_ego
       accel_part = (_a7 * v_ego + _a8) * a_ego ** 4 + (_a3 * v_ego + _a4) * a_ego ** 3 + _a5 * a_ego ** 2 + _a6 * a_ego
@@ -96,12 +96,15 @@ class CarController():
     # gas and brake
     apply_gas = 0.
     apply_accel = (actuators.gas - actuators.brake) * CarControllerParams.ACCEL_SCALE
+    if self.op_params.get('apply_accel') is not None and enabled:
+      apply_accel = self.op_params.get('apply_accel')
+      apply_gas = 0
 
     if CS.CP.enableGasInterceptor and enabled and CS.out.vEgo < MIN_ACC_SPEED and self.op_params.get('convert_accel_to_gas'):
       # converts desired acceleration to gas percentage for pedal
       # +0.06 offset to reduce ABS pump usage when applying very small gas
       # apply_accel *= CarControllerParams.ACCEL_SCALE
-      apply_gas = self.compute_gb_pedal(apply_accel, CS.out.vEgo, CS.out.brakeLights, CS.out.aEgo)
+      apply_gas = self.compute_gb_pedal(apply_accel, CS.out.vEgo, CS.out.brakeLights)
       if apply_accel > 0 and CS.out.vEgo <= 0.1:  # artifically increase accel to release brake quicker
         apply_accel *= self.op_params.get('standstill_accel_multiplier')
 
