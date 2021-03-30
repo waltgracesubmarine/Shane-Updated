@@ -246,7 +246,7 @@ class Controls:
 
     if len(self.sm['liveLocationKalman'].velocityNED.value) > 0:
       print(list(self.sm['liveLocationKalman'].velocityNED.value))
-      print(round(self.sm['liveLocationKalman'].velocityNED.value[1] * CV.MS_TO_MPH, 2))
+      print(round(self.sm['liveLocationKalman'].velocityNED.value[2] * CV.MS_TO_MPH, 2))
       print()
 
     if not self.sm['lateralPlan'].mpcSolutionValid:
