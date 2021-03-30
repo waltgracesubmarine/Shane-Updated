@@ -244,9 +244,9 @@ class Controls:
     else:
       self.logged_comm_issue = False
 
-    if len(self.sm['liveLocationKalman'].orientationNED.value) > 0:
-      print(list(self.sm['liveLocationKalman'].orientationNED.value))
-      print(math.degrees(self.sm['liveLocationKalman'].orientationNED.value[1]))
+    if len(self.sm['liveLocationKalman'].velocityNED.value) > 0:
+      print(list(self.sm['liveLocationKalman'].velocityNED.value))
+      print(round(self.sm['liveLocationKalman'].velocityNED.value[1] * CV.MS_TO_MPH, 2))
       print()
 
     if not self.sm['lateralPlan'].mpcSolutionValid:
