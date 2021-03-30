@@ -99,7 +99,7 @@ class CarController():
         apply_accel *= self.op_params.get('standstill_accel_multiplier')
 
     # apply_accel, self.accel_steady = accel_hysteresis(apply_accel, self.accel_steady, enabled)
-    apply_accel = clip(apply_accel, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX)
+    apply_accel = clip(apply_accel, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX) if enabled else 0.
     apply_gas = clip(apply_gas, 0., 1.)
 
     if enabled and self.op_params.get('apply_gas') is not None:
