@@ -79,13 +79,6 @@ class CarController():
         gas /= 2
     return gas
 
-    # coast_spread = self.op_params.get('coast_spread')
-    # if not braking or accel - self.op_params.get('max_accel_gap') > actual_accel:  # if car not braking or gap between desired accel and actual is too high
-    #   gas = accel_to_gas(accel, speed)
-    #   if self.op_params.get('coast_smoother'):
-    #     gas *= interp(accel, [coast, coast + coast_spread * 2], [0, 1])
-    # return gas
-
   def update(self, enabled, CS, frame, actuators, pcm_cancel_cmd, hud_alert,
              left_line, right_line, lead, left_lane_depart, right_lane_depart):
 
@@ -94,9 +87,8 @@ class CarController():
     # gas and brake
     apply_gas = 0.
     apply_accel = (actuators.gas - actuators.brake) * CarControllerParams.ACCEL_SCALE
-    if self.op_params.get('apply_accel') is not None and enabled:
-      apply_accel = self.op_params.get('apply_accel')
-      apply_gas = 0
+    if self.op_params.get('apply_accel') is not None and enabled and CS.out.vEgo < MIN_ACC_SPEED:
+      apply_accel = self.op_params.get('apply_accel')  # to test the function below
 
     if CS.CP.enableGasInterceptor and enabled and CS.out.vEgo < MIN_ACC_SPEED and self.op_params.get('convert_accel_to_gas'):
       # converts desired acceleration to gas percentage for pedal
