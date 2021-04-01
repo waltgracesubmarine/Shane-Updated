@@ -72,10 +72,7 @@ class CarController():
       return ret
     _a3, _a4, _a5, _a6, _a7, _a9, _s1, _s2, _s3, _offset = [0.002377321579025474, 0.07381215915662231, -0.007963770877144415, 0.15947881013161083, -0.010037975860880363, -0.1334422448911381, 0.0019638460320592194, -0.0018659661194108225, 0.021688122969402018, 0.027007983705385548]
 
-    if len(self.sm['liveLocationKalman'].velocityNED.value) > 0 and speed > self.op_params.get('pitch_min_speed') * CV.MPH_TO_MS:  # only update when above min_speed
-      pitch = math.degrees(math.atan(self.sm['liveLocationKalman'].velocityNED.value[2] / speed))  # speed should never be 0 here
-      alpha = 1. - DT_CTRL / (self.op_params.get('pitch_time_constant') + DT_CTRL)
-      self.pitch = self.pitch * alpha + pitch * (1. - alpha)  # smoothing
+    
 
     coast = coast_accel(speed)
     coast_spread = self.op_params.get('coast_spread')
@@ -96,8 +93,8 @@ class CarController():
       if braking:  # while car is braking for any reason, reduce gas output to reduce jerking and have a smoother ramp up
         gas /= 2
 
-      if frame % 4 == 0:
-        print(f'Pitch: {round(self.pitch, 2)}')
+    if frame % 4 == 0:
+      print(f'Pitch: {round(self.pitch, 2)}')
 
     return gas
 
@@ -106,6 +103,11 @@ class CarController():
 
     # *** compute control surfaces ***
     self.sm.update(0)
+
+    if len(self.sm['liveLocationKalman'].velocityNED.value) > 0 and speed > self.op_params.get('pitch_min_speed') * CV.MPH_TO_MS:  # only update when above min_speed
+      pitch = math.degrees(math.atan(self.sm['liveLocationKalman'].velocityNED.value[2] / speed))  # speed should never be 0 here
+      alpha = 1. - DT_CTRL / (self.op_params.get('pitch_time_constant') + DT_CTRL)
+      self.pitch = self.pitch * alpha + pitch * (1. - alpha)  # smoothing
 
     # gas and brake
     apply_gas = 0.
