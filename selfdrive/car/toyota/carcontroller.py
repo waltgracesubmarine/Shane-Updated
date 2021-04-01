@@ -72,23 +72,22 @@ class CarController():
       return ret
     _a3, _a4, _a5, _a6, _a7, _a9, _s1, _s2, _s3, _offset = [0.002377321579025474, 0.07381215915662231, -0.007963770877144415, 0.15947881013161083, -0.010037975860880363, -0.1334422448911381, 0.0019638460320592194, -0.0018659661194108225, 0.021688122969402018, 0.027007983705385548]
 
+    if len(self.sm['liveLocationKalman'].velocityNED.value) > 0 and speed > self.op_params.get('pitch_min_speed') * CV.MPH_TO_MS:  # only update when above min_speed
+      pitch = math.degrees(math.atan(self.sm['liveLocationKalman'].velocityNED.value[2] / speed))  # speed should never be 0 here
+      alpha = 1. - DT_CTRL / (self.op_params.get('pitch_time_constant') + DT_CTRL)
+      self.pitch = self.pitch * alpha + pitch * (1. - alpha)  # smoothing
+
     coast = coast_accel(speed)
     coast_spread = self.op_params.get('coast_spread')
     gas = 0.
-    if accel >= coast:
+    if accel >= coast:  # todo: alter coast based on pitch (eg. coast accel is higher on declines meaning we need to raise it since the car coast for longer, and vice versa for inclines)
       gas = accel_to_gas(accel, speed)
       x = accel - coast
       if self.op_params.get('coast_smoother'):
         if coast_spread > x >= 0:  # make sure we don't do 1/(l - l) (.16 - .16)
           gas *= 1 / (1 + (x / (coast_spread - x)) ** -3) if x != 0 else 0
 
-      if len(self.sm['liveLocationKalman'].velocityNED.value) > 0 and \
-              self.op_params.get('apply_pitch_mod') and speed > self.op_params.get('pitch_min_speed') * CV.MPH_TO_MS:
-
-        pitch = math.degrees(math.atan(self.sm['liveLocationKalman'].velocityNED.value[2] / speed))  # speed should never be 0 here
-        alpha = 1. - DT_CTRL / (self.op_params.get('pitch_time_constant') + DT_CTRL)
-        self.pitch = self.pitch * alpha + pitch * (1. - alpha)  # smoothing
-
+      if self.op_params.get('apply_pitch_mod'):
         if abs(self.pitch) >= self.op_params.get('pitch_deadzone'):
           angle_bp = self.op_params.get('pitch_angle_bp')
           angle_v = self.op_params.get('pitch_angle_v')
