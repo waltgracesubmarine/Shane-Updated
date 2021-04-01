@@ -134,6 +134,9 @@ class opParams:
                         'hide_auto_df_alerts': Param(False, bool, 'Hides the alert that shows what profile the model has chosen'),
                         'model_laneless': Param(False, bool, 'Ignore lane lines, only path is used for planning (e2e). Experimental', static=True),
                         'log_auto_df': Param(False, bool, 'Logs dynamic follow data for auto-df', static=True),
+                        'lat_p': Param(0.1, NUMBER, '', live=True),
+                        'lat_i': Param(0.01, NUMBER, '', live=True),
+                        'lat_d': Param(0.0, NUMBER, '', live=True),
                         # 'dynamic_camera_offset': Param(False, bool, 'Whether to automatically keep away from oncoming traffic.\n'
                         #                                             'Works from 35 to ~60 mph (requires radar)'),
                         # 'dynamic_camera_offset_time': Param(3.5, NUMBER, 'How long to keep away from oncoming traffic in seconds after losing lead'),
