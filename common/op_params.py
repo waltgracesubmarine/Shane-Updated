@@ -112,7 +112,12 @@ class opParams:
                         #                              '7: 4 but more coefficients', live=True),
                         'coast_smoother': Param(False, bool, 'Smoothly ramps up gas output across the coasting accel at that speed', live=True),
                         'standstill_accel_multiplier': Param(1, NUMBER, 'Multiplier for accel when at a standstill to resume quicker. 1 disables this', live=True),
-                        'convert_accel_to_gas': Param(True, bool, 'If False no gas is ever commanded, only use apply_accel with no + offset', live=True),
+                        'apply_pitch_mod': Param(True, bool, 'To apply pitch mod', live=True),
+                        'pitch_min_speed': Param(5, NUMBER, 'Min speed to apply pitch mod', live=True),
+                        'pitch_time_constant': Param(0.5, NUMBER, 'Use average of pitch over this time duration (sec)', live=True),
+                        'pitch_angle_bp': Param(10, NUMBER, 'Max angle for bp', live=True),
+                        'pitch_angle_v': Param(1.1, NUMBER, 'multiplier for inclines. for declines, it will (1 - this value + 1) ex. 1.1 is 0.9', live=True),
+                        'pitch_deadzone': Param(5, NUMBER, 'In degrees, the deadzone to not apply pitch mod', live=True),
                         'coast_spread': Param(0.16, NUMBER, '.08 is default but 0.16 works nicely', live=True),
                         # 'max_accel_gap': Param(1.0, NUMBER, 'In m/s/s, how big of a gap between desired and actual accel until we apply gas (as well as not braking)', live=True),
 

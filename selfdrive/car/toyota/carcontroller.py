@@ -1,5 +1,9 @@
+import math
+
 from cereal import car
+from cereal.messaging import SubMaster
 from common.numpy_fast import clip, interp
+from common.realtime import DT_CTRL
 from selfdrive.car import apply_toyota_steer_torque_limits, create_gas_command, make_can_msg
 from selfdrive.car.toyota.toyotacan import create_steer_command, create_ui_command, \
                                            create_accel_command, create_acc_cancel_command, \
@@ -47,6 +51,7 @@ class CarController():
     self.standstill_req = False
     self.op_params = opParams()
     self.standstill_hack = self.op_params.get('standstill_hack')
+    self.sm = SubMaster(['liveLocationKalman'])
 
     self.steer_rate_limited = False
 
@@ -57,8 +62,9 @@ class CarController():
       self.fake_ecus.add(Ecu.dsu)
 
     self.packer = CANPacker(dbc_name)
+    self.pitch = 0.
 
-  def compute_gb_pedal(self, accel, speed, braking):
+  def compute_gb_pedal(self, accel, speed, braking, frame):
     def accel_to_gas(a_ego, v_ego):
       speed_part = (_s1 * a_ego + _s2) * v_ego ** 2 + _s3 * v_ego
       accel_part = _a7 * a_ego ** 4 + (_a3 * v_ego + _a4) * a_ego ** 3 + (_a5 * v_ego + _a9) * a_ego ** 2 + _a6 * a_ego
@@ -75,14 +81,32 @@ class CarController():
       if self.op_params.get('coast_smoother'):
         if coast_spread > x >= 0:  # make sure we don't do 1/(l - l) (.16 - .16)
           gas *= 1 / (1 + (x / (coast_spread - x)) ** -3) if x != 0 else 0
+
+      if len(self.sm['liveLocationKalman'].velocityNED.value) > 0 and \
+              self.op_params.get('apply_pitch_mod') and speed > self.op_params.get('pitch_min_speed') * CV.MPH_TO_MS:
+
+        pitch = math.degrees(math.atan(self.sm['liveLocationKalman'].velocityNED.value[2] / speed))  # speed should never be 0 here
+        alpha = 1. - DT_CTRL / (self.op_params.get('pitch_time_constant') + DT_CTRL)
+        self.pitch = self.pitch * alpha + pitch * (1. - alpha)  # smoothing
+
+        if abs(self.pitch) >= self.op_params.get('pitch_deadzone'):
+          angle_bp = self.op_params.get('pitch_angle_bp')
+          angle_v = self.op_params.get('pitch_angle_v')
+          gas *= interp(self.pitch, [-angle_bp, 0, angle_bp], [angle_v, 1, 1 - angle_v + 1])  # negative is an incline
+
       if braking:  # while car is braking for any reason, reduce gas output to reduce jerking and have a smoother ramp up
         gas /= 2
+
+      if frame % 4 == 0:
+        print(f'Pitch: {round(self.pitch, 2)}')
+
     return gas
 
   def update(self, enabled, CS, frame, actuators, pcm_cancel_cmd, hud_alert,
              left_line, right_line, lead, left_lane_depart, right_lane_depart):
 
     # *** compute control surfaces ***
+    self.sm.update(0)
 
     # gas and brake
     apply_gas = 0.
@@ -90,12 +114,12 @@ class CarController():
     if self.op_params.get('apply_accel') is not None and enabled and CS.out.vEgo < MIN_ACC_SPEED:
       apply_accel = self.op_params.get('apply_accel')  # to test the function below
 
-    if CS.CP.enableGasInterceptor and enabled and CS.out.vEgo < MIN_ACC_SPEED and self.op_params.get('convert_accel_to_gas'):
+    if CS.CP.enableGasInterceptor and enabled and CS.out.vEgo < MIN_ACC_SPEED:
       # converts desired acceleration to gas percentage for pedal
       # +0.06 offset to reduce ABS pump usage when applying very small gas
       # apply_accel *= CarControllerParams.ACCEL_SCALE
-      apply_gas = self.compute_gb_pedal(apply_accel, CS.out.vEgo, CS.out.brakeLights)
-      if apply_accel > 0 and CS.out.vEgo <= CS.CP.minSpeedCan:  # artifically increase accel to release brake quicker
+      apply_gas = self.compute_gb_pedal(apply_accel, CS.out.vEgo, CS.out.brakeLights, frame)
+      if apply_accel > 0 and CS.out.vEgo <= 1 * CV.MPH_TO_MS:  # CS.CP.minSpeedCan:  # artifically increase accel to release brake quicker
         apply_accel *= self.op_params.get('standstill_accel_multiplier')
 
     # apply_accel, self.accel_steady = accel_hysteresis(apply_accel, self.accel_steady, enabled)
