@@ -25,7 +25,7 @@ y = np.concatenate((np.linspace(0, 0, 50), np.linspace(0, 400, 10), np.linspace(
 x = np.linspace(0, len(y) / 100, len(y))
 plt.plot(x, y, label='original output')
 
-RC = [3., 1., .1]  # timeConstantV for INDI (output smoothing)
+RC = [1., .75, .3, .1]  # timeConstantV for INDI (output smoothing)
 for _RC in RC:
   indi.reset()
   y_delayed = []
