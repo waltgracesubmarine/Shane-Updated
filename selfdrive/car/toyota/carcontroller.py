@@ -104,7 +104,7 @@ class CarController():
     # *** compute control surfaces ***
     self.sm.update(0)
 
-    if len(self.sm['liveLocationKalman'].velocityNED.value) > 0 and speed > self.op_params.get('pitch_min_speed') * CV.MPH_TO_MS:  # only update when above min_speed
+    if len(self.sm['liveLocationKalman'].velocityNED.value) > 0 and CS.out.vEgo > self.op_params.get('pitch_min_speed') * CV.MPH_TO_MS:  # only update when above min_speed
       pitch = math.degrees(math.atan(self.sm['liveLocationKalman'].velocityNED.value[2] / CS.out.vEgo))  # speed should never be 0 here
       alpha = 1. - DT_CTRL / (self.op_params.get('pitch_time_constant') + DT_CTRL)
       self.pitch = self.pitch * alpha + pitch * (1. - alpha)  # smoothing
