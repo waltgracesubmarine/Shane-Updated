@@ -124,7 +124,8 @@ class CarController():
       if apply_accel > 0 and CS.out.vEgo <= 1 * CV.MPH_TO_MS:  # CS.CP.minSpeedCan:  # artifically increase accel to release brake quicker
         apply_accel *= self.op_params.get('standstill_accel_multiplier')
 
-    RC = self.op_params.get('accel_time_constant')
+    # RC = self.op_params.get('accel_time_constant')
+    RC = interp(CS.out.vEgo, [20, 31], [.25, .5])
     alpha = 1. - DT_CTRL / (RC + DT_CTRL)
     self.eager_accel = self.eager_accel * alpha + apply_accel * (1. - alpha)
     apply_accel = apply_accel - (self.eager_accel - apply_accel) * self.op_params.get('accel_eagerness')
