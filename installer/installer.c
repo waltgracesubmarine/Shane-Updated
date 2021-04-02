@@ -31,7 +31,7 @@
 #define BRANCH_S STR2(BRANCH)
 
 #define PRE_CHECKOUT_FOLDER "/system/comma/openpilot"
-#define GIT_CLONE_COMMAND "git clone https://github.com/commaai/openpilot.git "
+#define GIT_CLONE_COMMAND "git clone https://github.com/shanesmiskol/openpilot.git "
 
 
 extern const uint8_t str_continue[] asm("_binary_continue_" BRAND_S "_sh_start");
@@ -62,6 +62,7 @@ static int use_pre_checkout() {
   if(err) return 1;
 
   // Checkout correct branch
+  printf("branch: %s", BRANCH_S);
   err = system("git remote set-branches --add origin " BRANCH_S);
   if(err) return 1;
   err = system("git fetch origin " BRANCH_S);
