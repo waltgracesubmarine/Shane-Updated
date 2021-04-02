@@ -119,6 +119,8 @@ class opParams:
                         'pitch_angle_bp': Param(10, NUMBER, 'Max angle for bp', live=True),
                         'pitch_angle_v': Param(1.1, NUMBER, 'multiplier for inclines. for declines, it will (1 - this value + 1) ex. 1.1 is 0.9', live=True),
                         'pitch_deadzone': Param(5, NUMBER, 'In degrees, the deadzone to not apply pitch mod', live=True),
+                        'accel_time_constant': Param(.2, NUMBER, 'Time constant for eager accel', live=True),
+                        'accel_accel_eagerness': Param(.2, NUMBER, 'Multiplier for eager accel', live=True),
                         # 'max_accel_gap': Param(1.0, NUMBER, 'In m/s/s, how big of a gap between desired and actual accel until we apply gas (as well as not braking)', live=True),
 
                         'prius_use_pid': Param(False, bool, 'This enables the PID lateral controller with new a experimental derivative tune\n'

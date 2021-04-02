@@ -63,6 +63,7 @@ class CarController():
 
     self.packer = CANPacker(dbc_name)
     self.pitch = 0.
+    self.eager_accel = 0.
 
   def compute_gb_pedal(self, accel, speed, braking, frame):
     def accel_to_gas(a_ego, v_ego):
@@ -122,6 +123,11 @@ class CarController():
       apply_gas = self.compute_gb_pedal(apply_accel, CS.out.vEgo, CS.out.brakeLights, frame)
       if apply_accel > 0 and CS.out.vEgo <= 1 * CV.MPH_TO_MS:  # CS.CP.minSpeedCan:  # artifically increase accel to release brake quicker
         apply_accel *= self.op_params.get('standstill_accel_multiplier')
+
+    RC = self.op_params.get('accel_time_constant')
+    alpha = 1. - DT_CTRL / (RC + DT_CTRL)
+    self.eager_accel = self.eager_accel * alpha + apply_accel * (1. - alpha)
+    apply_accel = apply_accel - (self.eager_accel - apply_accel) * self.op_params.get('accel_eagerness')
 
     # apply_accel, self.accel_steady = accel_hysteresis(apply_accel, self.accel_steady, enabled)
     apply_accel = clip(apply_accel, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX) if enabled else 0.
