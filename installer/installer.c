@@ -62,7 +62,6 @@ static int use_pre_checkout() {
   if(err) return 1;
 
   // Checkout correct branch
-  printf("branch: %s", BRANCH_S);
   err = system("git remote set-branches --add origin " BRANCH_S);
   if(err) return 1;
   err = system("git fetch origin " BRANCH_S);
@@ -148,7 +147,7 @@ static int do_install() {
 
 
 void * run_spinner(void * args) {
-  char *loading_msg = "Installing " BRAND_S;
+  char *loading_msg = "Installing Stock Additions";
   char *argv[2] = {NULL, loading_msg};
   spin(2, argv);
   return NULL;
