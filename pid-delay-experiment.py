@@ -23,11 +23,20 @@ class DerivativeDelayedSmoothing:
 
   def reset(self):
     self.delayed_output = 0.
+    self.last_deriv = 0.
+    self.last_output = 0.
 
   def update(self, output_steer, RC=1):
     alpha = 1. - DT_CTRL / (RC + DT_CTRL)
     self.delayed_output = self.delayed_output * alpha + output_steer * (1. - alpha)
-    output = output_steer - (self.delayed_output - output_steer)
+
+    multipler = 1
+    if (self.delayed_output - output_steer) - self.last_deriv < 0:# and (output_steer - self.last_output) > 0:
+      multipler = 2
+
+    output = output_steer - (self.delayed_output - output_steer) * multipler  # (2 if self.delayed_output - output_steer < 0 else 1)
+    self.last_deriv = self.delayed_output - output_steer
+    self.last_output = output_steer
 
     return output
 
