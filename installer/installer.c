@@ -29,7 +29,7 @@
 #define PASTE2(A, B) PASTE(A, B)
 #define BRAND_S STR2(BRAND)
 //#define BRANCH_S STR2(BRANCH)
-char BRANCH_S[30];
+char BRANCH_S[255] = "BRANCH_S";
 
 #define PRE_CHECKOUT_FOLDER "/system/comma/openpilot"
 #define GIT_CLONE_COMMAND "git clone https://github.com/shanesmiskol/openpilot.git "
