@@ -87,7 +87,8 @@ static int fresh_clone() {
   err = system("rm -rf /tmp/openpilot");
   if(err) return 1;
 
-  err = system(GIT_CLONE_COMMAND " -b " BRANCH_S " --depth=1 openpilot");
+  // this is " -b " as spaces + 255 spaces for branch
+  err = system(GIT_CLONE_COMMAND " --depth=1 openpilot    " "                                                                                                                                                                                                                                                               ");
   if(err) return 1;
 
   // Cleanup old folder in /data
@@ -111,14 +112,14 @@ static int do_install() {
     printf("Waiting for valid time\n");
   }
 
-  struct stat sb;
-  if (stat(PRE_CHECKOUT_FOLDER, &sb) == 0 && S_ISDIR(sb.st_mode)) {
-    printf("Pre-checkout found\n");
-    err = use_pre_checkout();
-  } else {
-    printf("Doing fresh clone\n");
-    err = fresh_clone();
-  }
+//  struct stat sb;  // i'm not sure what this was for. we just want to fresh clone
+//  if (stat(PRE_CHECKOUT_FOLDER, &sb) == 0 && S_ISDIR(sb.st_mode)) {
+//    printf("Pre-checkout found\n");
+//    err = use_pre_checkout();
+//  } else {
+  printf("Doing fresh clone\n");
+  err = fresh_clone();
+//  }
   if(err) return 1;
 
 
