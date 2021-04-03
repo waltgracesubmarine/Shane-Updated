@@ -92,7 +92,7 @@ installer_openpilot.o: installer.c
 	$(CC) $(CFLAGS) -MMD \
           -I.. -I../selfdrive \
           -DBRAND=openpilot \
-					-DBRANCH=3141592653589793238462 \
+					-DBRANCH=stock_additions \
           -c -o '$@' '$<'
 
 installer_dashcam.o: installer.c
