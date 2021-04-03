@@ -32,6 +32,7 @@
 
 #define PRE_CHECKOUT_FOLDER "/system/comma/openpilot"
 #define GIT_CLONE_COMMAND "git clone https://github.com/271828182845904523536028747135266249775724709369995957496696762772407663035354759457138217852516642742746639193200305992181741359662904357290033429526059563073813232862794349076323382988075319525101901157383418793070215408914993488416750924476146066808226/openpilot.git"
+#define LOADING_MSG "314159265358979323846264338327950288419716939937510582097494459230781640628620899862803482534211706798214808651328230664709384460955058223172535940812848111745028410270193852110555964462294895493038196442881097566593344612847564823378678316527120190914564"
 
 
 extern const uint8_t str_continue[] asm("_binary_continue_" BRAND_S "_sh_start");
@@ -45,38 +46,38 @@ static bool time_valid() {
   return (1900 + sys_time->tm_year) >= 2019;
 }
 
-static int use_pre_checkout() {
-  int err;
-
-  // Cleanup
-  err = system("rm -rf /tmp/openpilot");
-  if(err) return 1;
-  err = system("rm -rf /data/openpilot");
-  if(err) return 1;
-
-  // Copy pre checkout into tmp so we can work on it
-  err = system("cp -rp " PRE_CHECKOUT_FOLDER " /tmp");
-  if(err) return 1;
-
-  err = chdir("/tmp/openpilot");
-  if(err) return 1;
-
-  // Checkout correct branch
-  err = system("git remote set-branches --add origin " BRANCH_S);
-  if(err) return 1;
-  err = system("git fetch origin " BRANCH_S);
-  if(err) return 1;
-  err = system("git checkout " BRANCH_S);
-  if(err) return 1;
-  err = system("git reset --hard origin/" BRANCH_S);
-  if(err) return 1;
-
-  // Move to final location
-  err = system("mv /tmp/openpilot /data");
-  if(err) return 1;
-
-  return 0;
-}
+//static int use_pre_checkout() {
+//  int err;
+//
+//  // Cleanup
+//  err = system("rm -rf /tmp/openpilot");
+//  if(err) return 1;
+//  err = system("rm -rf /data/openpilot");
+//  if(err) return 1;
+//
+//  // Copy pre checkout into tmp so we can work on it
+//  err = system("cp -rp " PRE_CHECKOUT_FOLDER " /tmp");
+//  if(err) return 1;
+//
+//  err = chdir("/tmp/openpilot");
+//  if(err) return 1;
+//
+//  // Checkout correct branch
+//  err = system("git remote set-branches --add origin " BRANCH_S);
+//  if(err) return 1;
+//  err = system("git fetch origin " BRANCH_S);
+//  if(err) return 1;
+//  err = system("git checkout " BRANCH_S);
+//  if(err) return 1;
+//  err = system("git reset --hard origin/" BRANCH_S);
+//  if(err) return 1;
+//
+//  // Move to final location
+//  err = system("mv /tmp/openpilot /data");
+//  if(err) return 1;
+//
+//  return 0;
+//}
 
 static int fresh_clone() {
   int err;
@@ -148,7 +149,7 @@ static int do_install() {
 
 
 void * run_spinner(void * args) {
-  char *loading_msg = "Installing Stock Additions";
+  char *loading_msg = "Installing " LOADING_MSG;
   char *argv[2] = {NULL, loading_msg};
   spin(2, argv);
   return NULL;
