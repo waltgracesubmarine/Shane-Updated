@@ -119,7 +119,9 @@ class opParams:
                         'pitch_angle_bp': Param(10, NUMBER, 'Max angle for bp', live=True),
                         'pitch_angle_v': Param(1.1, NUMBER, 'multiplier for inclines. for declines, it will (1 - this value + 1) ex. 1.1 is 0.9', live=True),
                         'pitch_deadzone': Param(5, NUMBER, 'In degrees, the deadzone to not apply pitch mod', live=True),
-                        'accel_time_constant': Param(.2, NUMBER, 'Time constant for eager accel (Approaching 0 is no change)', live=True),
+                        'accel_time_constant_0_mph': Param(.2, NUMBER, 'Time constant for eager accel (Approaching 0 is no change)', live=True),
+                        'accel_time_constant_45_mph': Param(.2, NUMBER, 'Time constant for eager accel (Approaching 0 is no change)', live=True),
+                        'accel_time_constant_70_mph': Param(.2, NUMBER, 'Time constant for eager accel (Approaching 0 is no change)', live=True),
                         'accel_eagerness': Param(1, NUMBER, 'Multiplier for change in accel to make it eager (1 is still eager)', live=True),
                         # 'max_accel_gap': Param(1.0, NUMBER, 'In m/s/s, how big of a gap between desired and actual accel until we apply gas (as well as not braking)', live=True),
 

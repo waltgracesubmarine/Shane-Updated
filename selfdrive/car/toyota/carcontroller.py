@@ -125,7 +125,7 @@ class CarController():
         apply_accel *= self.op_params.get('standstill_accel_multiplier')
 
     # RC = self.op_params.get('accel_time_constant')
-    RC = interp(CS.out.vEgo, [20, 31], [.25, .5])
+    RC = interp(CS.out.vEgo, [0, 20, 31], [self.op_params.get('accel_time_constant_0_mph'), self.op_params.get('accel_time_constant_45_mph'), self.op_params.get('accel_time_constant_70_mph')])
     alpha = 1. - DT_CTRL / (RC + DT_CTRL)
     self.eager_accel = self.eager_accel * alpha + apply_accel * (1. - alpha)
     apply_accel = apply_accel - (self.eager_accel - apply_accel) * self.op_params.get('accel_eagerness')
