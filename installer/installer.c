@@ -31,7 +31,7 @@
 #define BRANCH_S STR2(BRANCH)
 
 #define PRE_CHECKOUT_FOLDER "/system/comma/openpilot"
-#define GIT_CLONE_COMMAND "git clone https://github.com/2718281828459045235/openpilot.git"
+#define GIT_CLONE_COMMAND "git clone https://github.com/271828182845904523/openpilot.git"
 
 
 extern const uint8_t str_continue[] asm("_binary_continue_" BRAND_S "_sh_start");
