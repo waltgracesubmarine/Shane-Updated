@@ -80,10 +80,12 @@ class CarController():
     gas = 0.
     if accel >= coast:  # todo: alter coast based on pitch (eg. coast accel is higher on declines meaning we need to raise it since the car coast for longer, and vice versa for inclines)
       gas = accel_to_gas(accel, speed)
-      x = accel - coast
+      # x = accel - coast
       if self.op_params.get('coast_smoother'):
-        if coast_spread > x >= 0:  # make sure we don't do 1/(l - l) (.16 - .16)
-          gas *= 1 / (1 + (x / (coast_spread - x)) ** -3) if x != 0 else 0
+        gas *= interp(accel, [coast, coast + coast_spread], [0, 1]) ** 2
+
+        # if coast_spread > x >= 0:  # make sure we don't do 1/(l - l) (.16 - .16)
+        #   gas *= 1 / (1 + (x / (coast_spread - x)) ** -3) if x != 0 else 0
 
       if self.op_params.get('apply_pitch_mod'):
         if abs(self.pitch) >= self.op_params.get('pitch_deadzone'):
