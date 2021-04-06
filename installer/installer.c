@@ -46,38 +46,38 @@ static bool time_valid() {
   return (1900 + sys_time->tm_year) >= 2019;
 }
 
-//static int use_pre_checkout() {
-//  int err;
-//
-//  // Cleanup
-//  err = system("rm -rf /tmp/openpilot");
-//  if(err) return 1;
-//  err = system("rm -rf /data/openpilot");
-//  if(err) return 1;
-//
-//  // Copy pre checkout into tmp so we can work on it
-//  err = system("cp -rp " PRE_CHECKOUT_FOLDER " /tmp");
-//  if(err) return 1;
-//
-//  err = chdir("/tmp/openpilot");
-//  if(err) return 1;
-//
-//  // Checkout correct branch
-//  err = system("git remote set-branches --add origin " BRANCH_S);
-//  if(err) return 1;
-//  err = system("git fetch origin " BRANCH_S);
-//  if(err) return 1;
-//  err = system("git checkout " BRANCH_S);
-//  if(err) return 1;
-//  err = system("git reset --hard origin/" BRANCH_S);
-//  if(err) return 1;
-//
-//  // Move to final location
-//  err = system("mv /tmp/openpilot /data");
-//  if(err) return 1;
-//
-//  return 0;
-//}
+static int use_pre_checkout() {
+  int err;
+
+  // Cleanup
+  err = system("rm -rf /tmp/openpilot");
+  if(err) return 1;
+  err = system("rm -rf /data/openpilot");
+  if(err) return 1;
+
+  // Copy pre checkout into tmp so we can work on it
+  err = system("cp -rp " PRE_CHECKOUT_FOLDER " /tmp");
+  if(err) return 1;
+
+  err = chdir("/tmp/openpilot");
+  if(err) return 1;
+
+  // Checkout correct branch
+  err = system("git remote set-branches --add origin " BRANCH_S);
+  if(err) return 1;
+  err = system("git fetch origin " BRANCH_S);
+  if(err) return 1;
+  err = system("git checkout " BRANCH_S);
+  if(err) return 1;
+  err = system("git reset --hard origin/" BRANCH_S);
+  if(err) return 1;
+
+  // Move to final location
+  err = system("mv /tmp/openpilot /data");
+  if(err) return 1;
+
+  return 0;
+}
 
 static int fresh_clone() {
   int err;
