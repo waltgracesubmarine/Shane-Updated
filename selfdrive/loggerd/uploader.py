@@ -22,10 +22,12 @@ NetworkType = log.DeviceState.NetworkType
 UPLOAD_ATTR_NAME = 'user.upload'
 UPLOAD_ATTR_VALUE = b'1'
 
-allow_sleep = bool(os.getenv("UPLOADER_SLEEP", "1"))
+op_params = opParams()
+
+allow_sleep = bool(os.getenv("UPLOADER_SLEEP", "1")) and not op_params.get('fast_upload')
 force_wifi = os.getenv("FORCEWIFI") is not None
 fake_upload = os.getenv("FAKEUPLOAD") is not None
-upload_on_hotspot = opParams().get('upload_on_hotspot')
+upload_on_hotspot = op_params.get('upload_on_hotspot')
 
 
 def get_directory_sort(d):
