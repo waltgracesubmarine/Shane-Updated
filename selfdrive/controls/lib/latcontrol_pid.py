@@ -1,3 +1,4 @@
+from common.numpy_fast import clip
 from selfdrive.controls.lib.pid import LatPIDController
 from selfdrive.controls.lib.drive_helpers import get_steer_max
 from cereal import car
@@ -47,6 +48,7 @@ class LatControlPID():
       # output_steer = self.pid.update(self.angle_steers_des, CS.steeringAngleDeg, check_saturation=check_saturation, override=CS.steeringPressed,
       #                                feedforward=steer_feedforward, speed=CS.vEgo, deadzone=deadzone)
       output_steer = float(model_predict([self.angle_steers_des, CS.steeringAngleDeg, lat_plan.steeringRateDeg, CS.steeringRateDeg, CS.vEgo])[0])
+      output_steer = clip(output_steer, -1, 1)
       pid_log.active = True
       pid_log.p = self.pid.p
       pid_log.i = self.pid.i
