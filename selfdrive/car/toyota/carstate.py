@@ -63,7 +63,7 @@ class CarState(CarStateBase):
     else:
       ret.steeringAngleDeg = cp.vl["STEER_ANGLE_SENSOR"]['STEER_ANGLE'] + cp.vl["STEER_ANGLE_SENSOR"]['STEER_FRACTION']
 
-    ret.steeringRateDeg = cp.vl["STEER_ANGLE_SENSOR"]['STEER_RATE']
+    ret.steeringRateDeg = cp.vl["STEER_ANGLE_SENSOR"]['STEER_RATE'] + cp.vl["STEER_ANGLE_SENSOR"]['STEER_RATE_FRACTION']
 
     can_gear = int(cp.vl["GEAR_PACKET"]['GEAR'])
     ret.gearShifter = self.parse_gear_shifter(self.shifter_values.get(can_gear, None))

@@ -11,6 +11,7 @@ from tensorflow.python.keras.layers import Dropout
 from torque_model.helpers import LatControlPF, TORQUE_SCALE
 from torque_model.load import load_data
 from sklearn.model_selection import train_test_split
+from selfdrive.config import Conversions as CV
 import seaborn as sns
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
@@ -80,8 +81,8 @@ if INSERT_SYNTHETIC_DATA:
               'v_ego': random.uniform(*speed_scale)}
 
     # model should be able to handle the wheel not being anywhere near desired
-    sample['steering_angle'] = np.clip(sample['des_steering_angle'] + random.uniform(-max_steering_angle, max_steering_angle) / 2, -max_steering_angle, max_steering_angle)
-    sample['steering_rate'] = np.clip(sample['des_steering_rate'] + random.uniform(-max_steering_rate, max_steering_rate) / 2, -max_steering_rate, max_steering_rate)
+    sample['steering_angle'] = np.clip(sample['des_steering_angle'] + random.uniform(-max_steering_angle, max_steering_angle) * 2, -max_steering_angle, max_steering_angle)
+    sample['steering_rate'] = np.clip(sample['des_steering_rate'] + random.uniform(-max_steering_rate, max_steering_rate) * 2, -max_steering_rate, max_steering_rate)
 
     # these synthetic samples use only a proportional and feedforward controller
     # todo try to train a model without rates and use that to replace the inaccurate feedforward poly
