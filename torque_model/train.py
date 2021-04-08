@@ -8,7 +8,7 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 from tensorflow.python.keras.layers import Dropout
 
-from torque_model.helpers import LatControlPF, TORQUE_SCALE
+from torque_model.helpers import LatControlPF, TORQUE_SCALE, random_chance
 from torque_model.load import load_data
 from sklearn.model_selection import train_test_split
 from selfdrive.config import Conversions as CV
@@ -31,11 +31,13 @@ pid = LatControlPF()
 
 
 
+# inputs = ['fut_steering_angle', 'steering_angle', 'fut_steering_rate', 'steering_rate', 'v_ego']
 inputs = ['fut_steering_angle', 'steering_angle', 'fut_steering_rate', 'steering_rate', 'v_ego']
-# inputs = ['fut_steering_angle', 'steering_angle', 'v_ego']
 
-data, data_sequences = load_data()
+data, data_high_delay, data_sequences, data_stats = load_data()
 print(f'Number of samples: {len(data)}')
+
+# data += data_high_delay
 
 x_train = []
 for line in data:
@@ -48,47 +50,74 @@ for line in data:
 
 print(f'Output (torque) min/max: {[min(y_train), max(y_train)]}')
 
-INSERT_SYNTHETIC_DATA = True
+# sns.distplot([abs(line['steering_angle']) for line in data], bins=200)
+# plt.title('steering angle')
+# plt.pause(0.01)
+# input()
+# plt.clf()
+# sns.distplot([abs(line['steering_rate']) for line in data], bins=200)
+# plt.title('steering rate')
+# plt.pause(0.01)
+# input()
+# plt.clf()
+# sns.distplot([line['v_ego'] for line in data], bins=200)
+# plt.title('speed')
+# plt.pause(0.01)
+# input()
+# plt.clf()
+# sns.distplot([abs(line['torque']) for line in data], bins=200)
+# plt.title('torque')
+# plt.pause(0.01)
+# input()
+
+INSERT_SYNTHETIC_DATA = False  # todo: left off trying to add these samples while keeping loss LOW
 if INSERT_SYNTHETIC_DATA:
+  # synthetic_inputs = ['des_steering_angle', 'steering_angle', 'des_steering_rate', 'steering_rate', 'v_ego']
   synthetic_inputs = ['des_steering_angle', 'steering_angle', 'des_steering_rate', 'steering_rate', 'v_ego']
-  # synthetic_inputs = ['des_steering_angle', 'steering_angle', 'v_ego']
   assert len(synthetic_inputs) == len(inputs), "The number of inputs for real data must match number of synthetic inputs"
 
-  n_synthetic_samples = round(len(data) / 2)
-  # sns.distplot([abs(line['steering_angle']) for line in data], bins=200)
-  # plt.pause(0.01)
-  # input()
-  # plt.clf()
-  # sns.distplot([abs(line['steering_rate']) for line in data], bins=200)
-  # plt.pause(0.01)
-  # input()
-  # plt.clf()
-  # sns.distplot([line['v_ego'] for line in data], bins=200)
-  # plt.pause(0.01)
-  # input()
-  # plt.clf()
-  # sns.distplot([abs(line['torque']) for line in data], bins=200)
-  # plt.pause(0.01)
-  # input()
+  n_synthetic_samples = round(len(data) / 1)
   max_steering_angle = max([abs(line['steering_angle']) for line in data])  # we need to take the max most common and remove the outliers
-  max_steering_rate = 2  # max([abs(line['steering_rate']) for line in data])
+  # max_steering_rate = max([abs(line['steering_rate']) for line in data])
   speed_scale = [min([line['v_ego'] for line in data]), max([line['v_ego'] for line in data])]
-  print(f'Max steering angle and rate: {[max_steering_angle, max_steering_rate]}')
+  # print(f'Max steering angle and rate: {[max_steering_angle, max_steering_rate]}')
   print(f'Speed scale: {speed_scale}')
-  for _ in range(n_synthetic_samples):
-    sample = {'des_steering_angle': random.uniform(-max_steering_angle, max_steering_angle),
-              'des_steering_rate': random.uniform(-max_steering_rate, max_steering_rate),
-              'v_ego': random.uniform(*speed_scale)}
+  samples_added = 0
+  while samples_added < n_synthetic_samples:
+    sample = {'des_steering_angle': np.random.normal(0, data_stats['angle'].std),
+              'des_steering_rate': np.random.normal(0, data_stats['rate'].std / 2),
+              'v_ego': random.uniform(*speed_scale)}  # speed is pretty uniform
 
     # model should be able to handle the wheel not being anywhere near desired
-    sample['steering_angle'] = np.clip(sample['des_steering_angle'] + random.uniform(-max_steering_angle, max_steering_angle) * 2, -max_steering_angle, max_steering_angle)
-    sample['steering_rate'] = np.clip(sample['des_steering_rate'] + random.uniform(-max_steering_rate, max_steering_rate) * 2, -max_steering_rate, max_steering_rate)
+    sample['steering_angle'] = sample['des_steering_angle'] + np.random.normal(0, data_stats['angle'].std / 2)
+    sample['steering_angle'] = np.clip(sample['steering_angle'], -max_steering_angle, max_steering_angle)
+    sample['des_steering_rate'] = 0  # (sample['des_steering_angle'] - sample['steering_angle'])
+    sample['steering_rate'] = 0  # sample['des_steering_rate'] + np.random.normal(0, data_stats['rate'].std / 4)
+    # if abs(sample['des_steering_rate']) > 50:
+    #   sample['des_steering_rate'] /= 2
+    # else:
+    #   sample['des_steering_rate'] /= 2
+
+    # if random_chance(50):
+    #   sample['steering_rate'] = sample['des_steering_rate'] + np.random.normal(data_stats['rate'].mean, data_stats['rate'].std)/2
+    #   sample['steering_rate'] = np.clip(sample['steering_rate'], data_stats['rate'].mean - data_stats['rate'].std, data_stats['rate'].mean + data_stats['rate'].std)
+    # else:
+    #   sample['steering_rate'] = 0
+    #   sample['des_steering_rate'] = 0
+
+    # sample['steering_angle'] = np.clip(sample['des_steering_angle'] + random.uniform(-max_steering_angle, max_steering_angle) * 2, -max_steering_angle, max_steering_angle)
+    # sample['steering_rate'] = np.clip(sample['des_steering_rate'] + random.uniform(-max_steering_rate, max_steering_rate) * 2, -max_steering_rate, max_steering_rate)
 
     # these synthetic samples use only a proportional and feedforward controller
     # todo try to train a model without rates and use that to replace the inaccurate feedforward poly
-    y = pid.update(sample['des_steering_angle'], sample['steering_angle'], sample['v_ego']) * TORQUE_SCALE
-    if abs(y) > 2000:
+    y = pid.update(sample['des_steering_angle'], sample['steering_angle'], sample['v_ego'], rate=sample['des_steering_rate']) * TORQUE_SCALE
+    sample['torque'] = y
+    if abs(y) > 3000:
       continue
+    print(samples_added)
+    samples_added += 1
+    # print(sample)
+    # input()
     x_train.append([sample[inp] for inp in synthetic_inputs])
     y_train.append(y)
 
@@ -98,20 +127,20 @@ if INSERT_SYNTHETIC_DATA:
 x_train = np.array(x_train)
 y_train = np.array(y_train) / TORQUE_SCALE
 
-x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, test_size=0.33)
+x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, test_size=0.333)
 
 
 model = Sequential()
 model.add(Input(shape=x_train.shape[1:]))
 model.add(Dense(8, activation=LeakyReLU()))
-# model.add(Dropout(1/16))
+# model.add(Dropout(1/8))
 model.add(Dense(16, activation=LeakyReLU()))
 # model.add(Dropout(1/16))
 # model.add(Dense(24, activation=LeakyReLU()))
 model.add(Dense(1))
 
-epochs = 250
-starting_lr = .3
+epochs = 400
+starting_lr = .2
 ending_lr = 0.001
 decay = (starting_lr - ending_lr) / epochs
 
@@ -119,7 +148,7 @@ opt = Adam(learning_rate=starting_lr, amsgrad=True, decay=decay)
 # opt = Adadelta(learning_rate=1)
 model.compile(opt, loss='mae', metrics='mse')
 try:
-  model.fit(x_train, y_train, batch_size=1024, epochs=200, validation_data=(x_test, y_test))
+  model.fit(x_train, y_train, batch_size=1024, epochs=300, validation_data=(x_test, y_test))
   model.fit(x_train, y_train, batch_size=512, epochs=50, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=256, epochs=20, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=128, epochs=10, validation_data=(x_test, y_test))
