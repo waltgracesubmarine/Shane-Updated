@@ -73,7 +73,7 @@ if [ -z "$OPENPILOT_ENV" ]; then
 fi
 
 # in the openpilot repo
-cd $HOME/openpilot
+#cd $HOME/openpilot
 
 # do the rest of the git checkout
 git lfs pull
