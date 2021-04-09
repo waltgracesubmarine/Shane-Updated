@@ -9,13 +9,13 @@ import matplotlib.pyplot as plt
 from tensorflow.python.keras.layers import Dropout
 
 from common.numpy_fast import interp
-from torque_model.helpers import LatControlPF, TORQUE_SCALE, random_chance
+from torque_model.helpers import LatControlPF, TORQUE_SCALE, random_chance, STATS_KEYS, REVERSED_STATS_KEYS, MODEL_INPUTS, normalize_sample, normalize_value
 from torque_model.load import load_data
 from sklearn.model_selection import train_test_split
 from selfdrive.config import Conversions as CV
 import seaborn as sns
 
-# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 os.chdir('C:/Git/openpilot-repos/op-smiskol-torque/torque_model')
 
 # print(tf.config.optimizer.get_experimental_options())
@@ -28,31 +28,14 @@ except:
   # Invalid device or cannot modify virtual devices once initialized.
   pass
 
-pid = LatControlPF()
-
-
-
-inputs = ['fut_steering_angle', 'steering_angle', 'fut_steering_rate', 'steering_rate', 'v_ego']
-# inputs = ['fut_steering_angle', 'steering_angle', 'v_ego']
 
 data, data_sequences, data_stats = load_data()
 # del data_high_delay, data_sequences
 print(f'Number of samples: {len(data)}')
 
-# Normalize data
-NORMALIZE_DATA = False
-if NORMALIZE_DATA:
-  scales = {}
-  for inp in inputs:
-    dat = [line[inp] for line in data]
-    scales[inp] = [min(dat), max(dat)]
-  for line in data:
-    for inp in inputs:
-      line[inp] = interp(line[inp], scales[inp], [-1, 1])
-
 x_train = []
 for line in data:
-  x_train.append([line[inp] for inp in inputs])
+  x_train.append([line[inp] for inp in MODEL_INPUTS])
 
 y_train = []
 for line in data:
@@ -100,22 +83,19 @@ model.add(Dense(16, activation=LeakyReLU()))
 # model.add(Dense(24, activation=LeakyReLU()))
 model.add(Dense(1))
 
-epochs = 100
-starting_lr = .5
+epochs = 110
+starting_lr = .05
 ending_lr = 0.001
 decay = (starting_lr - ending_lr) / epochs
 
-opt = Adam(learning_rate=starting_lr, amsgrad=True, decay=decay)
-# opt = Adadelta(learning_rate=1)
+# opt = Adam(learning_rate=starting_lr, amsgrad=True, decay=decay)
+opt = Adadelta(learning_rate=1)
 model.compile(opt, loss='mae', metrics='mse')
 try:
-  model.fit(x_train, y_train, batch_size=1024, epochs=100, validation_data=(x_test, y_test))
-  # model.fit(x_train, y_train, batch_size=32, epochs=50, validation_data=(x_test, y_test))
-  # model.fit(x_train, y_train, batch_size=256, epochs=20, validation_data=(x_test, y_test))
-  # model.fit(x_train, y_train, batch_size=128, epochs=10, validation_data=(x_test, y_test))
-  # model.fit(x_train, y_train, batch_size=64, epochs=5, validation_data=(x_test, y_test))
-  # model.fit(x_train, y_train, batch_size=32, epochs=5, validation_data=(x_test, y_test))
-  # model.fit(x_train, y_train, batch_size=16, epochs=5, validation_data=(x_test, y_test))
+  model.fit(x_train, y_train, batch_size=2048, epochs=200, validation_data=(x_test, y_test))
+  model.fit(x_train, y_train, batch_size=128, epochs=100, validation_data=(x_test, y_test))
+  # model.fit(x_train, y_train, batch_size=256, epochs=10, validation_data=(x_test, y_test))
+  # model.fit(x_train, y_train, batch_size=64, epochs=20, validation_data=(x_test, y_test))
 except KeyboardInterrupt:
   pass
 
@@ -136,25 +116,47 @@ def plot_random_samples():
 
 plot_random_samples()
 
+def plot_response():  # plots model output compared to pid on steady angle but changing desired angle
+  # the ttwo lines should ideally be pretty close
+  plt.figure(2)
+  plt.clf()
+  angle = 15
+  desired = np.linspace(30, 0, 100)
+  rate = normalize_value(0, 'rate', data_stats)
+  speed = 25 * CV.MPH_TO_MS
+  y_pid = []
+  y_model = []
+  for des in desired:
+    y_model.append(
+      model.predict_on_batch(np.array([[normalize_value(des, "angle", data_stats), normalize_value(angle, "angle", data_stats), rate, rate, normalize_value(speed, "speed", data_stats)]]))[0][
+        0] * 1500)
+    y_pid.append(pid.update(des, angle, speed) * 1500)
+  plt.plot(desired, y_pid, label='pid')
+  plt.plot(desired, y_model, label='model')
+  plt.plot([15] * len(y_pid), np.linspace(2000, -1500, len(y_pid)))
+  plt.legend()
+  plt.show()
 
+
+pid = LatControlPF()
 def plot_sequence(sequence_idx=3, show_controller=True):  # plots what model would do in a sequence of data
   sequence = data_sequences[sequence_idx]
 
   plt.figure(0)
   plt.clf()
 
+  ground_truth = [line['torque'] for line in sequence]
+  plt.plot(ground_truth, label='ground truth')
+
+  _x = [normalize_sample(line, data_stats) for line in sequence]
+  _x = [[line[inp] for inp in MODEL_INPUTS] for line in _x]
+  pred = model.predict(np.array(_x)).reshape(-1) * TORQUE_SCALE
+  plt.plot(pred, label='prediction')
+
   if show_controller:
     controller = [pid.update(line['fut_steering_angle'], line['steering_angle'], line['v_ego']) * TORQUE_SCALE for line in sequence]  # what a pf controller would output
     plt.plot(controller, label='standard controller')
 
-  ground_truth = [line['torque'] for line in sequence]
-  plt.plot(ground_truth, label='ground truth')
-
-  _x = [[line[inp] for inp in inputs] for line in sequence]
-  pred = model.predict(np.array(_x)).reshape(-1) * TORQUE_SCALE
-  plt.plot(pred, label='prediction')
-
   plt.legend()
   plt.show()
-
 

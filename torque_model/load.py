@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import copy
 import os
+import random
+from objprint import add_objprint
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,10 +12,11 @@ from selfdrive.config import Conversions as CV
 import seaborn as sns
 import time
 import pickle
-from torque_model.helpers import feedforward, random_chance, TORQUE_SCALE
+from torque_model.helpers import feedforward, random_chance, TORQUE_SCALE, LatControlPF, STATS_KEYS, REVERSED_STATS_KEYS, MODEL_INPUTS, normalize_sample
 
 DT_CTRL = 0.01
 MIN_SAMPLES = 5 / DT_CTRL  # seconds to frames
+# STATS_KEYS = {'steering_angle': 'angle', 'steering_rate': 'rate', 'v_ego': 'speed', 'torque': 'torque'}  # this renames keys to shorter names to access later quicker
 
 os.chdir('C:/Git/openpilot-repos/op-smiskol-torque/torque_model')
 
@@ -47,7 +50,8 @@ def filter_data(_data):
   KEEP_DATA = 'all'  # user, engaged, or all
 
   def sample_ok(_line):
-    return 5 * CV.MPH_TO_MS < _line['v_ego'] and abs(_line['steering_rate']) < 100 and abs(_line['torque_eps']) < 3000
+    return 5 * CV.MPH_TO_MS < _line['v_ego'] and abs(_line['steering_rate']) < 100 and \
+           abs(_line['fut_steering_rate']) < 100 and abs(_line['torque_eps']) < 3000
 
   filtered_sequences = []
   for sequence in _data:
@@ -72,34 +76,97 @@ def filter_data(_data):
   # return [i for j in filtered_sequences for i in j], filtered_sequences
 
 
-def remove_outliers(_flattened):
+def plot_distributions(_data):
+  # key_lists = {k: [line[k] for line in _data] for k in STATS_KEYS}
+  key_lists = {}
+  for stat_k, data_keys in STATS_KEYS.items():
+    key_lists[stat_k] = []
+    for data_k in data_keys:  # handles if stats key has multiple data keys in same category
+      key_lists[stat_k] += [line[data_k] for line in _data]
+
+  for key in key_lists:
+    plt.clf()
+    sns.distplot(key_lists[key], bins=200)
+
+    plt.savefig('plots/{} dist.png'.format(key))
+
+
+def get_stats(_data):
+  @add_objprint
+  class Stat:
+    def __init__(self, name, mean, std, mn, mx):
+      self.name = name
+      self.mean = mean
+      self.std = std
+      self.scale = [mn, mx]
+      cut_off_multiplier = stds if name != 'torque' else stds * 2
+      self.cut_off = [mean - std * cut_off_multiplier, mean + std * cut_off_multiplier]
+
   stds = 3
-  mean_angle, std_angle = np.mean([line['steering_angle'] for line in _flattened]), np.std([line['steering_angle'] for line in _flattened])
-  angle_cut_off = [mean_angle - std_angle * stds, mean_angle + std_angle * stds]
+  key_lists = {}
+  for stat_k, data_keys in STATS_KEYS.items():
+    key_lists[stat_k] = []
+    for data_k in data_keys:  # handles if stats key has multiple data keys in same category
+      key_lists[stat_k] += [line[data_k] for line in _data]
 
-  mean_rate, std_rate = np.mean([line['steering_rate'] for line in _flattened]), np.std([line['steering_rate'] for line in _flattened])
-  rate_cut_off = [mean_rate - std_rate * stds, mean_rate + std_rate * stds]
+  stats = {k: Stat(k, np.mean(key_lists[k]),
+                   np.std(key_lists[k]),
+                   min(key_lists[k]),
+                   max(key_lists[k])) for k in STATS_KEYS}
+  return stats
 
-  mean_speed, std_speed = np.mean([line['v_ego'] for line in _flattened]), np.std([line['v_ego'] for line in _flattened])
-  speed_cut_off = [mean_speed - std_speed * stds, mean_speed + std_speed * stds]
 
-  mean_torque, std_torque = np.mean([line['torque'] for line in _flattened]), np.std([line['torque'] for line in _flattened])
-  torque_cut_off = [mean_torque - std_torque * stds*2, mean_torque + std_torque * stds*2]
-  print(angle_cut_off, rate_cut_off, speed_cut_off, torque_cut_off)
+def remove_outliers(_flattened):  # calculate current mean and std to filter, then return the newly updated mean and std
+  stats = get_stats(_flattened)
+  print(stats['angle'].mean, stats['angle'].std)
+
+  print(f'Data cut offs: {[stats[k].cut_off for k in stats]}')
 
   new_data = []
   for line in _flattened:
-    if angle_cut_off[0] < line['steering_angle'] < angle_cut_off[1] and rate_cut_off[0] < line['steering_rate'] < rate_cut_off[1] and \
-            speed_cut_off[0] < line['v_ego'] < speed_cut_off[1] and torque_cut_off[0] < line['torque'] < torque_cut_off[1]:
+    keep = []
+    for stat_k, data_keys in STATS_KEYS.items():
+      for data_k in data_keys:
+        keep.append(stats[stat_k].cut_off[0] < line[data_k] < stats[stat_k].cut_off[1])
+
+    keep = all(keep)
+    if keep:  # if sample falls within standard deviation * 3
       new_data.append(line)
 
-  class Stat:
-    def __init__(self, mean, std):
-      self.mean = mean
-      self.std = std
+  return new_data
 
-  stats = {'angle': Stat(mean_angle, std_angle), 'rate': Stat(mean_rate, std_rate), 'speed': Stat(mean_speed, std_speed), 'torque': Stat(mean_torque, std_torque)}
-  return new_data, stats
+
+class SyntheticDataGenerator:
+  def __init__(self, _data, _stats):
+    self.data = _data
+    self.torque_range = [_stats['torque'].std, max(np.abs(_stats['torque'].scale)) * 2]
+
+    self.max_idx = len(self.data) - 1
+    self.keys = ['fut_steering_angle', 'steering_angle', 'fut_steering_rate', 'steering_rate', 'v_ego']
+    self.idxs_needed = len(self.keys)
+    self.pid = LatControlPF()
+
+  def generate_many(self, n):
+    return [self.generate_one() for _ in range(n)]
+
+  def generate_one(self):
+    def _gen():
+      idxs = [random.randint(0, self.max_idx) for _ in range(self.idxs_needed)]
+      _sample = {}
+      for key, idx in zip(self.keys, idxs):
+        _sample[key] = self.data[idx][key]  # todo: maybe randomly transform them by a small number?
+
+      _sample['torque'] = self.pid.update(_sample['fut_steering_angle'], _sample['steering_angle'], _sample['v_ego']) * TORQUE_SCALE
+      return _sample
+
+    sample = _gen()
+    while abs(sample['torque']) > self.torque_range[1] or abs(sample['torque']) < self.torque_range[0] or abs(sample['steering_angle'] - sample['fut_steering_angle']) < 5:
+      sample = _gen()
+    return sample
+    # this was fairly accurate, but the above will automatically change with the data (no manual tuning required)
+    # choice = random.choice([0, 1])  # 0 is actual angle std, 1 is std / 8 to replicate much more samples near 0
+    # return (np.random.normal(0, angles_std) if choice == 0 else
+    #         np.random.normal(0, angles_std / 8))
 
 
 def load_data():  # filters and processes raw pickle data from rlogs
@@ -120,7 +187,7 @@ def load_data():  # filters and processes raw pickle data from rlogs
   data_sequences = filter_data(data_sequences)  # returns filtered sequences
 
   # flatten into 1d list of dictionary samples
-  flat_samples = [i for j in data_sequences for i in j]
+  flat_samples = [i.copy() for j in data_sequences for i in j]  # make a copy of each list sample so any changes don't affect data_sequences
 
   # _temp = flattened
   # print(len(_temp))
@@ -130,18 +197,51 @@ def load_data():  # filters and processes raw pickle data from rlogs
   # raise Exception
 
   # Remove outliers
-  flat_samples, data_stats = remove_outliers(flat_samples)  # returns stats about filtered data
+  filtered_data = remove_outliers(flat_samples)  # returns stats about filtered data
 
   # Remove inliers  # too many samples with angle at 0 degrees compared to curve data
-  filtered_data = []
-  for line in flat_samples:
+  filtered_data_new = []
+  for line in filtered_data:
     if abs(line['steering_angle']) > 10:
-      filtered_data.append(line)
+      filtered_data_new.append(line)
     elif random_chance(interp(abs(line['steering_angle']), [0, 5, 10], [10, 20, 100])):
-      filtered_data.append(line)
+      filtered_data_new.append(line)
+  data = filtered_data_new
+  del filtered_data_new
 
-  # Return flattened samples, original sequences of data (filtered), and stats about flat_samples
-  return filtered_data, data_sequences, data_stats
+  data_stats = get_stats(data)  # get stats about final filtered data
+
+  PLOT_DISTS = False
+  if PLOT_DISTS:
+    plot_distributions(data)  # this takes a while
+
+  print(f'Angle mean, std: {data_stats["angle"].mean, data_stats["angle"].std}')
+
+  ADD_SYNTHETIC_SAMPLES = True  # fixme, this affects mean and std, but not min/max for normalizing
+  if ADD_SYNTHETIC_SAMPLES:
+    data_generator = SyntheticDataGenerator(data, data_stats)
+
+    n_synthetic_samples = round(len(data) / 50)
+    print('There are currently {} real samples'.format(len(data)))
+    print('Adding {} synthetic samples...'.format(n_synthetic_samples), flush=True)
+    data += data_generator.generate_many(n_synthetic_samples)
+
+    print('Real and synthetic samples: {}'.format(len(data)))
+
+    # todo: we could just update all stats, not sure why we're only doing torque
+    # todo: do we want the stats to represent the real data only, or data we're going to train on (real and synthetic)?
+    torque = [line['torque'] for line in data]
+    data_stats['torque'].mean = np.mean(torque)
+    data_stats['torque'].std = np.std(torque)
+    data_stats['torque'].scale = [min(torque), max(torque)]  # scale is most important
+
+  # Normalize data
+  NORMALIZE_DATA = True
+  if NORMALIZE_DATA:
+    data = [normalize_sample(line, data_stats) for line in data]
+
+  # Return flattened samples, original sequences of data (filtered), and stats about filtered_data
+  return data, data_sequences, data_stats
 
   # filtered_data = []  # todo: check for disengagement (or engagement if disengaged) or user override in future
   # for sec in data:  # remove samples where we're braking in the future but not now
@@ -157,9 +257,31 @@ def load_data():  # filters and processes raw pickle data from rlogs
   # del filtered_data
 
 
+
 if __name__ == "__main__":
-  filtered_data, data_sequences, data_stats = load_data()
-  print(f'angle mean, std: {data_stats["angle"].mean, data_stats["angle"].std}')
+  data, data_sequences, data_stats = load_data()
+  # plt.plot([line['steering_angle'] for line in data_sequences[3]])
+  #
+  # raise Exception
+  del data_sequences
+  data_generator = SyntheticDataGenerator(data, data_stats)
+
+  plt.clf()
+  print(f'stats rate mean, std: {data_stats["torque"].mean, data_stats["rate"].std}')
+
+  angles = [l['torque'] for l in data]
+  print(f'real torque mean, std: {np.mean(angles), np.std(angles)}')
+  sns.distplot(angles, label='data', bins=200)
+
+  angles_std = np.std(angles)
+
+  # generated_angles = [np.random.normal(0, angles_std * 1.4) for _ in range(len(angles))]
+  # generated_angles += [np.random.normal(0, angles_std/12) for _ in range(int(len(angles)))]
+  # generated_angles = [generate_syn_angle() for _ in range(len(angles) * 2)]
+  generated_angles = [data_generator.generate_one()['torque'] for _ in range(len(angles))]
+  sns.distplot(generated_angles, label='generated', bins=200)
+
+  plt.legend()
 
 
 

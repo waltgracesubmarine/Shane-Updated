@@ -6,6 +6,33 @@ from torque_model.models.feedforward_model import predict as feedforward_predict
 from selfdrive.config import Conversions as CV
 
 TORQUE_SCALE = 1500
+STATS_KEYS = {'angle': ['fut_steering_angle', 'steering_angle'], 'rate': ['fut_steering_rate', 'steering_rate'], 'speed': ['v_ego'], 'torque': ['torque']}  # this renames keys to shorter names to access later quicker
+REVERSED_STATS_KEYS = {}
+for stat_k, data_keys in STATS_KEYS.items():
+  for data_k in data_keys:
+    REVERSED_STATS_KEYS[data_k] = stat_k
+
+
+MODEL_INPUTS = ['fut_steering_angle', 'steering_angle', 'fut_steering_rate', 'steering_rate', 'v_ego']
+# inputs = ['fut_steering_angle', 'steering_angle', 'v_ego']
+
+
+def unnormalize_sample(_sample, _stats):
+  _sample = _sample.copy()
+  for inp in MODEL_INPUTS:
+    _sample[inp] = interp(_sample[inp], [-1, 1], _stats[REVERSED_STATS_KEYS[inp]].scale)
+  return _sample
+
+
+def normalize_sample(_sample, _stats):
+  _sample = _sample.copy()
+  for inp in MODEL_INPUTS:
+    _sample[inp] = interp(_sample[inp], _stats[REVERSED_STATS_KEYS[inp]].scale, [-1, 1])
+  return _sample
+
+
+def normalize_value(_v, _type, _stats):
+  return interp(_v, _stats[_type].scale, [-1, 1])
 
 
 def feedforward(angle, speed):
@@ -34,18 +61,17 @@ class LatControlPF:
   def k_p(self):
     return interp(self.speed, [20 * CV.MPH_TO_MS, 70 * CV.MPH_TO_MS], [.05, .15])
 
-  def update(self, setpoint, measurement, speed, rate=0):
+  def update(self, setpoint, measurement, speed):
     self.speed = speed
     f = feedforward(setpoint, speed)
     # f = model_feedforward(setpoint, speed)
-    f2 = 0#rate * speed ** 2 * 0.00003
 
     error = setpoint - measurement
 
     p = error * self.k_p
     f = f * self.k_f
 
-    return p + f + f2  # multiply by 1500 to get torque units
+    return p + f  # multiply by 1500 to get torque units
     # return np.clip(p + steer_feedforward, -1, 1)  # multiply by 1500 to get torque units
 
 
