@@ -47,30 +47,32 @@ def offset_torque(_data, high_delay=False):  # todo: offsetting both speed and a
 
 
 def filter_data(_data):
-  KEEP_DATA = 'user'  # user, engaged, or all
+  KEEP_DATA = 'all'  # user, engaged, or all
 
   def sample_ok(_line):
-    return 5 * CV.MPH_TO_MS < _line['v_ego'] and abs(_line['steering_rate']) < 200 and abs(_line['torque_eps']) < 3000
+    return 5 * CV.MPH_TO_MS < _line['v_ego'] and abs(_line['steering_rate']) < 100 and abs(_line['torque_eps']) < 3000
 
-
-  filtered_data = []
+  filtered_sequences = []
   for sequence in _data:
-    filtered_sequence = []
+    filtered_seq = []
     for line in sequence:
       if not sample_ok(line):
         continue
 
       if line['engaged'] and KEEP_DATA in ['all', 'engaged']:  # and random_chance(15):
         line['torque'] = line['torque_eps']  # line['torque_cmd']
-        filtered_sequence.append(line)
+        filtered_seq.append(line)
       if not line['engaged'] and KEEP_DATA in ['all', 'user']:
         line['torque'] = line['torque_eps']  # i think eps makes more sense than driver
-        filtered_sequence.append(line)
+        filtered_seq.append(line)
 
-    if len(filtered_sequence):
-      filtered_data.append(filtered_sequence)
+    if len(filtered_seq):
+      filtered_sequences.append(filtered_seq)
 
-  return [i for j in filtered_data for i in j], filtered_data
+  return filtered_sequences
+
+  # flattened = [i for j in filtered_sequences for i in j]
+  # return [i for j in filtered_sequences for i in j], filtered_sequences
 
 
 def remove_outliers(_flattened):
@@ -85,7 +87,7 @@ def remove_outliers(_flattened):
   speed_cut_off = [mean_speed - std_speed * stds, mean_speed + std_speed * stds]
 
   mean_torque, std_torque = np.mean([line['torque'] for line in _flattened]), np.std([line['torque'] for line in _flattened])
-  torque_cut_off = [mean_torque - std_torque * stds, mean_torque + std_torque * stds]
+  torque_cut_off = [mean_torque - std_torque * stds*2, mean_torque + std_torque * stds*2]
   print(angle_cut_off, rate_cut_off, speed_cut_off, torque_cut_off)
 
   new_data = []
@@ -104,7 +106,7 @@ def remove_outliers(_flattened):
 
 
 def load_data():  # filters and processes raw pickle data from rlogs
-  data = load_processed('data')
+  data_sequences = load_processed('data')
   # for sec in data:
   #   print('len: {}'.format(len(sec)))
   #   print('num. 0 steering_rate: {}'.format(len([line for line in sec if line['steering_rate'] == 0])))
@@ -114,23 +116,43 @@ def load_data():  # filters and processes raw pickle data from rlogs
   # this adds future steering angle and rate data to each sample, which we will use to train on as inputs
   # data for model: what current torque (output) gets us to the future (input)
   # this makes more sense than training on desired angle from lateral planner since humans don't always follow what the mpc would predict in any given situation
-  data = offset_torque(data)
-  data_high_delay = offset_torque(data, high_delay=True)
+  data_sequences = offset_torque(data_sequences)
+  # todo: i don't think high delay makes any sense. we're increasing error with no increase torque/output
+  # data_sequences_high_delay = offset_torque(data_sequences, high_delay=True)
 
   # filter data
-  flattened, data_sequences = filter_data(data)
-  flattened_high_delay, _ = filter_data(data_high_delay)
-  del data
+  data_sequences = filter_data(data_sequences)  # returns filtered sequences
+  # data_sequences_high_delay = filter_data(data_sequences_high_delay)
 
-  # Remove inliers  # too many samples with angle at 0 degrees compared to curve data
-  flattened = [line for line in flattened if (abs(line['steering_angle']) < 7 and random_chance(50)) or abs(line['steering_angle']) > 7]
+  # flatten into 1d list of dictionary samples
+  flat_samples = [i for j in data_sequences for i in j]
+  # data_flattened_high_delay = [i for j in data_sequences_high_delay for i in j]
+
+  # _temp = flattened
+  # print(len(_temp))
+  # scale = [min([l['torque_eps'] for l in _temp]), max([l['torque_eps'] for l in _temp])]
+  # print(scale)
+  # print('------')
+  # raise Exception
+
+  # flattened = [line for line in flattened if (abs(line['steering_angle']) < 5 and random_chance(15)) or abs(line['steering_angle']) > 5]
   # flattened_high_delay = [line for line in flattened_high_delay if (abs(line['steering_angle']) < 7 and random_chance(50)) or abs(line['steering_angle']) > 7]
 
   # Remove outliers
-  flattened, stats = remove_outliers(flattened)
-  flattened_high_delay, _ = remove_outliers(flattened_high_delay)
+  flat_samples, stats = remove_outliers(flat_samples)  # returns stats about filtered data
+  # flattened_high_delay, _ = remove_outliers(flattened_high_delay)
 
-  return flattened, flattened_high_delay, data_sequences, stats
+  # Remove inliers  # too many samples with angle at 0 degrees compared to curve data
+  filtered_data = []
+  for line in flat_samples:
+    if abs(line['steering_angle']) > 10:
+      filtered_data.append(line)
+    elif random_chance(np.interp(abs(line['steering_angle']), [0, 5, 10], [10, 20, 100])):
+      filtered_data.append(line)
+  flattened = filtered_data
+  del filtered_data
+
+  return flattened, [], data_sequences, stats
 
   # filtered_data = []  # todo: check for disengagement (or engagement if disengaged) or user override in future
   # for sec in data:  # remove samples where we're braking in the future but not now
@@ -146,42 +168,52 @@ def load_data():  # filters and processes raw pickle data from rlogs
   # del filtered_data
 
 
-if __name__ == "__main__":
-  speed_range = [10.778, 13.16]
-  ddata, data_high_delay, data_sequences, data_stats = load_data()
-  data = data_sequences[4]
-
-  for idx, line in enumerate(data):
-    past = 20
-    if idx < past:
-      line['steering_rate_calculated'] = 0
-    else:
-      calculated = line['steering_angle'] - data[idx - past]['steering_angle']
-      line['steering_rate_calculated'] = calculated * (100 / past) if calculated != 0 else 0
-
-  print(len(data_sequences))
-  # plt.plot([line['steering_rate_can'] for line in data], label='with fraction')
-  plt.plot([line['steering_rate'] for line in data], label='current')
-  # plt.plot([line['steering_rate_calculated'] for line in data], label='calculated (1 second)')
-  plt.legend()
-
-  raise Exception
-
-  # # data = [l for l in data if not l['engaged']]
-  # data = [l for l in data if speed_range[0] <= l['v_ego'] <= speed_range[1]]
-  #
-  # plt.figure()
-  # plt.plot([l['torque_eps'] for l in data], label='eps')
-  # plt.plot([l['torque_driver'] for l in data], label='driver')
-  # plt.legend()
-  #
-  # plt.figure()
-  # sns.distplot([l['v_ego'] for l in data], bins=200)
-  #
-  # plt.figure()
-  # angles = [abs(l['fut_steering_angle']) for l in data]
-  # torque = [abs(l['torque']) for l in data]
-  # x = np.linspace(0, max(angles), 100)
-  # plt.plot(x, [feedforward(_x, np.mean(speed_range)) * 0.00006908923778520113 * 1500 for _x in x])
-  # plt.scatter(angles, torque, s=0.5)
-  # plt.legend()
+# if __name__ == "__main__":
+#   speed_range = [10.778, 13.16]
+#   data, data_high_delay, data_sequences, data_stats = load_data()
+#   data = data_sequences[-1]
+#
+#   for idx, line in enumerate(data):
+#     # factor = [0.1, 0.05]
+#     # factor = [0.0666, 0.0333]
+#     # factor = [0.08, 0.04]
+#     factor = [0.05, 0.025]
+#     line['steering_rate_fraction'] = line['steering_rate_fraction'] * factor[0] + factor[1]
+#     past = 5
+#     if idx < past:
+#       line['steering_rate_calculated'] = 0
+#     else:
+#       calculated = line['steering_angle'] - data[idx - past]['steering_angle']
+#       line['steering_rate_calculated'] = calculated * (100 / past) if calculated != 0 else 0
+#
+#   print(len(data_sequences))
+#   plt.title('{} factor, {} offset'.format(factor[0], factor[1]))
+#   fraction = [line['steering_rate_fraction'] for line in data]
+#   # plt.plot([line['steering_rate_can'] for line in data], label='with fraction')
+#   # plt.plot([line['steering_rate_calculated'] for line in data], label='calculated ({} second)'.format(past / 100))
+#   # plt.plot([line['steering_rate'] for line in data], label='w/o fraction')
+#   plt.plot([line['steering_rate'] + line['steering_rate_fraction'] for line in data], label='fraction')
+#   # plt.plot(fraction, label='fraction')
+#   print(f'min max: {min(fraction)}, {max(fraction)}')
+#   plt.legend()
+#
+#   raise Exception
+#
+#   # # data = [l for l in data if not l['engaged']]
+#   # data = [l for l in data if speed_range[0] <= l['v_ego'] <= speed_range[1]]
+#   #
+#   # plt.figure()
+#   # plt.plot([l['torque_eps'] for l in data], label='eps')
+#   # plt.plot([l['torque_driver'] for l in data], label='driver')
+#   # plt.legend()
+#   #
+#   # plt.figure()
+#   # sns.distplot([l['v_ego'] for l in data], bins=200)
+#   #
+#   # plt.figure()
+#   # angles = [abs(l['fut_steering_angle']) for l in data]
+#   # torque = [abs(l['torque']) for l in data]
+#   # x = np.linspace(0, max(angles), 100)
+#   # plt.plot(x, [feedforward(_x, np.mean(speed_range)) * 0.00006908923778520113 * 1500 for _x in x])
+#   # plt.scatter(angles, torque, s=0.5)
+#   # plt.legend()

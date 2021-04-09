@@ -35,14 +35,14 @@ class LatControlPF:
 
   def update(self, setpoint, measurement, speed, rate=0):
     self.speed = speed
-    # f = feedforward(setpoint, speed)
-    f = model_feedforward(setpoint, speed)
-    f2 = rate * speed ** 2 * 0.00003
+    f = feedforward(setpoint, speed)
+    # f = model_feedforward(setpoint, speed)
+    f2 = 0#rate * speed ** 2 * 0.00003
 
     error = setpoint - measurement
 
     p = error * self.k_p
-    # f = f * self.k_f
+    f = f * self.k_f
 
     return p + f + f2  # multiply by 1500 to get torque units
     # return np.clip(p + steer_feedforward, -1, 1)  # multiply by 1500 to get torque units

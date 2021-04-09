@@ -17,6 +17,7 @@ def load_and_process_rlogs(lrs, file_name):
   for lr in lrs:
     engaged, v_ego, a_ego, gear_shifter = None, None, None, None
     steering_angle, des_steering_angle, des_steering_rate = None, None, None
+    last_engaged = None
 
     last_time = 0
     can_updated = False
@@ -39,6 +40,7 @@ def load_and_process_rlogs(lrs, file_name):
         v_ego = msg.carState.vEgo
         a_ego = msg.carState.aEgo
         steering_angle = msg.carState.steeringAngleDeg
+        last_engaged = bool(engaged)
         engaged = msg.carState.cruiseState.enabled
         gear_shifter = msg.carState.gearShifter
       # elif msg.which() == 'carControl':  # todo: maybe get eps torque
@@ -61,6 +63,7 @@ def load_and_process_rlogs(lrs, file_name):
       steer_req = cp.vl['STEERING_LKA']['STEER_REQUEST'] == 1
 
       steering_rate = cp.vl['STEER_ANGLE_SENSOR']['STEER_RATE'] + cp.vl['STEER_ANGLE_SENSOR']['STEER_RATE_FRACTION']
+      # steering_rate_fraction = cp.vl['STEER_ANGLE_SENSOR']['STEER_RATE_FRACTION']
 
       if msg.which() != 'can':  # only store when can is updated
         continue
@@ -74,9 +77,10 @@ def load_and_process_rlogs(lrs, file_name):
         should_gather = True
 
       if (engaged is not None and can_updated and gear_shifter == car.CarState.GearShifter.drive and
-              not sport_on and should_gather and  # creates uninterupted sections of engaged data
+              not sport_on and should_gather and engaged == last_engaged and  # creates uninterupted sections of engaged data
               abs(msg.logMonoTime - last_time) * 1e-9 < 1 / 20):  # also split if there's a break in time
         data[-1].append({'v_ego': v_ego, 'a_ego': a_ego, 'steering_angle': steering_angle, 'steering_rate': steering_rate,
+                         # 'steering_rate_fraction': steering_rate_fraction,
                          'engaged': engaged, 'torque_cmd': torque_cmd, 'torque_eps': torque_eps, 'torque_driver': torque_driver,
                          'time': msg.logMonoTime * 1e-9})
       elif len(data[-1]):  # if last list has items in it, append new empty section
