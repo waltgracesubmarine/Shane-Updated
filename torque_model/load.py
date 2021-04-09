@@ -5,8 +5,10 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
+from common.numpy_fast import interp
 from selfdrive.config import Conversions as CV
 import seaborn as sns
+import time
 import pickle
 from torque_model.helpers import feedforward, random_chance, TORQUE_SCALE
 
@@ -22,7 +24,7 @@ def load_processed(file_name):
 
 
 def get_steer_delay(speed):
-  return int(np.interp(speed, [5 * CV.MPH_TO_MS, 70 * CV.MPH_TO_MS], [0.32, 0.52]) * 100)
+  return round(interp(speed, [5 * CV.MPH_TO_MS, 70 * CV.MPH_TO_MS], [32, 52]))
 
 
 def offset_torque(_data):  # todo: offsetting both speed and accel seem to decrease model loss by a LOT. maybe we should just offset all gas instead of these two todo: maybe not?
@@ -102,6 +104,7 @@ def remove_outliers(_flattened):
 
 def load_data():  # filters and processes raw pickle data from rlogs
   data_sequences = load_processed('data')
+
   # for sec in data:
   #   print('len: {}'.format(len(sec)))
   #   print('num. 0 steering_rate: {}'.format(len([line for line in sec if line['steering_rate'] == 0])))
@@ -127,20 +130,18 @@ def load_data():  # filters and processes raw pickle data from rlogs
   # raise Exception
 
   # Remove outliers
-  flat_samples, stats = remove_outliers(flat_samples)  # returns stats about filtered data
+  flat_samples, data_stats = remove_outliers(flat_samples)  # returns stats about filtered data
 
   # Remove inliers  # too many samples with angle at 0 degrees compared to curve data
   filtered_data = []
   for line in flat_samples:
     if abs(line['steering_angle']) > 10:
       filtered_data.append(line)
-    elif random_chance(np.interp(abs(line['steering_angle']), [0, 5, 10], [10, 20, 100])):
+    elif random_chance(interp(abs(line['steering_angle']), [0, 5, 10], [10, 20, 100])):
       filtered_data.append(line)
-  flat_samples = filtered_data
-  del filtered_data
 
   # Return flattened samples, original sequences of data (filtered), and stats about flat_samples
-  return flat_samples, data_sequences, stats
+  return filtered_data, data_sequences, data_stats
 
   # filtered_data = []  # todo: check for disengagement (or engagement if disengaged) or user override in future
   # for sec in data:  # remove samples where we're braking in the future but not now
@@ -154,6 +155,12 @@ def load_data():  # filters and processes raw pickle data from rlogs
   #     filtered_data.append(new_sec)
   # data = filtered_data
   # del filtered_data
+
+
+if __name__ == "__main__":
+  filtered_data, data_sequences, data_stats = load_data()
+  print(f'angle mean, std: {data_stats["angle"].mean, data_stats["angle"].std}')
+
 
 
 # if __name__ == "__main__":

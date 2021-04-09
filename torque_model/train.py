@@ -8,6 +8,7 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 from tensorflow.python.keras.layers import Dropout
 
+from common.numpy_fast import interp
 from torque_model.helpers import LatControlPF, TORQUE_SCALE, random_chance
 from torque_model.load import load_data
 from sklearn.model_selection import train_test_split
@@ -47,7 +48,7 @@ if NORMALIZE_DATA:
     scales[inp] = [min(dat), max(dat)]
   for line in data:
     for inp in inputs:
-      line[inp] = np.interp(line[inp], scales[inp], [-1, 1])
+      line[inp] = interp(line[inp], scales[inp], [-1, 1])
 
 x_train = []
 for line in data:

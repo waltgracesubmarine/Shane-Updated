@@ -1,5 +1,6 @@
-import numpy as np
-from tensorflow import keras
+import random
+# from tensorflow import keras
+from common.numpy_fast import interp
 from torque_model.models.feedforward_model import predict as feedforward_predict
 
 from selfdrive.config import Conversions as CV
@@ -15,7 +16,7 @@ def feedforward(angle, speed):
   return steer_feedforward
 
 
-feedforward_model = keras.models.load_model('models/feedforward_model.h5', custom_objects={'LeakyReLU': keras.layers.LeakyReLU})
+# feedforward_model = keras.models.load_model('models/feedforward_model.h5', custom_objects={'LeakyReLU': keras.layers.LeakyReLU})
 
 
 def model_feedforward(angle, speed):
@@ -31,7 +32,7 @@ class LatControlPF:
 
   @property
   def k_p(self):
-    return np.interp(self.speed, [20 * CV.MPH_TO_MS, 70 * CV.MPH_TO_MS], [.05, .15])
+    return interp(self.speed, [20 * CV.MPH_TO_MS, 70 * CV.MPH_TO_MS], [.05, .15])
 
   def update(self, setpoint, measurement, speed, rate=0):
     self.speed = speed
@@ -49,4 +50,4 @@ class LatControlPF:
 
 
 def random_chance(percent: int):
-  return np.random.randint(0, 100) < percent or percent == 100
+  return random.randint(0, 100) < percent or percent == 100
