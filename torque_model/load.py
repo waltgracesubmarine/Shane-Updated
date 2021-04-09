@@ -169,7 +169,7 @@ class SyntheticDataGenerator:
     #         np.random.normal(0, angles_std / 8))
 
 
-def load_data():  # filters and processes raw pickle data from rlogs
+def load_data(to_normalize=False):  # filters and processes raw pickle data from rlogs
   data_sequences = load_processed('data')
 
   # for sec in data:
@@ -236,8 +236,7 @@ def load_data():  # filters and processes raw pickle data from rlogs
     data_stats['torque'].scale = [min(torque), max(torque)]  # scale is most important
 
   # Normalize data
-  NORMALIZE_DATA = True
-  if NORMALIZE_DATA:
+  if to_normalize:
     data = [normalize_sample(line, data_stats) for line in data]
 
   # Return flattened samples, original sequences of data (filtered), and stats about filtered_data

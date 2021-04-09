@@ -1,7 +1,7 @@
 import random
 # from tensorflow import keras
 from common.numpy_fast import interp
-from torque_model.models.feedforward_model import predict as feedforward_predict
+from torque_model.models.ff.feedforward_model import predict as feedforward_predict
 
 from selfdrive.config import Conversions as CV
 
@@ -24,15 +24,18 @@ def unnormalize_sample(_sample, _stats):
   return _sample
 
 
-def normalize_sample(_sample, _stats):
+def normalize_sample(_sample, _stats, _normalize):
   _sample = _sample.copy()
+  if not _normalize:
+    return _sample
+
   for inp in MODEL_INPUTS:
     _sample[inp] = interp(_sample[inp], _stats[REVERSED_STATS_KEYS[inp]].scale, [-1, 1])
   return _sample
 
 
-def normalize_value(_v, _type, _stats):
-  return interp(_v, _stats[_type].scale, [-1, 1])
+def normalize_value(_v, _type, _stats, _normalize):
+  return interp(_v, _stats[_type].scale, [-1, 1]) if _normalize else _v
 
 
 def feedforward(angle, speed):

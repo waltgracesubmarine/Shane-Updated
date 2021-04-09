@@ -28,8 +28,8 @@ except:
   # Invalid device or cannot modify virtual devices once initialized.
   pass
 
-
-data, data_sequences, data_stats = load_data()
+to_normalize = False
+data, data_sequences, data_stats = load_data(to_normalize)
 # del data_high_delay, data_sequences
 print(f'Number of samples: {len(data)}')
 
@@ -83,17 +83,21 @@ model.add(Dense(16, activation=LeakyReLU()))
 # model.add(Dense(24, activation=LeakyReLU()))
 model.add(Dense(1))
 
-epochs = 110
+epochs = 250
 starting_lr = .05
 ending_lr = 0.001
 decay = (starting_lr - ending_lr) / epochs
 
-# opt = Adam(learning_rate=starting_lr, amsgrad=True, decay=decay)
-opt = Adadelta(learning_rate=1)
+opt = Adam(learning_rate=starting_lr, amsgrad=True, decay=decay)
+# opt = Adadelta(learning_rate=0.001)
+# opt = Adagrad(learning_rate=0.2)
 model.compile(opt, loss='mae', metrics='mse')
 try:
-  model.fit(x_train, y_train, batch_size=2048, epochs=200, validation_data=(x_test, y_test))
-  model.fit(x_train, y_train, batch_size=128, epochs=100, validation_data=(x_test, y_test))
+  model.fit(x_train, y_train, batch_size=2048, epochs=50, validation_data=(x_test, y_test))
+  model.fit(x_train, y_train, batch_size=1024, epochs=50, validation_data=(x_test, y_test))
+  model.fit(x_train, y_train, batch_size=512, epochs=25, validation_data=(x_test, y_test))
+  model.fit(x_train, y_train, batch_size=256, epochs=25, validation_data=(x_test, y_test))
+  # model.fit(x_train, y_train, batch_size=64, epochs=100, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=256, epochs=10, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=64, epochs=20, validation_data=(x_test, y_test))
 except KeyboardInterrupt:
@@ -122,13 +126,13 @@ def plot_response():  # plots model output compared to pid on steady angle but c
   plt.clf()
   angle = 15
   desired = np.linspace(30, 0, 100)
-  rate = normalize_value(0, 'rate', data_stats)
+  rate = normalize_value(0, 'rate', data_stats, to_normalize)
   speed = 25 * CV.MPH_TO_MS
   y_pid = []
   y_model = []
   for des in desired:
     y_model.append(
-      model.predict_on_batch(np.array([[normalize_value(des, "angle", data_stats), normalize_value(angle, "angle", data_stats), rate, rate, normalize_value(speed, "speed", data_stats)]]))[0][
+      model.predict_on_batch(np.array([[normalize_value(des, "angle", data_stats, to_normalize), normalize_value(angle, "angle", data_stats, to_normalize), rate, rate, normalize_value(speed, "speed", data_stats, to_normalize)]]))[0][
         0] * 1500)
     y_pid.append(pid.update(des, angle, speed) * 1500)
   plt.plot(desired, y_pid, label='pid')
@@ -148,7 +152,7 @@ def plot_sequence(sequence_idx=3, show_controller=True):  # plots what model wou
   ground_truth = [line['torque'] for line in sequence]
   plt.plot(ground_truth, label='ground truth')
 
-  _x = [normalize_sample(line, data_stats) for line in sequence]
+  _x = [normalize_sample(line, data_stats, to_normalize) for line in sequence]
   _x = [[line[inp] for inp in MODEL_INPUTS] for line in _x]
   pred = model.predict(np.array(_x)).reshape(-1) * TORQUE_SCALE
   plt.plot(pred, label='prediction')
