@@ -21,23 +21,18 @@ def load_processed(file_name):
     return pickle.load(f)
 
 
-def get_steer_delay_low(speed):
+def get_steer_delay(speed):
   return int(np.interp(speed, [5 * CV.MPH_TO_MS, 70 * CV.MPH_TO_MS], [0.32, 0.52]) * 100)
 
 
-def get_steer_delay_high(speed):
-  return 100
-  return int(np.interp(speed, [5 * CV.MPH_TO_MS, 70 * CV.MPH_TO_MS], [0.32, .62]) * 100)
-
-
-def offset_torque(_data, high_delay=False):  # todo: offsetting both speed and accel seem to decrease model loss by a LOT. maybe we should just offset all gas instead of these two todo: maybe not?
+def offset_torque(_data):  # todo: offsetting both speed and accel seem to decrease model loss by a LOT. maybe we should just offset all gas instead of these two todo: maybe not?
   for i in range(len(_data)):  # accounts for steer actuator delay (from torque to change in angle)
     steering_angle = [line['steering_angle'] for line in _data[i]]
     steering_rate = [line['steering_rate'] for line in _data[i]]
     data_len = len(_data[i])
     steer_delay = 0
     for j in range(data_len):
-      steer_delay = get_steer_delay_low(_data[i][j]['v_ego']) if not high_delay else get_steer_delay_high(_data[i][j]['v_ego'])  # interpolate steer delay from speed
+      steer_delay = get_steer_delay(_data[i][j]['v_ego'])  # interpolate steer delay from speed
       if j + steer_delay >= data_len:
         break
       _data[i][j]['fut_steering_angle'] = float(steering_angle[j + steer_delay])
@@ -117,16 +112,12 @@ def load_data():  # filters and processes raw pickle data from rlogs
   # data for model: what current torque (output) gets us to the future (input)
   # this makes more sense than training on desired angle from lateral planner since humans don't always follow what the mpc would predict in any given situation
   data_sequences = offset_torque(data_sequences)
-  # todo: i don't think high delay makes any sense. we're increasing error with no increase torque/output
-  # data_sequences_high_delay = offset_torque(data_sequences, high_delay=True)
 
   # filter data
   data_sequences = filter_data(data_sequences)  # returns filtered sequences
-  # data_sequences_high_delay = filter_data(data_sequences_high_delay)
 
   # flatten into 1d list of dictionary samples
   flat_samples = [i for j in data_sequences for i in j]
-  # data_flattened_high_delay = [i for j in data_sequences_high_delay for i in j]
 
   # _temp = flattened
   # print(len(_temp))
@@ -135,12 +126,8 @@ def load_data():  # filters and processes raw pickle data from rlogs
   # print('------')
   # raise Exception
 
-  # flattened = [line for line in flattened if (abs(line['steering_angle']) < 5 and random_chance(15)) or abs(line['steering_angle']) > 5]
-  # flattened_high_delay = [line for line in flattened_high_delay if (abs(line['steering_angle']) < 7 and random_chance(50)) or abs(line['steering_angle']) > 7]
-
   # Remove outliers
   flat_samples, stats = remove_outliers(flat_samples)  # returns stats about filtered data
-  # flattened_high_delay, _ = remove_outliers(flattened_high_delay)
 
   # Remove inliers  # too many samples with angle at 0 degrees compared to curve data
   filtered_data = []
@@ -149,10 +136,11 @@ def load_data():  # filters and processes raw pickle data from rlogs
       filtered_data.append(line)
     elif random_chance(np.interp(abs(line['steering_angle']), [0, 5, 10], [10, 20, 100])):
       filtered_data.append(line)
-  flattened = filtered_data
+  flat_samples = filtered_data
   del filtered_data
 
-  return flattened, [], data_sequences, stats
+  # Return flattened samples, original sequences of data (filtered), and stats about flat_samples
+  return flat_samples, data_sequences, stats
 
   # filtered_data = []  # todo: check for disengagement (or engagement if disengaged) or user override in future
   # for sec in data:  # remove samples where we're braking in the future but not now
@@ -170,7 +158,7 @@ def load_data():  # filters and processes raw pickle data from rlogs
 
 # if __name__ == "__main__":
 #   speed_range = [10.778, 13.16]
-#   data, data_high_delay, data_sequences, data_stats = load_data()
+#   data, data_sequences, data_stats = load_data()
 #   data = data_sequences[-1]
 #
 #   for idx, line in enumerate(data):

@@ -34,11 +34,9 @@ pid = LatControlPF()
 inputs = ['fut_steering_angle', 'steering_angle', 'fut_steering_rate', 'steering_rate', 'v_ego']
 # inputs = ['fut_steering_angle', 'steering_angle', 'v_ego']
 
-data, data_high_delay, data_sequences, data_stats = load_data()
+data, data_sequences, data_stats = load_data()
 # del data_high_delay, data_sequences
 print(f'Number of samples: {len(data)}')
-
-# data += data_high_delay
 
 # Normalize data
 NORMALIZE_DATA = False
