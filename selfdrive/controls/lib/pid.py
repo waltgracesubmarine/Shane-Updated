@@ -92,6 +92,8 @@ class LatPIDController():
          not freeze_integrator:
         self.i = i
 
+    self.p *= np.interp(error, [-48, -12, -6, 0, 6, 12], [.9, 1, .5, 0, .5, .75])  # TRY THIS OUT!!
+
     control = self.p + self.f + self.i + d
     if self.convert is not None:
       control = self.convert(control, speed=self.speed)
