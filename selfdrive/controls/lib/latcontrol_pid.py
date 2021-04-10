@@ -4,7 +4,7 @@ from selfdrive.controls.lib.pid import LatPIDController
 from selfdrive.controls.lib.drive_helpers import get_steer_max
 from cereal import car
 from cereal import log
-from torque_model.models.third_model import predict as model_predict
+from torque_model.models.fourth_model import predict as model_predict
 
 
 class LatControlPID():
@@ -50,12 +50,9 @@ class LatControlPID():
       # output_steer = self.pid.update(self.angle_steers_des, CS.steeringAngleDeg, check_saturation=check_saturation, override=CS.steeringPressed,
       #                                feedforward=steer_feedforward, speed=CS.vEgo, deadzone=deadzone)
 
-      model_input = [self.angle_steers_des, CS.steeringAngleDeg]
-      if self.op_params.get('model_use_rates'):
-        model_input += [lat_plan.steeringRateDeg, CS.steeringRateDeg]
-      else:
-        model_input += [0, 0]
-      model_input.append(CS.vEgo)
+      rate_des = lat_plan.steeringRateDeg if self.op_params.get('model_use_des_rate') else 0
+      rate = CS.steeringRateDeg if self.op_params.get('model_use_rate') else 0
+      model_input = [self.angle_steers_des, CS.steeringAngleDeg, rate_des, rate, CS.vEgo]
 
       output_steer = model_predict(model_input)[0]
       output_steer = float(clip(output_steer, -1, 1))

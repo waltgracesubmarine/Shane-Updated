@@ -5,6 +5,8 @@ import numpy as np
 import random
 import os
 import tensorflow as tf
+# import matplotlib
+# matplotlib.use('GTK3Agg')
 import matplotlib.pyplot as plt
 from tensorflow.python.keras.layers import Dropout
 
@@ -29,7 +31,7 @@ except:
   pass
 
 to_normalize = False
-data, data_sequences, data_stats = load_data(to_normalize)
+data, data_sequences, data_stats, _ = load_data(to_normalize)
 # del data_high_delay, data_sequences
 print(f'Number of samples: {len(data)}')
 
@@ -72,6 +74,7 @@ x_train = np.array(x_train)
 y_train = np.array(y_train) / TORQUE_SCALE
 
 x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, test_size=0.35)
+print('Training on {} samples and validating on {} samples'.format(len(x_train), len(x_test)))
 
 
 model = Sequential()
@@ -83,7 +86,7 @@ model.add(Dense(16, activation=LeakyReLU()))
 # model.add(Dense(24, activation=LeakyReLU()))
 model.add(Dense(1))
 
-epochs = 250
+epochs = 150
 starting_lr = .05
 ending_lr = 0.001
 decay = (starting_lr - ending_lr) / epochs
@@ -93,10 +96,9 @@ opt = Adam(learning_rate=starting_lr, amsgrad=True, decay=decay)
 # opt = Adagrad(learning_rate=0.2)
 model.compile(opt, loss='mae', metrics='mse')
 try:
-  model.fit(x_train, y_train, batch_size=2048, epochs=50, validation_data=(x_test, y_test))
-  model.fit(x_train, y_train, batch_size=1024, epochs=50, validation_data=(x_test, y_test))
-  model.fit(x_train, y_train, batch_size=512, epochs=25, validation_data=(x_test, y_test))
-  model.fit(x_train, y_train, batch_size=256, epochs=25, validation_data=(x_test, y_test))
+  model.fit(x_train, y_train, batch_size=2048, epochs=150, validation_data=(x_test, y_test))
+  model.fit(x_train, y_train, batch_size=512, epochs=100, validation_data=(x_test, y_test))
+  model.fit(x_train, y_train, batch_size=128, epochs=100, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=64, epochs=100, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=256, epochs=10, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=64, epochs=20, validation_data=(x_test, y_test))
@@ -118,7 +120,7 @@ def plot_random_samples():
   plt.show()
 
 
-plot_random_samples()
+# plot_random_samples()
 
 def plot_response():  # plots model output compared to pid on steady angle but changing desired angle
   # the ttwo lines should ideally be pretty close
@@ -146,7 +148,7 @@ pid = LatControlPF()
 def plot_sequence(sequence_idx=3, show_controller=True):  # plots what model would do in a sequence of data
   sequence = data_sequences[sequence_idx]
 
-  plt.figure(0)
+  plt.figure()
   plt.clf()
 
   ground_truth = [line['torque'] for line in sequence]
@@ -164,3 +166,6 @@ def plot_sequence(sequence_idx=3, show_controller=True):  # plots what model wou
   plt.legend()
   plt.show()
 
+plot_sequence(-3)
+plot_sequence(4)
+plot_sequence(15)

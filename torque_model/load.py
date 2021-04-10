@@ -50,8 +50,8 @@ def filter_data(_data):
   KEEP_DATA = 'all'  # user, engaged, or all
 
   def sample_ok(_line):
-    return 5 * CV.MPH_TO_MS < _line['v_ego'] and abs(_line['steering_rate']) < 100 and \
-           abs(_line['fut_steering_rate']) < 100 and abs(_line['torque_eps']) < 3000
+    return 1 * CV.MPH_TO_MS < _line['v_ego'] and abs(_line['steering_rate']) < 200 and \
+           abs(_line['fut_steering_rate']) < 200 and abs(_line['torque_eps']) < 3000
 
   filtered_sequences = []
   for sequence in _data:
@@ -76,7 +76,7 @@ def filter_data(_data):
   # return [i for j in filtered_sequences for i in j], filtered_sequences
 
 
-def plot_distributions(_data):
+def plot_distributions(_data, idx=0):
   # key_lists = {k: [line[k] for line in _data] for k in STATS_KEYS}
   key_lists = {}
   for stat_k, data_keys in STATS_KEYS.items():
@@ -84,11 +84,13 @@ def plot_distributions(_data):
     for data_k in data_keys:  # handles if stats key has multiple data keys in same category
       key_lists[stat_k] += [line[data_k] for line in _data]
 
+  angle_errors = [abs(line['steering_angle'] - line['fut_steering_angle']) for line in _data]
+  key_lists['angle_errors'] = angle_errors
+
   for key in key_lists:
     plt.clf()
     sns.distplot(key_lists[key], bins=200)
-
-    plt.savefig('plots/{} dist.png'.format(key))
+    plt.savefig('plots/{} dist.{}.png'.format(key, idx))
 
 
 def get_stats(_data):
@@ -160,7 +162,7 @@ class SyntheticDataGenerator:
       return _sample
 
     sample = _gen()
-    while abs(sample['torque']) > self.torque_range[1] or abs(sample['torque']) < self.torque_range[0] or abs(sample['steering_angle'] - sample['fut_steering_angle']) < 5:
+    while abs(sample['torque']) > self.torque_range[1] or abs(sample['torque']) < self.torque_range[0] or abs(sample['steering_angle'] - sample['fut_steering_angle']) < 2.5:
       sample = _gen()
     return sample
     # this was fairly accurate, but the above will automatically change with the data (no manual tuning required)
@@ -169,7 +171,7 @@ class SyntheticDataGenerator:
     #         np.random.normal(0, angles_std / 8))
 
 
-def load_data(to_normalize=False):  # filters and processes raw pickle data from rlogs
+def load_data(to_normalize=False, plot_dists=False):  # filters and processes raw pickle data from rlogs
   data_sequences = load_processed('data')
 
   # for sec in data:
@@ -188,6 +190,10 @@ def load_data(to_normalize=False):  # filters and processes raw pickle data from
 
   # flatten into 1d list of dictionary samples
   flat_samples = [i.copy() for j in data_sequences for i in j]  # make a copy of each list sample so any changes don't affect data_sequences
+  print('Flat samples: {}'.format(len(flat_samples)))
+
+  if plot_dists:
+    plot_distributions(flat_samples)  # this takes a while
 
   # _temp = flattened
   # print(len(_temp))
@@ -198,30 +204,32 @@ def load_data(to_normalize=False):  # filters and processes raw pickle data from
 
   # Remove outliers
   filtered_data = remove_outliers(flat_samples)  # returns stats about filtered data
+  print('Removed outliers: {} samples'.format(len(filtered_data)))
 
   # Remove inliers  # too many samples with angle at 0 degrees compared to curve data
   filtered_data_new = []
   for line in filtered_data:
     if abs(line['steering_angle']) > 10:
       filtered_data_new.append(line)
-    elif random_chance(interp(abs(line['steering_angle']), [0, 5, 10], [10, 20, 100])):
+    elif random_chance(interp(abs(line['steering_angle']), [0, 3, 6, 10], [1, 7, 15, 100])):
       filtered_data_new.append(line)
   data = filtered_data_new
   del filtered_data_new
 
+  print('Removed inliers: {} samples'.format(len(data)))
+
   data_stats = get_stats(data)  # get stats about final filtered data
 
-  PLOT_DISTS = False
-  if PLOT_DISTS:
-    plot_distributions(data)  # this takes a while
+  if plot_dists:
+    plot_distributions(data, 1)
 
   print(f'Angle mean, std: {data_stats["angle"].mean, data_stats["angle"].std}')
 
+  data_generator = SyntheticDataGenerator(data, data_stats)
   ADD_SYNTHETIC_SAMPLES = True  # fixme, this affects mean and std, but not min/max for normalizing
   if ADD_SYNTHETIC_SAMPLES:
-    data_generator = SyntheticDataGenerator(data, data_stats)
 
-    n_synthetic_samples = round(len(data) / 50)
+    n_synthetic_samples = round(len(data) / 25)
     print('There are currently {} real samples'.format(len(data)))
     print('Adding {} synthetic samples...'.format(n_synthetic_samples), flush=True)
     data += data_generator.generate_many(n_synthetic_samples)
@@ -235,12 +243,17 @@ def load_data(to_normalize=False):  # filters and processes raw pickle data from
     data_stats['torque'].std = np.std(torque)
     data_stats['torque'].scale = [min(torque), max(torque)]  # scale is most important
 
+    print('Added synthetic data: {} samples'.format(len(data)))
+
   # Normalize data
   if to_normalize:
-    data = [normalize_sample(line, data_stats) for line in data]
+    data = [normalize_sample(line, data_stats, to_normalize) for line in data]
+
+  if plot_dists:
+    plot_distributions(data, 3)  # this takes a while
 
   # Return flattened samples, original sequences of data (filtered), and stats about filtered_data
-  return data, data_sequences, data_stats
+  return data, data_sequences, data_stats, data_generator
 
   # filtered_data = []  # todo: check for disengagement (or engagement if disengaged) or user override in future
   # for sec in data:  # remove samples where we're braking in the future but not now
@@ -258,12 +271,11 @@ def load_data(to_normalize=False):  # filters and processes raw pickle data from
 
 
 if __name__ == "__main__":
-  data, data_sequences, data_stats = load_data()
+  data, data_sequences, data_stats, data_generator = load_data(plot_dists=True)
   # plt.plot([line['steering_angle'] for line in data_sequences[3]])
   #
   # raise Exception
   del data_sequences
-  data_generator = SyntheticDataGenerator(data, data_stats)
 
   plt.clf()
   print(f'stats rate mean, std: {data_stats["torque"].mean, data_stats["rate"].std}')
