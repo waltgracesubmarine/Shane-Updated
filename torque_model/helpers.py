@@ -6,7 +6,7 @@ from torque_model.models.ff.feedforward_model import predict as feedforward_pred
 from selfdrive.config import Conversions as CV
 
 TORQUE_SCALE = 1500
-STATS_KEYS = {'angle': ['fut_steering_angle', 'steering_angle'], 'rate': ['fut_steering_rate', 'steering_rate'], 'speed': ['v_ego'], 'torque': ['torque']}  # this renames keys to shorter names to access later quicker
+STATS_KEYS = {'angle': ['fut_steering_angle', 'steering_angle'], 'rate': ['fut_steering_rate', 'steering_rate'], 'speed': ['v_ego'], 'torque': ['torque'], 'angle_error': ['angle_error']}  # this renames keys to shorter names to access later quicker
 REVERSED_STATS_KEYS = {}
 for stat_k, data_keys in STATS_KEYS.items():
   for data_k in data_keys:
@@ -79,4 +79,4 @@ class LatControlPF:
 
 
 def random_chance(percent: int):
-  return random.randint(0, 100) < percent or percent == 100
+  return percent == 0 or random.randint(0, 100) < percent

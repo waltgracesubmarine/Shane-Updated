@@ -87,7 +87,7 @@ model.add(Dense(16, activation=LeakyReLU()))
 model.add(Dense(1))
 
 epochs = 150
-starting_lr = .05
+starting_lr = .01
 ending_lr = 0.001
 decay = (starting_lr - ending_lr) / epochs
 
@@ -96,9 +96,11 @@ opt = Adam(learning_rate=starting_lr, amsgrad=True, decay=decay)
 # opt = Adagrad(learning_rate=0.2)
 model.compile(opt, loss='mae', metrics='mse')
 try:
-  model.fit(x_train, y_train, batch_size=2048, epochs=150, validation_data=(x_test, y_test))
-  model.fit(x_train, y_train, batch_size=512, epochs=100, validation_data=(x_test, y_test))
-  model.fit(x_train, y_train, batch_size=128, epochs=100, validation_data=(x_test, y_test))
+  model.fit(x_train, y_train, batch_size=2048, epochs=100, validation_data=(x_test, y_test))
+  model.fit(x_train, y_train, batch_size=32, epochs=50, validation_data=(x_test, y_test))
+  # model.fit(x_train, y_train, batch_size=128, epochs=25, validation_data=(x_test, y_test))
+  # model.fit(x_train, y_train, batch_size=32, epochs=25, validation_data=(x_test, y_test))
+  # model.fit(x_train, y_train, batch_size=64, epochs=100, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=64, epochs=100, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=256, epochs=10, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=64, epochs=20, validation_data=(x_test, y_test))
@@ -122,24 +124,25 @@ def plot_random_samples():
 
 # plot_random_samples()
 
-def plot_response():  # plots model output compared to pid on steady angle but changing desired angle
-  # the ttwo lines should ideally be pretty close
+def plot_response(angle=15, around=15, speed=37):  # plots model output compared to pid on steady angle but changing desired angle
+  # the two lines should ideally be pretty close
   plt.figure(2)
   plt.clf()
-  angle = 15
-  desired = np.linspace(30, 0, 100)
+  desired = np.linspace(angle - around, angle + around, 200)
+  error = np.array(desired) - angle
   rate = normalize_value(0, 'rate', data_stats, to_normalize)
-  speed = 25 * CV.MPH_TO_MS
+  speed *= CV.MPH_TO_MS
   y_pid = []
   y_model = []
   for des in desired:
     y_model.append(
-      model.predict_on_batch(np.array([[normalize_value(des, "angle", data_stats, to_normalize), normalize_value(angle, "angle", data_stats, to_normalize), rate, rate, normalize_value(speed, "speed", data_stats, to_normalize)]]))[0][
-        0] * 1500)
+      model.predict_on_batch(np.array([[normalize_value(des, "angle", data_stats, to_normalize), normalize_value(angle, "angle", data_stats, to_normalize), rate, rate, normalize_value(speed, "speed", data_stats, to_normalize)]]))[0][0] * 1500)
     y_pid.append(pid.update(des, angle, speed) * 1500)
-  plt.plot(desired, y_pid, label='pid')
-  plt.plot(desired, y_model, label='model')
-  plt.plot([15] * len(y_pid), np.linspace(2000, -1500, len(y_pid)))
+  plt.plot(error, y_pid, label='standard pf controller')
+  plt.plot(error, y_model, label='model')
+  plt.plot([0] * len(y_pid), np.linspace(max(y_model), min(y_model), len(y_pid)))
+  plt.xlabel('angle error')
+  plt.ylabel('torque')
   plt.legend()
   plt.show()
 
