@@ -77,7 +77,8 @@ def coast_accel(speed):  # given a speed, output coasting acceleration
   # points = [[0.0, 0.538], [1.697, 0.28],
   #           [2.853, -0.199], [3.443, -0.249],
   #           [19.0 * CV.MPH_TO_MS, -0.145]]
-  points = [[0.01, 0.0], [.21, .425], [.3107, .535], [.431, .555],  # with no delay todo: OG
+  # points = [[0.01, 0.269/1.5], [.21, .425], [.3107, .535], [.431, .555],  # with no delay todo: OG
+  points = [[0.01, .3], [.21, .425], [.3107, .535], [.431, .555],  # with no delay todo: OG
             [.777, .438], [1.928, 0.265], [2.66, -0.179],
             [3.336, -0.250], [MIN_ACC_SPEED, -0.145]]
 
@@ -118,7 +119,7 @@ def accel_to_gas_old(a_ego, v_ego, _a3, _a4, _a5, _offset, _e1, _e2, _e3, _e4, _
 
 
 # def fit_all(x_input, _a1, _offset, _e1, _e2, _e3, _e4, _e5, _e6, _e7, _e8, _e9, _e10, _e11, _e12):
-def fit_all(x_input, _a3, _a4, _a5, _a6, _a7, _a8, _s1, _s2, _s3, _s4, _offset):
+def fit_all(x_input, _a3, _a4, _a5, _a6, _a7, _a9, _s1, _s2, _s3, _offset):
   """
     x_input is array of a_ego and v_ego
     all _params are to be fit by curve_fit
@@ -131,8 +132,8 @@ def fit_all(x_input, _a3, _a4, _a5, _a6, _a7, _a8, _s1, _s2, _s3, _s4, _offset):
   #   weight = np.interp(a_ego, [coast, coast * 2], [0, 1])
   #   a_ego = ((a_ego - coast) * (weight) + a_ego * (1-weight))
   def accel_to_gas(a_ego, v_ego):
-    speed_part = (_s1 * a_ego + _s2) * v_ego ** 2 + (_s3 * a_ego + _s4) * v_ego
-    accel_part = (_a7 * v_ego + _a8) * a_ego ** 4 + (_a3 * v_ego + _a4) * a_ego ** 3 + _a5 * a_ego ** 2 + _a6 * a_ego
+    speed_part = (_s1 * a_ego + _s2) * v_ego ** 2 + _s3 * v_ego
+    accel_part = _a7 * a_ego ** 4 + (_a3 * v_ego + _a4) * a_ego ** 3 + (_a5 * v_ego + _a9) * a_ego ** 2 + _a6 * a_ego
     # pitch_part = _p1 * pitch
     ret = speed_part + accel_part + _offset
     return ret
@@ -141,10 +142,15 @@ def fit_all(x_input, _a3, _a4, _a5, _a6, _a7, _a8, _s1, _s2, _s3, _s4, _offset):
 
   if apply_coast_reduction := True:
     coast = coast_accel(speed)
-    spread = 0.2
-    x = accel - coast  # start at 0 when at coast accel
-    if spread > x >= 0:  # ramp up gas output using s-shaped curve from coast accel to coast + spread
-      gas *= 1 / (1 + (x / (spread - x)) ** -3) if x != 0 else 0
+    spread = np.interp(speed, [0, MIN_ACC_SPEED], [0.2, 0.3])
+    if accel >= coast:
+      # x = accel - coast  # start at 0 when at coast accel
+      # if spread > x >= 0:  # ramp up gas output using s-shaped curve from coast accel to coast + spread
+      #   gas *= 1 / (1 + (x / (spread - x)) ** -3) if x != 0 else 0
+      gas *= interp(accel, [coast, coast + spread], [0, 1]) ** 2
+    else:
+      gas = 0
+
   return gas
 
   coast_spread = 0 if speed < 0.555 else 0.05
@@ -282,7 +288,7 @@ def load_and_process_rlogs(lrs, file_name):
       if msg.which() == 'carState':
         v_ego = msg.carState.vEgo
         a_ego = msg.carState.aEgo
-        steering_angle = msg.carState.steeringAngle
+        steering_angle = msg.carState.steeringAngleDeg
         engaged = msg.carState.cruiseState.enabled
         gear_shifter = msg.carState.gearShifter
       elif msg.which() == 'controlsState':
@@ -451,42 +457,42 @@ def fit_ff_model(use_dir, plot=False):
   max_car_gas_fit = max([l['car_gas'] for l in [i for j in data for i in j] if l['engaged'] and l['user_gas'] < 14])
   print('Max fit car_gas for transform_car_gas function: {}'.format(max_car_gas_fit))
 
-  # new_data = []
-  # for sec in data:  # remove samples where we're braking in the future but not now
-  #   new_sec = []
-  #   for idx, line in enumerate(sec):
-  #     accel_delay = get_accel_delay(line['v_ego'])  # interpolate accel delay from speed
-  #     if idx + accel_delay < len(sec):
-  #       if line['brake_pressed'] is sec[idx + accel_delay]['brake_pressed']:
-  #         new_sec.append(line)
-  #   if len(new_sec) > 0:
-  #     new_data.append(new_sec)
-  # data = new_data
-  # del new_data
+  new_data = []
+  for sec in data:  # remove samples where we're braking in the future but not now
+    new_sec = []
+    for idx, line in enumerate(sec):
+      accel_delay = get_accel_delay(line['v_ego'])  # interpolate accel delay from speed
+      if idx + accel_delay < len(sec):
+        if line['brake_pressed'] is sec[idx + accel_delay]['brake_pressed']:
+          new_sec.append(line)
+    if len(new_sec) > 0:
+      new_data.append(new_sec)
+  data = new_data
+  del new_data
   # raise Exception
   #
   # Removes cases where user brakes shortly after giving gas (gas would be positive, accel negative due to accel offsetting)
   # data = [[line for idx, line in enumerate(sec) if (not sec[idx + get_accel_delay(np.mean(i['v_ego'] for i in sec))]['brake_pressed'] if
   #                                                   idx + get_accel_delay(np.mean(i['v_ego'] for i in sec)) < len(sec) else False)] for sec in data]
-
+  # return data
   data = [i for j in data for i in j]  # flatten
   data_coasting = [i for j in data_coasting for i in j]  # flatten
   print(f'Samples (before filtering): {len(data)}')
   # data += data_coasting
 
-  for line in data:
-    if line['engaged'] and line['gas_enable'] and line['gas_command'] > 0.001:  # reduce gas near 0 accel and speed to bias the final function/model
-      if line['v_ego'] < 18 * CV.MPH_TO_MS and line['a_ego'] < 1.1:
-        # # reduction = np.interp(line['v_ego'], [2 * CV.MPH_TO_MS, 12 * CV.MPH_TO_MS], [1.0, 0])
-        # reduction = np.interp(line['a_ego'], [0.8, 1.4], [np.interp(line['v_ego'] * CV.MS_TO_MPH, [2, 10], [1.0, 0]), 0.0])
-        # reduction *= 0.08
-        reduction = np.interp(line['v_ego'], [1.5 * CV.MPH_TO_MS, 6 * CV.MPH_TO_MS], [1.0, 0])
-        reduction *= np.interp(line['a_ego'], [0.25, 1.2], [1, 0])
-        reduction *= 0.04
-        line['gas_command'] = max(line['gas_command'] - reduction, 0)
-
-        # reduction = np.interp(line['a_ego'], [-0.2, 0.6], [1, 0]) * np.interp(line['v_ego'], [4 * CV.MPH_TO_MS, 8 * CV.MPH_TO_MS, 19 * CV.MPH_TO_MS], [1.0, 0.6, 0.1])
-        # line['gas_command'] -= reduction * line['gas_command']
+  # for line in data:
+  #   if line['engaged'] and line['gas_enable'] and line['gas_command'] > 0.001:  # reduce gas near 0 accel and speed to bias the final function/model
+  #     if line['v_ego'] < 18 * CV.MPH_TO_MS and line['a_ego'] < 1.1:
+  #       # # reduction = np.interp(line['v_ego'], [2 * CV.MPH_TO_MS, 12 * CV.MPH_TO_MS], [1.0, 0])
+  #       # reduction = np.interp(line['a_ego'], [0.8, 1.4], [np.interp(line['v_ego'] * CV.MS_TO_MPH, [2, 10], [1.0, 0]), 0.0])
+  #       # reduction *= 0.08
+  #       reduction = np.interp(line['v_ego'], [1.5 * CV.MPH_TO_MS, 6 * CV.MPH_TO_MS], [1.0, 0])
+  #       reduction *= np.interp(line['a_ego'], [0.25, 1.2], [1, 0])
+  #       reduction *= 0.04
+  #       line['gas_command'] = max(line['gas_command'] - reduction, 0)
+  #
+  #       # reduction = np.interp(line['a_ego'], [-0.2, 0.6], [1, 0]) * np.interp(line['v_ego'], [4 * CV.MPH_TO_MS, 8 * CV.MPH_TO_MS, 19 * CV.MPH_TO_MS], [1.0, 0.6, 0.1])
+  #       # line['gas_command'] -= reduction * line['gas_command']
 
   # Data filtering
   def general_filters(_line):  # general filters
@@ -511,7 +517,7 @@ def fit_ff_model(use_dir, plot=False):
       if not line['engaged'] and line['car_gas'] <= max_car_gas_fit:  # verified for sure working up to 0.65, but probably could go further
         if line['car_gas'] > 0.:
           line['gas'] = float(transform_car_gas(line['car_gas']))  # this matches car gas up with gas cmd fairly accurately
-        elif line['user_gas'] < 15 and random_chance(100):
+        elif line['user_gas'] < 15 and random_chance(37.5):  # there's a lot of coasting data so remove most of it
           line['gas'] = 0.
         else:
           continue
@@ -530,6 +536,8 @@ def fit_ff_model(use_dir, plot=False):
       else:
         continue
       line['pitch'] = line['ned_orientation']['value'][1]
+      if line['gas'] > 0.7:
+        continue
       new_data.append(line)
 
   data = new_data
@@ -596,8 +604,8 @@ def fit_ff_model(use_dir, plot=False):
   # model = models.load_model('models/model-best.h5')
 
   # params, covs = curve_fit(fit_all, x_train.T, y_train)
-  params = np.array([-0.0034109221270790142, -0.02989942810035373, 0.002005326552420498, 0.1356381902353583, 0.0014222019070588158, 0.008436894892099946, 0.0009439048033890968, -0.0017786568461504919, 0.002986433642380856, 0.021810785976030644, -0.007020501995388009])
-  # params = np.array([-0.059593129912793315, -0.04577402603783469, 0.14512438169245576, 0.04943206089162375, 4.829796740317816e-06, -0.009924418151981399, -0.00020755632476486248, 0.052758381188947025, 0.0015371659949146228, -0.001104170167117192, -0.00012929098933089165, 0.011347420516706773])
+  params = np.array([0.002377321579025474, 0.07381215915662231, -0.007963770877144415, 0.15947881013161083, -0.010037975860880363, -0.1334422448911381, 0.0019638460320592194, -0.0018659661194108225, 0.021688122969402018, 0.027007983705385548])
+  # params = np.array([-0.0034109221270790142, -0.02989942810035373, 0.002005326552420498, 0.1356381902353583, 0.0014222019070588158, 0.008436894892099946, 0.0009439048033890968, -0.0017786568461504919, 0.002986433642380856, 0.021810785976030644, -0.007020501995388009])
   print('Params: {}'.format(params.tolist()))
   # params = [((0.011+.02)/2 + .02) / 2, 0.022130745681601702, -0.09109186615316711, 0.20997207156680778, 0.011371989131620245 - .02 - (.016+.0207)/2]
 
@@ -667,7 +675,7 @@ def fit_ff_model(use_dir, plot=False):
   # print('Torque MAE: {} (standard) - {} (fitted)'.format(np.mean(std_func), np.mean(fitted_func)))
   # print('Torque STD: {} (standard) - {} (fitted)\n'.format(np.std(std_func), np.std(fitted_func)))
 
-  image_suffix = '_5'
+  image_suffix = '_3'
 
   if PLOT_MODEL := True:
     plt.figure()
@@ -782,7 +790,7 @@ def fit_ff_model(use_dir, plot=False):
       plt.plot([coast_accel(np.mean(speed_range)), coast_accel(np.mean(speed_range))], [0, max(gas)], linestyle='--',  color='orange')
       plt.plot([1.5, 1.5], [0, max(gas)], '--', color='orange')
 
-      _x_ff = np.linspace(min(accels), max(accels), res)
+      _x_ff = np.linspace(min(accels), max(max(accels), 1.5), res)
 
       # _y_ff = [known_bad_accel_to_gas(_i, np.mean(speed_range)) for _i in _x_ff]
       # plt.plot(_x_ff, _y_ff, color='red', label='bad ff function')
