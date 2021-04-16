@@ -78,7 +78,7 @@ def coast_accel(speed):  # given a speed, output coasting acceleration
   #           [2.853, -0.199], [3.443, -0.249],
   #           [19.0 * CV.MPH_TO_MS, -0.145]]
   # points = [[0.01, 0.269/1.5], [.21, .425], [.3107, .535], [.431, .555],  # with no delay todo: OG
-  points = [[0.01, .3], [.21, .425], [.3107, .535], [.431, .555],  # with no delay todo: OG
+  points = [[0.01, 0.], [.21, .425], [.3107, .535], [.431, .555],  # with no delay todo: OG
             [.777, .438], [1.928, 0.265], [2.66, -0.179],
             [3.336, -0.250], [MIN_ACC_SPEED, -0.145]]
 
@@ -138,16 +138,17 @@ def fit_all(x_input, _a3, _a4, _a5, _a6, _a7, _a9, _s1, _s2, _s3, _offset):
     ret = speed_part + accel_part + _offset
     return ret
 
-  gas = accel_to_gas(accel, speed)
-
+  gas = 0
   if apply_coast_reduction := True:
     coast = coast_accel(speed)
-    spread = np.interp(speed, [0, MIN_ACC_SPEED], [0.2, 0.3])
-    if accel >= coast:
+    spread = 0.1  # np.interp(speed, [0, MIN_ACC_SPEED], [0.2, 0.3])
+    if accel > coast - spread:
+      gas = accel_to_gas(accel, speed)
       # x = accel - coast  # start at 0 when at coast accel
       # if spread > x >= 0:  # ramp up gas output using s-shaped curve from coast accel to coast + spread
       #   gas *= 1 / (1 + (x / (spread - x)) ** -3) if x != 0 else 0
-      gas *= interp(accel, [coast, coast + spread], [0, 1]) ** 2
+      if accel < coast + spread:
+        gas *= interp(accel, [coast - spread, coast + spread], [0, 1]) ** 2
     else:
       gas = 0
 
@@ -627,15 +628,16 @@ def fit_ff_model(use_dir, plot=False):
 
     plt.figure()
     plt.title('Coasting data')
-    plt.scatter(*zip(*[[line['v_ego'], line['a_ego']] for line in data_coasting]), label='coasting data', s=2)
+    plt.scatter(*zip(*[[line['v_ego'] * CV.MS_TO_MPH, line['a_ego']] for line in data_coasting]), label='coasting data', s=2)
     x = np.linspace(0, TOP_FIT_SPEED, 1000)
     # plt.plot(x, coasting_func(x, *coast_params))
     # plt.plot(x, coasting_func(x, *coast_params), label='function')
 
-    plt.plot(x, [coast_accel(_x) for _x in x], 'r', label='piecewise function')
+    plt.plot(x * CV.MS_TO_MPH, [coast_accel(_x) for _x in x], 'r', label='piecewise function')
     # plt.plot(x, [coast_accel(_x) * 1.5 if coast_accel(_x) > 0 else coast_accel(_x)/2 for _x in x], color='orange', label='threshold')
     # plt.plot(x, [coast_accel(_x) - 0.08 for _x in x], color='orange', label='bounds')
-    plt.plot(x, [coast_accel(_x) + 0.2 for _x in x], color='orange')
+    plt.plot(x * CV.MS_TO_MPH, [coast_accel(_x) + 0.1 for _x in x], color='orange')
+    plt.plot(x * CV.MS_TO_MPH, [coast_accel(_x) - 0.1 for _x in x], color='orange')
     plt.plot([0, 8.9], [0, 0])
     plt.legend()
     plt.savefig('imgs/coasting plot.png')
