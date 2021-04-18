@@ -28,20 +28,33 @@ class LatPIDController():
     self.i_rate = 1.0 / rate
     self.sat_limit = sat_limit
     self.convert = convert
+    self.op_params = opParams()
 
     self.reset()
 
   @property
   def k_p(self):
-    return interp(self.speed, self._k_p[0], self._k_p[1])
+    return interp(self.speed, self._k_p[0], self._k_p[1]) * self.op_params.get('p_multiplier')
 
   @property
   def k_i(self):
+    return self.op_params.get('lat_i')
     return interp(self.speed, self._k_i[0], self._k_i[1])
 
   @property
   def k_d(self):
+    return self.op_params.get('lat_d')
     return interp(self.speed, self._k_d[0], self._k_d[1])
+
+  def convert_pid_gains_simple(self, measurement, error, pid):
+    x = np.array([0, 5, 10]) * np.interp(abs(measurement), [0, 15], [.5, 1])
+    y = np.array([.15, .15, 1])
+    mod = np.interp(abs(error), x, y)  # mod will always be <= 1 for now
+    new_pid = pid + pid * mod
+
+    weight = np.interp(self.speed * CV.MS_TO_MPH, [15, 40], [0.25, 1])
+    pid = (new_pid * weight) + ((1 - weight) * pid)
+    return float(pid)
 
   def _check_saturation(self, control, check_saturation, error):
     saturated = (control < self.neg_limit) or (control > self.pos_limit)
@@ -92,7 +105,8 @@ class LatPIDController():
          not freeze_integrator:
         self.i = i
 
-    control = self.p + self.f + self.i + d
+    new_pid = self.convert_pid_gains_simple(measurement, error, self.p + self.i + d)
+    control = self.f + new_pid
     if self.convert is not None:
       control = self.convert(control, speed=self.speed)
 
