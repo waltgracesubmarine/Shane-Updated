@@ -78,6 +78,19 @@ class LongControl():
   def update(self, active, CS, v_target, v_target_future, a_target, CP, extras):
     """Update longitudinal control. This updates the state machine and runs a PID loop"""
     # Actuation limits
+    data_sample = {}
+    data_sample['a_ego'] = CS.aEgo
+    data_sample['a_target'] = a_target
+
+    data_sample['v_ego'] = CS.vEgo
+    data_sample['v_target'] = v_target
+    data_sample['eager_accel_method'] = self.op_params.get('eager_accel')
+    data_sample['active'] = active
+
+    with open('/data/eager_accel_debug', 'a') as f:
+      f.write('{}\n'.format(data_sample))
+
+
     gas_max = interp(CS.vEgo, CP.gasMaxBP, CP.gasMaxV)
     brake_max = interp(CS.vEgo, CP.brakeMaxBP, CP.brakeMaxV)
 
