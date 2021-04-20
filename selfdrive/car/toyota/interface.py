@@ -410,8 +410,8 @@ class CarInterface(CarInterfaceBase):
 
     if self.cp_cam.can_invalid_cnt >= 200 and self.CP.enableCamera and not self.CP.isPandaBlackDEPRECATED:
       events.add(EventName.invalidGiraffeToyotaDEPRECATED)
-    if self.CS.low_speed_lockout and self.CP.openpilotLongitudinalControl:
-      events.add(EventName.lowSpeedLockout)
+    # if self.CS.low_speed_lockout and self.CP.openpilotLongitudinalControl:
+    #   events.add(EventName.lowSpeedLockout)
     # if ret.vEgo < self.CP.minEnableSpeed and self.CP.openpilotLongitudinalControl:
     #   events.add(EventName.belowEngageSpeed)
     #   if c.actuators.gas > 0.1:
