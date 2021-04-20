@@ -101,7 +101,8 @@ class CarController():
         self.delayed_derivative = self.delayed_derivative * alpha + derivative * (1. - alpha)  # calc exp. moving average for derivative
         apply_accel = apply_accel - (self.delayed_derivative - derivative) * eagerness  # then modify accel using jerk of accel
 
-    apply_accel, self.accel_steady = accel_hysteresis(apply_accel, self.accel_steady, enabled)
+    # apply_accel, self.accel_steady = accel_hysteresis(apply_accel, self.accel_steady, enabled)
+    apply_accel = apply_accel if enabled else 0.
     apply_accel = clip(apply_accel * CarControllerParams.ACCEL_SCALE, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX)
 
     # steer torque
