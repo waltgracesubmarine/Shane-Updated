@@ -60,7 +60,7 @@ class LanePlanner:
   def get_d_path(self, v_ego, path_t, path_xyz):
     # Reduce reliance on lanelines that are too far apart or
     # will be in a few seconds
-    path_xyz[:, 1] -= STANDARD_CAMERA_OFFSET - self.camera_offset
+    path_xyz[:, 1] -= self.camera_offset - STANDARD_CAMERA_OFFSET  # offset path
     l_prob, r_prob = self.lll_prob, self.rll_prob
     width_pts = self.rll_y - self.lll_y
     prob_mods = []
