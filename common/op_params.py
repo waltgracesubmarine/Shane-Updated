@@ -99,6 +99,11 @@ class opParams:
 
     self.fork_params = {'camera_offset': Param(0.06, NUMBER, 'Your camera offset to use in lane_planner.py', live=True),
                         'dynamic_follow': Param('auto', str, static=True, hidden=True),
+                        'indi_inner_loop': Param(4.0, NUMBER, 'Somewhat affects response to rate', live=True),
+                        'indi_outer_loop': Param(3.0, NUMBER, 'Not sure', live=True),
+                        'indi_time_constant': Param(1.0, NUMBER, 'In seconds, takes the exponential moving average of the output (smooths it)', live=True),
+                        'indi_actuator_effectiveness': Param(1.0, NUMBER, 'Higher values means less response, lower more response\n'
+                                                                          'The inverse of this is multiplied against accel_error and added onto the current output to be smoothed', live=True),
                         'eager_accel': Param(None, [type(None), int], 'Experimental❗ Combats hysteresis in the cruise control system, braking sooner to eliminate jerking\n'
                                                                       'Might only work for TSS1 Toyotas\n'
                                                                       'Set the param to `1` to use the first method: uses the smoothened derivative of desired accel\n'
