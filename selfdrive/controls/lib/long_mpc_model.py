@@ -1,6 +1,8 @@
 import numpy as np
 import math
 
+from common.numpy_fast import interp
+from common.op_params import opParams
 from selfdrive.swaglog import cloudlog
 from common.realtime import sec_since_boot
 from selfdrive.controls.lib.longitudinal_mpc_model import libmpc_py
@@ -15,6 +17,7 @@ class LongitudinalMpcModel():
     self.a_mpc = 0.0
     self.last_cloudlog_t = 0.0
     self.ts = list(range(10))
+    self.op_params = opParams()
 
     self.valid = False
 
@@ -49,7 +52,10 @@ class LongitudinalMpcModel():
 
     # Get solution. MPC timestep is 0.2 s, so interpolation to 0.05 s is needed
     self.v_mpc = self.mpc_solution[0].v_ego[1]
-    self.a_mpc = self.mpc_solution[0].a_ego[1]
+
+    accel_t = self.op_params.get('future_accel_t')
+    self.a_mpc = interp(accel_t, np.linspace(0, 2, 11), self.mpc_solution[0].a_ego[:11])
+
     self.v_mpc_future = self.mpc_solution[0].v_ego[10]
     self.valid = True
 
