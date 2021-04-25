@@ -104,6 +104,7 @@ class Planner():
 
     self.v_acc = 0.0
     self.v_acc_future = 0.0
+    self.a_acc_future = 0.0
     self.a_acc = 0.0
     self.v_cruise = 0.0
     self.a_cruise = 0.0
@@ -148,6 +149,7 @@ class Planner():
     # print('{} mph, {} mph/s'.format(round(self.mpc_model.v_mpc * 2.23694, 2), round(self.mpc_model.a_mpc * 2.23694, 2)))
 
     self.v_acc_future = min(possible_futures)
+    self.a_acc_future = min([self.mpc1.a_mpc_future, self.mpc2.a_mpc_future])
 
   def update(self, sm, CP, VM, PP):
     """Gets called when new radarState is available"""
@@ -255,7 +257,7 @@ class Planner():
     longitudinalPlan.vStart = float(self.v_acc_start)
     longitudinalPlan.aStart = float(self.a_acc_start)
     longitudinalPlan.vTarget = float(self.v_acc)
-    longitudinalPlan.aTarget = float(self.a_acc)
+    longitudinalPlan.aTarget = float(self.a_acc_future)
     longitudinalPlan.vTargetFuture = float(self.v_acc_future)
     longitudinalPlan.hasLead = self.mpc1.prev_lead_status
     longitudinalPlan.longitudinalPlanSource = self.longitudinalPlanSource
