@@ -1,7 +1,11 @@
 import os
 import math
 
+import numpy as np
+
 import cereal.messaging as messaging
+from common.numpy_fast import interp
+from common.op_params import opParams
 from selfdrive.swaglog import cloudlog
 from common.realtime import sec_since_boot
 from selfdrive.controls.lib.radar_helpers import _LEAD_ACCEL_TAU
@@ -20,7 +24,6 @@ class LongitudinalMpc():
     self.setup_mpc()
     self.v_mpc = 0.0
     self.v_mpc_future = 0.0
-    self.a_mpc_future = 0.0
     self.a_mpc = 0.0
     self.v_cruise = 0.0
     self.prev_lead_status = False
@@ -30,6 +33,8 @@ class LongitudinalMpc():
     self.last_cloudlog_t = 0.0
     self.n_its = 0
     self.duration = 0
+
+    self.op_params = opParams()
 
   def publish(self, pm):
     if LOG_MPC:
@@ -106,7 +111,11 @@ class LongitudinalMpc():
 
     # Get solution. MPC timestep is 0.2 s, so interpolation to 0.05 s is needed
     self.v_mpc = self.mpc_solution[0].v_ego[1]
-    self.a_mpc = self.mpc_solution[0].a_ego[1]
+
+    accel_t = self.op_params.get('future_accel_t')
+    self.a_mpc = interp(accel_t, np.linspace(0, 2, 11), self.mpc_solution[0].a_ego[:11])
+    # self.a_mpc = self.mpc_solution[0].a_ego[1]
+
     self.v_mpc_future = self.mpc_solution[0].v_ego[10]
     self.a_mpc_future = self.mpc_solution[0].a_ego[4]
 
