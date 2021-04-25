@@ -148,7 +148,6 @@ class Planner():
     # print('{} mph, {} mph/s'.format(round(self.mpc_model.v_mpc * 2.23694, 2), round(self.mpc_model.a_mpc * 2.23694, 2)))
 
     self.v_acc_future = min(possible_futures)
-    # self.a_acc_future = min([self.mpc1.a_mpc_future, self.mpc2.a_mpc_future])
 
   def update(self, sm, CP, VM, PP):
     """Gets called when new radarState is available"""
