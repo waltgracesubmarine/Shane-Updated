@@ -20,6 +20,7 @@ class LongitudinalMpc():
     self.setup_mpc()
     self.v_mpc = 0.0
     self.v_mpc_future = 0.0
+    self.a_mpc_future = 0.0
     self.a_mpc = 0.0
     self.v_cruise = 0.0
     self.prev_lead_status = False
@@ -107,6 +108,7 @@ class LongitudinalMpc():
     self.v_mpc = self.mpc_solution[0].v_ego[1]
     self.a_mpc = self.mpc_solution[0].a_ego[1]
     self.v_mpc_future = self.mpc_solution[0].v_ego[10]
+    self.a_mpc_future = self.mpc_solution[0].a_ego[10]
 
     # Reset if NaN or goes through lead car
     crashing = any(lead - ego < -50 for (lead, ego) in zip(self.mpc_solution[0].x_l, self.mpc_solution[0].x_ego))
