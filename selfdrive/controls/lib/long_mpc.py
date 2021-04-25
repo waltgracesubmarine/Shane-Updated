@@ -114,7 +114,6 @@ class LongitudinalMpc():
 
     accel_t = self.op_params.get('future_accel_t')
     self.a_mpc = interp(accel_t, np.linspace(0, 2, 11), self.mpc_solution[0].a_ego[:11])
-    # self.a_mpc = self.mpc_solution[0].a_ego[1]
 
     self.v_mpc_future = self.mpc_solution[0].v_ego[10]
 
