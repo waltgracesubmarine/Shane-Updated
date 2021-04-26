@@ -28,6 +28,7 @@ class LatPIDController():
     self.i_rate = 1.0 / rate
     self.sat_limit = sat_limit
     self.convert = convert
+    self.op_params = opParams()
 
     self.reset()
 
@@ -92,7 +93,22 @@ class LatPIDController():
          not freeze_integrator:
         self.i = i
 
-    control = self.p + self.f + self.i + d
+    MAX_SPEED = 80 * CV.MPH_TO_MS
+    REDUCTION_AT_0 = self.op_params.get('0_mph_reduction')
+    REDUCTION_AT_80 = self.op_params.get('80_mph_reduction')
+
+    ANGLE_AT_0 = self.op_params.get('0_mph_max_angle')
+    ANGLE_AT_80 = self.op_params.get('80_mph_max_angle')
+
+    # As speed increases, make the angle smaller at which max reduction occurs, and then maybe tune the reduction as well
+    x = [0, interp(self.speed, [0, MAX_SPEED], [ANGLE_AT_0, ANGLE_AT_80])]  # angle measurements
+    y = [1, interp(self.speed, [0, MAX_SPEED], [REDUCTION_AT_0, REDUCTION_AT_80])]  # multipliers
+    mod = interp(abs(measurement), x, y)
+
+    control = self.p + self.i + d
+    control *= mod
+
+    control += self.f
     if self.convert is not None:
       control = self.convert(control, speed=self.speed)
 

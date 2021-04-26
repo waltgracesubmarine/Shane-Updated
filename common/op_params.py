@@ -98,6 +98,10 @@ class opParams:
     """
 
     self.fork_params = {'camera_offset': Param(0.06, NUMBER, 'Your camera offset to use in lane_planner.py', live=True),
+                        '0_mph_reduction': Param(0.5, NUMBER, 'When at the max angle at 0 mph this multipler will be applied to all but ff', live=True),
+                        '80_mph_reduction': Param(0.5, NUMBER, 'When at the max angle at 80 mph this multipler will be applied to all but ff', live=True),
+                        '0_mph_max_angle': Param(90, NUMBER, 'Angle at which full reduction multiplier is applied to PID', live=True),
+                        '80_mph_max_angle': Param(20, NUMBER, 'Angle at which full reduction multiplier is applied to PID', live=True),
                         'dynamic_follow': Param('auto', str, static=True, hidden=True),
                         'eager_accel': Param(None, [type(None), int], 'Experimental❗ Combats hysteresis in the cruise control system, braking sooner to eliminate jerking\n'
                                                                       'Might only work for TSS1 Toyotas\n'
