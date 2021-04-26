@@ -105,10 +105,7 @@ class LatPIDController():
     y = [1, interp(self.speed, [0, MAX_SPEED], [REDUCTION_AT_0, REDUCTION_AT_80])]  # multipliers
     mod = interp(abs(measurement), x, y)
 
-    control = self.p + self.i + d
-    control *= mod
-
-    control += self.f
+    control = (self.p + self.i + d) * mod + self.f
     if self.convert is not None:
       control = self.convert(control, speed=self.speed)
 
