@@ -112,8 +112,8 @@ class LongitudinalMpc():
     # Get solution. MPC timestep is 0.2 s, so interpolation to 0.05 s is needed
     self.v_mpc = self.mpc_solution[0].v_ego[1]
 
-    accel_t = self.op_params.get('future_accel_t')
-    self.a_mpc = interp(accel_t, np.linspace(0, 2, 11), self.mpc_solution[0].a_ego[:11])
+    accel_t = self.op_params.get('future_accel_t') + 0.15
+    self.a_mpc = interp(accel_t, np.linspace(0, 2, 11), self.mpc_solution[0].a_ego[0:11])
 
     self.v_mpc_future = self.mpc_solution[0].v_ego[10]
 
