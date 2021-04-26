@@ -24,6 +24,7 @@ class LongitudinalMpc():
     self.setup_mpc()
     self.v_mpc = 0.0
     self.v_mpc_future = 0.0
+    self.a_mpc_future = 0.0
     self.a_mpc = 0.0
     self.v_cruise = 0.0
     self.prev_lead_status = False
@@ -111,11 +112,11 @@ class LongitudinalMpc():
 
     # Get solution. MPC timestep is 0.2 s, so interpolation to 0.05 s is needed
     self.v_mpc = self.mpc_solution[0].v_ego[1]
-
-    accel_t = self.op_params.get('future_accel_t') + 0.15
-    self.a_mpc = interp(accel_t, np.linspace(0, 2, 11), self.mpc_solution[0].a_ego[0:11])
-
+    self.a_mpc = self.mpc_solution[0].a_ego[1]
     self.v_mpc_future = self.mpc_solution[0].v_ego[10]
+
+    accel_t = self.op_params.get('future_accel_t')
+    self.a_mpc_future = interp(accel_t, np.linspace(0, 2, 11), self.mpc_solution[0].a_ego[0:11])
 
     # Reset if NaN or goes through lead car
     crashing = any(lead - ego < -50 for (lead, ego) in zip(self.mpc_solution[0].x_l, self.mpc_solution[0].x_ego))
