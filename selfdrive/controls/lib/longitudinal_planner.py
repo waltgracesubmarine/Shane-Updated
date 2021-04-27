@@ -95,18 +95,12 @@ class Planner():
       if slowest == 'mpc1':
         self.v_acc = self.mpc1.v_mpc
         self.a_acc = self.mpc1.a_mpc
-        self.a_acc_start = self.mpc1.a_mpc_start
-        self.v_acc_start = self.mpc1.v_mpc_start
       elif slowest == 'mpc2':
         self.v_acc = self.mpc2.v_mpc
         self.a_acc = self.mpc2.a_mpc
-        self.a_acc_start = self.mpc2.a_mpc_start
-        self.v_acc_start = self.mpc2.v_mpc_start
       elif slowest == 'cruise':
         self.v_acc = self.v_cruise
         self.a_acc = self.a_cruise
-        self.a_acc_start = self.a_cruise
-        self.v_acc_start = self.v_cruise
 
     self.v_acc_future = min([self.mpc1.v_mpc_future, self.mpc2.v_mpc_future, v_cruise_setpoint])
 
@@ -164,6 +158,9 @@ class Planner():
 
     self.mpc1.update(sm['carState'], lead_1)
     self.mpc2.update(sm['carState'], lead_2)
+
+    self.a_acc_start = self.a_acc
+    self.v_acc_start = self.v_acc
 
     self.choose_solution(v_cruise_setpoint, enabled)
 
