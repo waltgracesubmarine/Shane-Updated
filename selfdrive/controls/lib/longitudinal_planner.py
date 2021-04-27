@@ -268,16 +268,17 @@ class Planner():
     # Calculate these separately since changing a_mpc will change the velocity solution as well which we don't want
     # So velocity solution should still be 0.05 seconds, but send aTarget as the future_index * 0.2 seconds
     #                                                    and aStart as future_index * 0.2 seconds - 0.05 seconds
-    a_acc = self.a_acc_future[1]
+
     # below isn't really 0 to 0.2 seconds, but all we care about is the ratio
-    a_acc_start = interp(0.05, [0.0, 0.2], self.a_acc_future)
+    a_acc = interp(0.05, [0.0, 0.2], self.a_acc_future)  # this is 0.05 seconds ahead of aStart (if index 2: 0.4 + 0.05 seconds)
+    a_acc_start = self.a_acc_future[0]  # start needs to be at start (if index 2: 0.4 seconds)
 
     longitudinalPlan.vCruise = float(self.v_cruise)
     longitudinalPlan.aCruise = float(self.a_cruise)
     longitudinalPlan.vStart = float(self.v_acc_start)
-    longitudinalPlan.aStart = float(a_acc_start)  # this needs to be current (0.5 sec)
+    longitudinalPlan.aStart = float(a_acc_start)  # this needs to be current (0.4 sec if idx 2)
     longitudinalPlan.vTarget = float(self.v_acc)
-    longitudinalPlan.aTarget = float(a_acc)  # this needs to be 0.05 seconds (0.55 sec)
+    longitudinalPlan.aTarget = float(a_acc)  # this needs to be 0.05 seconds ahead of aStart (0.45 sec if idx 2)
     longitudinalPlan.vTargetFuture = float(self.v_acc_future)
     longitudinalPlan.hasLead = self.mpc1.prev_lead_status
     longitudinalPlan.longitudinalPlanSource = self.longitudinalPlanSource
