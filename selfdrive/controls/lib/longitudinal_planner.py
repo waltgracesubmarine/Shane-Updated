@@ -59,8 +59,8 @@ class Planner():
   def __init__(self, CP):
     self.CP = CP
 
-    self.mpc1 = LongitudinalMpc(1, CP)
-    self.mpc2 = LongitudinalMpc(2, CP)
+    self.mpc1 = LongitudinalMpc(1, CP.radarTimeStep)
+    self.mpc2 = LongitudinalMpc(2, CP.radarTimeStep)
 
     self.v_acc_start = 0.0
     self.a_acc_start = 0.0
@@ -98,14 +98,17 @@ class Planner():
         self.v_acc = self.mpc1.v_mpc
         self.a_acc = self.mpc1.a_mpc
         self.a_acc_start = self.mpc1.a_mpc_start
+        self.v_acc_start = self.mpc1.v_mpc_start
       elif slowest == 'mpc2':
         self.v_acc = self.mpc2.v_mpc
         self.a_acc = self.mpc2.a_mpc
         self.a_acc_start = self.mpc2.a_mpc_start
+        self.v_acc_start = self.mpc2.a_mpc_start
       elif slowest == 'cruise':
         self.v_acc = self.v_cruise
         self.a_acc = self.a_cruise
         self.a_acc_start = self.a_cruise
+        self.v_acc_start = self.v_cruise
 
     self.v_acc_future = min([self.mpc1.v_mpc_future, self.mpc2.v_mpc_future, v_cruise_setpoint])
 
@@ -127,7 +130,7 @@ class Planner():
     enabled = (long_control_state == LongCtrlState.pid) or (long_control_state == LongCtrlState.stopping)
     following = lead_1.status and lead_1.dRel < 45.0 and lead_1.vLeadK > v_ego and lead_1.aLeadK > 0.0
 
-    self.v_acc_start = self.v_acc_next
+    # self.v_acc_start = self.v_acc_next
     # self.a_acc_start = self.a_acc_next
 
     # Calculate speed for normal cruise control
@@ -184,10 +187,10 @@ class Planner():
       cloudlog.info("FCW triggered %s", self.fcw_checker.counters)
 
     # Interpolate 0.05 seconds and save as starting point for next iteration
-    a_acc_sol = self.a_acc_start + (CP.radarTimeStep / LON_MPC_STEP) * (self.a_acc - self.a_acc_start)
-    v_acc_sol = self.v_acc_start + CP.radarTimeStep * (a_acc_sol + self.a_acc_start) / 2.0
-    self.v_acc_next = v_acc_sol
-    self.a_acc_next = a_acc_sol
+    # a_acc_sol = self.a_acc_start + (CP.radarTimeStep / LON_MPC_STEP) * (self.a_acc - self.a_acc_start)
+    # v_acc_sol = self.v_acc_start + CP.radarTimeStep * (a_acc_sol + self.a_acc_start) / 2.0
+    # self.v_acc_next = v_acc_sol
+    # self.a_acc_next = a_acc_sol
 
     self.first_loop = False
 

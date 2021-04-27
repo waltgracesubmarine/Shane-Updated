@@ -33,7 +33,7 @@ def run_following_distance_simulation(v_lead, t_end=200.0):
   v_cruise_setpoint = v_lead + 10.
 
   pm = FakePubMaster()
-  mpc = LongitudinalMpc(1)
+  mpc = LongitudinalMpc(1, 0.05)
 
   first = True
   while t < t_end:

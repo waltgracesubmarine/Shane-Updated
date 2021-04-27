@@ -13,12 +13,13 @@ LON_MPC_STEP = 0.2  # first step is 0.2s
 
 
 class LongitudinalMpc():
-  def __init__(self, mpc_id, CP):
+  def __init__(self, mpc_id, radar_ts):
     self.mpc_id = mpc_id
-    self.plan_step_pos = CP.radarTimeStep / LON_MPC_STEP
+    self.plan_step_pos = radar_ts / LON_MPC_STEP
 
     self.setup_mpc()
-    self.v_mpc = 0.0
+    self.v_mpc = 0.0  # velocity solution at 0.05 seconds
+    self.v_mpc_start = 0.0  # current solution
     self.v_mpc_future = 0.0
     self.a_mpc = 0.0  # accel solution at 0.05 seconds
     self.a_mpc_start = 0.0  # current solution
@@ -101,12 +102,15 @@ class LongitudinalMpc():
     self.duration = int((sec_since_boot() - t) * 1e9)
 
     # Get solution. MPC timestep is 0.2 s, so interpolation to 0.05 s is needed
-    self.v_mpc = self.mpc_solution[0].v_ego[1]  # todo: interpolate this to 0.05 too
     self.v_mpc_future = self.mpc_solution[0].v_ego[10]
 
     self.a_mpc_start = self.mpc_solution[0].a_ego[0]
     a_mpc_step = self.mpc_solution[0].a_ego[1]  # 0.2 seconds, now interpolate down to 0.05
     self.a_mpc = self.a_mpc_start + self.plan_step_pos * (a_mpc_step - self.a_mpc_start)
+
+    self.v_mpc_start = self.mpc_solution[0].v_ego[0]
+    v_mpc_step = self.mpc_solution[0].v_ego[1]  # 0.2 seconds, now interpolate down to 0.05
+    self.v_mpc = self.v_mpc_start + self.plan_step_pos * (v_mpc_step - self.v_mpc_start)
 
     # Reset if NaN or goes through lead car
     crashing = any(lead - ego < -50 for (lead, ego) in zip(self.mpc_solution[0].x_l, self.mpc_solution[0].x_ego))
