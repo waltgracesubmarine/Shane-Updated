@@ -20,7 +20,7 @@ class FakePubMaster():
     assert data
 
 
-def run_following_distance_simulation(v_lead, t_end=50.0):
+def run_following_distance_simulation(v_lead, t_end=800.0):
   dt = 0.05
   t = 0.
 
