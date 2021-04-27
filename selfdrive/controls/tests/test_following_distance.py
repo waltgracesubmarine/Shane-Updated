@@ -88,5 +88,10 @@ class TestFollowingDistance(unittest.TestCase):
 
       simulation_steady_state = run_following_distance_simulation(v_lead)
       correct_steady_state = RW(v_lead, v_lead) + 4.0
+      print(f'v_lead: {v_lead}, sim: {simulation_steady_state}, correct: {correct_steady_state}')
 
       self.assertAlmostEqual(simulation_steady_state, correct_steady_state, delta=0.1)
+
+
+tfd = TestFollowingDistance()
+tfd.test_following_distanc()
