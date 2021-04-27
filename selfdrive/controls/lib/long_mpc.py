@@ -2,6 +2,8 @@ import os
 import math
 
 import cereal.messaging as messaging
+
+from common.numpy_fast import interp
 from selfdrive.swaglog import cloudlog
 from common.realtime import sec_since_boot
 from selfdrive.controls.lib.radar_helpers import _LEAD_ACCEL_TAU
@@ -98,8 +100,10 @@ class LongitudinalMpc():
     self.duration = int((sec_since_boot() - t) * 1e9)
 
     # Get solution. MPC timestep is 0.2 s, so interpolation to 0.05 s is needed
-    self.v_mpc = self.mpc_solution[0].v_ego[1]
-    self.a_mpc = self.mpc_solution[0].a_ego[1]
+    # self.v_mpc = self.mpc_solution[0].v_ego[1]
+    self.v_mpc = interp(0.05, [0, 0.2], self.mpc_solution[0].v_ego[0:2])
+    # self.a_mpc = self.mpc_solution[0].a_ego[1]
+    self.a_mpc = interp(0.05, [0, 0.2], self.mpc_solution[0].a_ego[0:2])
     self.v_mpc_future = self.mpc_solution[0].v_ego[10]
 
     # Reset if NaN or goes through lead car
