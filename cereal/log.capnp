@@ -717,7 +717,6 @@ struct LongitudinalPlan @0xe00b5b3eba12876c {
   aCruise @17 :Float32;
   vTarget @3 :Float32;
   vTargetFuture @14 :Float32;
-  aTargetFuture @32 :Float32;
   vMax @20 :Float32;
   aTarget @18 :Float32;
 

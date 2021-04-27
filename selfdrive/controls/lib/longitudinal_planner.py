@@ -104,7 +104,6 @@ class Planner():
 
     self.v_acc = 0.0
     self.v_acc_future = 0.0
-    self.a_acc_future = 0.0
     self.a_acc = 0.0
     self.v_cruise = 0.0
     self.a_cruise = 0.0
@@ -119,8 +118,7 @@ class Planner():
     self.first_loop = True
 
   def choose_solution(self, v_cruise_setpoint, enabled, model_enabled):
-    possible_futures_v = [self.mpc1.v_mpc_future, self.mpc2.v_mpc_future, v_cruise_setpoint]
-    possible_futures_a = [self.mpc1.a_mpc_future, self.mpc2.a_mpc_future]
+    possible_futures = [self.mpc1.v_mpc_future, self.mpc2.v_mpc_future, v_cruise_setpoint]
     if enabled:
       solutions = {'cruise': self.v_cruise}
       if self.mpc1.prev_lead_status:
@@ -129,8 +127,7 @@ class Planner():
         solutions['mpc2'] = self.mpc2.v_mpc
       if self.mpc_model.valid and model_enabled:
         solutions['model'] = self.mpc_model.v_mpc
-        possible_futures_v.append(self.mpc_model.v_mpc_future)  # only used when using model
-        possible_futures_a.append(self.mpc_model.a_mpc_future)
+        possible_futures.append(self.mpc_model.v_mpc_future)  # only used when using model
 
       slowest = min(solutions, key=solutions.get)
 
@@ -150,8 +147,7 @@ class Planner():
         self.a_acc = self.mpc_model.a_mpc
     # print('{} mph, {} mph/s'.format(round(self.mpc_model.v_mpc * 2.23694, 2), round(self.mpc_model.a_mpc * 2.23694, 2)))
 
-    self.v_acc_future = min(possible_futures_v)
-    self.a_acc_future = min(possible_futures_a)
+    self.v_acc_future = min(possible_futures)
 
   def update(self, sm, CP, VM, PP):
     """Gets called when new radarState is available"""
@@ -261,7 +257,6 @@ class Planner():
     longitudinalPlan.vTarget = float(self.v_acc)
     longitudinalPlan.aTarget = float(self.a_acc)
     longitudinalPlan.vTargetFuture = float(self.v_acc_future)
-    longitudinalPlan.aTargetFuture = float(self.a_acc_future)
     longitudinalPlan.hasLead = self.mpc1.prev_lead_status
     longitudinalPlan.longitudinalPlanSource = self.longitudinalPlanSource
     longitudinalPlan.fcw = self.fcw
