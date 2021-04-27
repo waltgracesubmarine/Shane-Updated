@@ -92,4 +92,5 @@ class TestFollowingDistance(unittest.TestCase):
 
       self.assertAlmostEqual(simulation_steady_state, correct_steady_state, delta=0.1)
 
+
 TestFollowingDistance().test_following_distanc()

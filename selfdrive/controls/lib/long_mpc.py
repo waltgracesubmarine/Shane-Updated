@@ -18,9 +18,7 @@ class LongitudinalMpc():
     self.plan_step_pos = radar_ts / LON_MPC_STEP
 
     self.setup_mpc()
-    self.v_mpc = 0.0  # velocity solution at 0.05 seconds
     self.v_mpc_future = 0.0
-    self.a_mpc = 0.0  # accel solution at 0.05 seconds
     self.v_cruise = 0.0
     self.prev_lead_status = False
     self.prev_lead_x = 0.0
@@ -79,7 +77,7 @@ class LongitudinalMpc():
       self.a_lead_tau = lead.aLeadTau
       self.new_lead = False
       if not self.prev_lead_status or abs(x_lead - self.prev_lead_x) > 2.5:
-        self.libmpc.init_with_simulation(self.v_mpc, x_lead, v_lead, a_lead, self.a_lead_tau)
+        self.libmpc.init_with_simulation(self.mpc_solution[0].v_ego[1], x_lead, v_lead, a_lead, self.a_lead_tau)
         self.new_lead = True
 
       self.prev_lead_status = True
@@ -99,14 +97,6 @@ class LongitudinalMpc():
     self.n_its = self.libmpc.run_mpc(self.cur_state, self.mpc_solution, self.a_lead_tau, a_lead)
     self.duration = int((sec_since_boot() - t) * 1e9)
 
-    a_mpc_start = self.mpc_solution[0].a_ego[0]
-    a_mpc_step = self.mpc_solution[0].a_ego[1]  # 0.2 seconds, now interpolate down to 0.05
-    self.a_mpc = a_mpc_start + self.plan_step_pos * (a_mpc_step - a_mpc_start)
-
-    v_mpc_start = self.mpc_solution[0].v_ego[0]
-    v_mpc_step = self.mpc_solution[0].v_ego[1]  # 0.2 seconds, now interpolate down to 0.05
-    self.v_mpc = v_mpc_start + self.plan_step_pos * (v_mpc_step - v_mpc_start)
-
     self.v_mpc_future = self.mpc_solution[0].v_ego[10]
 
     # Reset if NaN or goes through lead car
@@ -124,6 +114,6 @@ class LongitudinalMpc():
                        MPC_COST_LONG.ACCELERATION, MPC_COST_LONG.JERK)
       self.cur_state[0].v_ego = v_ego
       self.cur_state[0].a_ego = 0.0
-      self.v_mpc = v_ego
-      self.a_mpc = CS.aEgo
+      # self.v_mpc = v_ego
+      # self.a_mpc = CS.aEgo
       self.prev_lead_status = False
