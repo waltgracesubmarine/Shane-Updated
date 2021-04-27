@@ -20,8 +20,8 @@ class FakePubMaster():
     assert data
 
 
-def run_following_distance_simulation(v_lead, t_end=200.0):
-  dt = 0.2
+def run_following_distance_simulation(v_lead, t_end=800.):
+  dt = 0.05
   t = 0.
 
   x_lead = 200.0
@@ -88,7 +88,7 @@ class TestFollowingDistance(unittest.TestCase):
 
       simulation_steady_state = run_following_distance_simulation(v_lead)
       correct_steady_state = RW(v_lead, v_lead) + 4.0
-      print(f'v_lead: {v_lead}, sim: {simulation_steady_state}, correct: {correct_steady_state}')
+      # print(f'v_lead: {v_lead}, sim: {simulation_steady_state}, correct: {correct_steady_state}')
 
       self.assertAlmostEqual(simulation_steady_state, correct_steady_state, delta=0.1)
 
