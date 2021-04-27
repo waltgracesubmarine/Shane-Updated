@@ -92,15 +92,22 @@ class Planner():
 
       self.longitudinalPlanSource = slowest
       # Choose lowest of MPC and cruise
+      mpc = None
       if slowest == 'mpc1':
-        self.v_acc = self.mpc1.mpc_solution[0].v_ego[1]
-        self.a_acc = self.mpc1.mpc_solution[0].a_ego[1]
+        mpc = self.mpc1
       elif slowest == 'mpc2':
-        self.v_acc = self.mpc2.mpc_solution[0].v_ego[1]
-        self.a_acc = self.mpc2.mpc_solution[0].a_ego[1]
+        mpc = self.mpc2
       elif slowest == 'cruise':
+        self.v_acc_start, self.a_acc_start = self.v_acc, self.a_acc
         self.v_acc = self.v_cruise
         self.a_acc = self.a_cruise
+
+      if slowest != 'cruise' and mpc is not None:
+        self.v_acc_start = self.mpc1.mpc_solution[0].v_ego[0]
+        self.a_acc_start = self.mpc1.mpc_solution[0].a_ego[0]
+
+        self.v_acc = interp(0.05, [0, LON_MPC_STEP], mpc.mpc_solution[0].v_ego[0:2])
+        self.a_acc = interp(0.05, [0, LON_MPC_STEP], mpc.mpc_solution[0].a_ego[0:2])
 
     self.v_acc_future = min([self.mpc1.v_mpc_future, self.mpc2.v_mpc_future, v_cruise_setpoint])
 
@@ -158,9 +165,6 @@ class Planner():
 
     self.mpc1.update(sm['carState'], lead_1)
     self.mpc2.update(sm['carState'], lead_2)
-
-    self.a_acc_start = self.a_acc
-    self.v_acc_start = self.v_acc
 
     self.choose_solution(v_cruise_setpoint, enabled)
 
