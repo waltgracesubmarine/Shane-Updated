@@ -19,10 +19,8 @@ class LongitudinalMpc():
 
     self.setup_mpc()
     self.v_mpc = 0.0  # velocity solution at 0.05 seconds
-    self.v_mpc_start = 0.0  # current solution
     self.v_mpc_future = 0.0
     self.a_mpc = 0.0  # accel solution at 0.05 seconds
-    self.a_mpc_start = 0.0  # current solution
     self.v_cruise = 0.0
     self.prev_lead_status = False
     self.prev_lead_x = 0.0
@@ -101,15 +99,13 @@ class LongitudinalMpc():
     self.n_its = self.libmpc.run_mpc(self.cur_state, self.mpc_solution, self.a_lead_tau, a_lead)
     self.duration = int((sec_since_boot() - t) * 1e9)
 
-    # todo: move the starts back to longtudinal planner, but now we won't
-    # have to interpolate so it will just be saving the previous solutions
-    self.a_mpc_start = self.mpc_solution[0].a_ego[0]
+    a_mpc_start = self.mpc_solution[0].a_ego[0]
     a_mpc_step = self.mpc_solution[0].a_ego[1]  # 0.2 seconds, now interpolate down to 0.05
-    self.a_mpc = self.a_mpc_start + self.plan_step_pos * (a_mpc_step - self.a_mpc_start)
+    self.a_mpc = a_mpc_start + self.plan_step_pos * (a_mpc_step - a_mpc_start)
 
-    self.v_mpc_start = self.mpc_solution[0].v_ego[0]
+    v_mpc_start = self.mpc_solution[0].v_ego[0]
     v_mpc_step = self.mpc_solution[0].v_ego[1]  # 0.2 seconds, now interpolate down to 0.05
-    self.v_mpc = self.v_mpc_start + self.plan_step_pos * (v_mpc_step - self.v_mpc_start)
+    self.v_mpc = v_mpc_start + self.plan_step_pos * (v_mpc_step - v_mpc_start)
 
     self.v_mpc_future = self.mpc_solution[0].v_ego[10]
 
