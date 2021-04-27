@@ -9,6 +9,7 @@ from selfdrive.controls.lib.longitudinal_mpc import libmpc_py
 from selfdrive.controls.lib.drive_helpers import MPC_COST_LONG
 
 LOG_MPC = os.environ.get('LOG_MPC', False)
+LON_MPC_STEP = 0.2  # first step is 0.2s
 
 
 class LongitudinalMpc():
