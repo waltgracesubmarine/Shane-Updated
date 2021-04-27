@@ -13,9 +13,8 @@ LON_MPC_STEP = 0.2  # first step is 0.2s
 
 
 class LongitudinalMpc():
-  def __init__(self, mpc_id, radar_ts):
+  def __init__(self, mpc_id):
     self.mpc_id = mpc_id
-    self.plan_step_pos = radar_ts / LON_MPC_STEP
 
     self.setup_mpc()
     self.v_mpc_future = 0.0
