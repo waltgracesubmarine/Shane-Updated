@@ -11,10 +11,9 @@ from selfdrive.config import Conversions as CV
 from selfdrive.controls.lib.speed_smoother import speed_smoother
 from selfdrive.controls.lib.longcontrol import LongCtrlState
 from selfdrive.controls.lib.fcw import FCWChecker
-from selfdrive.controls.lib.long_mpc import LongitudinalMpc
+from selfdrive.controls.lib.long_mpc import LongitudinalMpc, LON_MPC_STEP
 from selfdrive.controls.lib.drive_helpers import V_CRUISE_MAX
 
-LON_MPC_STEP = 0.2  # first step is 0.2s
 AWARENESS_DECEL = -0.2     # car smoothly decel at .2m/s^2 when user is distracted
 
 # lookup tables VS speed to determine min and max accels in cruise
@@ -60,8 +59,8 @@ class Planner():
   def __init__(self, CP):
     self.CP = CP
 
-    self.mpc1 = LongitudinalMpc(1)
-    self.mpc2 = LongitudinalMpc(2)
+    self.mpc1 = LongitudinalMpc(1, CP)
+    self.mpc2 = LongitudinalMpc(2, CP)
 
     self.v_acc_start = 0.0
     self.a_acc_start = 0.0
@@ -98,12 +97,15 @@ class Planner():
       if slowest == 'mpc1':
         self.v_acc = self.mpc1.v_mpc
         self.a_acc = self.mpc1.a_mpc
+        self.a_acc_start = self.mpc1.a_mpc_start
       elif slowest == 'mpc2':
         self.v_acc = self.mpc2.v_mpc
         self.a_acc = self.mpc2.a_mpc
+        self.a_acc_start = self.mpc2.a_mpc_start
       elif slowest == 'cruise':
         self.v_acc = self.v_cruise
         self.a_acc = self.a_cruise
+        self.a_acc_start = self.a_cruise
 
     self.v_acc_future = min([self.mpc1.v_mpc_future, self.mpc2.v_mpc_future, v_cruise_setpoint])
 
@@ -126,7 +128,7 @@ class Planner():
     following = lead_1.status and lead_1.dRel < 45.0 and lead_1.vLeadK > v_ego and lead_1.aLeadK > 0.0
 
     self.v_acc_start = self.v_acc_next
-    self.a_acc_start = self.a_acc_next
+    # self.a_acc_start = self.a_acc_next
 
     # Calculate speed for normal cruise control
     if enabled and not self.first_loop and not sm['carState'].gasPressed:
