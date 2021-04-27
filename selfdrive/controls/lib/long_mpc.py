@@ -12,6 +12,7 @@ from selfdrive.controls.lib.radar_helpers import _LEAD_ACCEL_TAU
 from selfdrive.controls.lib.longitudinal_mpc import libmpc_py
 from selfdrive.controls.lib.drive_helpers import MPC_COST_LONG
 from selfdrive.controls.lib.dynamic_follow import DynamicFollow
+from selfdrive.config import Conversions as CV
 
 LOG_MPC = os.environ.get('LOG_MPC', False)
 
@@ -26,6 +27,7 @@ class LongitudinalMpc():
     self.v_mpc_future = 0.0
     self.a_mpc_future = 0.0
     self.a_mpc = 0.0
+    self.a_mpc_prev = 0.0
     self.v_cruise = 0.0
     self.prev_lead_status = False
     self.prev_lead_x = 0.0
@@ -113,9 +115,10 @@ class LongitudinalMpc():
     # Get solution. MPC timestep is 0.2 s, so interpolation to 0.05 s is needed
     self.v_mpc = self.mpc_solution[0].v_ego[1]
     self.a_mpc = self.mpc_solution[0].a_ego[1]
-    self.v_mpc_future = self.mpc_solution[0].v_ego[10]
+    self.v_mpc_future = self.mpc_solution[0].v_ego[10]  # 2 seconds into the future
 
-    accel_t = self.op_params.get('future_accel_t')
+    # accel_t = self.op_params.get('future_accel_t')
+    accel_t = interp(v_ego, [0, 80 * CV.MPH_TO_MS], [0.2, 1.0])
     self.a_mpc_future = interp(accel_t, np.linspace(0, 2, 11), self.mpc_solution[0].a_ego[0:11])
 
     # Reset if NaN or goes through lead car
