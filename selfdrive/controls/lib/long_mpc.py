@@ -79,9 +79,9 @@ class LongitudinalMpc():
       if not self.prev_lead_status or abs(x_lead - self.prev_lead_x) > 2.5:
         des_ts = 0.15  # this init function was given the vel at 0.15 in future from prev solution
         # (0.2 sec timestep - 0.05 sec iteration)
-        fut = self.mpc_solution[0].v_ego[1]
-        curr = self.mpc_solution[0].v_ego[0]
-        v_mpc = des_ts * (fut - curr) / LON_MPC_STEP + curr
+        one_step = self.mpc_solution[0].v_ego[1]
+        cur_sol = self.mpc_solution[0].v_ego[0]
+        v_mpc = des_ts * (one_step - cur_sol) / LON_MPC_STEP + cur_sol
         self.libmpc.init_with_simulation(v_mpc, x_lead, v_lead, a_lead, self.a_lead_tau)
         self.new_lead = True
 
