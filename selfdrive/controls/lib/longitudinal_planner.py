@@ -64,8 +64,6 @@ class Planner():
 
     self.v_acc_start = 0.0
     self.a_acc_start = 0.0
-    self.v_acc_next = 0.0
-    self.a_acc_next = 0.0
 
     self.v_acc = 0.0
     self.v_acc_future = 0.0
