@@ -127,7 +127,7 @@ class opParams:
                                                            '2 is 0.4 seconds, interpolated to 0.25 seconds\n'
                                                            '3 is 0.6 seconds, interpolated to 0.45 seconds\n'
                                                            '4 is 0.8 seconds, interpolated to 0.65 seconds\n'
-                                                           '5 is 1.0 seconds, interpolated to 0.85 seconds'),
+                                                           '5 is 1.0 seconds, interpolated to 0.85 seconds', live=True),
                         'upload_on_hotspot': Param(False, bool, 'If False, openpilot will not upload driving data while connected to your phone\'s hotspot'),
                         'enable_long_derivative': Param(False, bool, 'If you have longitudinal overshooting, enable this! This enables derivative-based\n'
                                                                      'integral wind-down to help reduce overshooting within the long PID loop'),
