@@ -265,8 +265,12 @@ class Planner():
     longitudinalPlan.mdMonoTime = sm.logMonoTime['modelV2']
     longitudinalPlan.radarStateMonoTime = sm.logMonoTime['radarState']
 
+    # Calculate these separately since changing a_mpc will change the velocity solution as well which we don't want
+    # So velocity solution should still be 0.05 seconds, but send aTarget as the future_index * 0.2 seconds
+    #                                                    and aStart as future_index * 0.2 seconds - 0.05 seconds
     a_acc = self.a_acc_future[1]
-    a_acc_start = interp(0.05, [0, .2], [self.a_cruise_future])
+    # below isn't really 0 to 0.2 seconds, but all we care about is the ratio
+    a_acc_start = interp(0.05, [0.0, 0.2], self.a_acc_future)
 
     longitudinalPlan.vCruise = float(self.v_cruise)
     longitudinalPlan.aCruise = float(self.a_cruise)
