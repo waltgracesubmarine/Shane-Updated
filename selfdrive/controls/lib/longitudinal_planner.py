@@ -149,8 +149,8 @@ class Planner():
         self.a_acc_future = self.a_cruise_future, self.a_cruise_future  # shouldn't matter too much
       elif slowest == 'model':
         self.v_acc = self.mpc_model.mpc_solution[0].v_ego[1]
-        self.a_acc = self.mpc_model.mpc_solution[0].v_ego[1]
-        self.a_acc_future = self.mpc_model.mpc_solution[0].v_ego[self.future_start_step - 1:self.future_start_step + 1]
+        self.a_acc = self.mpc_model.mpc_solution[0].a_ego[1]
+        self.a_acc_future = self.mpc_model.mpc_solution[0].a_ego[self.future_start_step - 1:self.future_start_step + 1]
     # print('{} mph, {} mph/s'.format(round(self.mpc_model.v_mpc * 2.23694, 2), round(self.mpc_model.a_mpc * 2.23694, 2)))
 
     self.v_acc_future = min(possible_futures)
