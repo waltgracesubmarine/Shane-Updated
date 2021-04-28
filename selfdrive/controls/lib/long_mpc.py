@@ -21,7 +21,6 @@ class LongitudinalMpc():
 
     self.dynamic_follow = DynamicFollow(mpc_id)
     self.setup_mpc()
-    self.v_mpc_future = 0.0
     self.v_cruise = 0.0
     self.prev_lead_status = False
     self.prev_lead_x = 0.0
@@ -113,7 +112,6 @@ class LongitudinalMpc():
 
     # accel_t = self.op_params.get('future_accel_t')  # + 0.15
     # self.a_mpc_future = interp(accel_t, [i / 5 for i in range(11)], self.mpc_solution[0].a_ego[0:11])
-    self.v_mpc_future = self.mpc_solution[0].v_ego[10]
 
     # Reset if NaN or goes through lead car
     crashing = any(lead - ego < -50 for (lead, ego) in zip(self.mpc_solution[0].x_l, self.mpc_solution[0].x_ego))
