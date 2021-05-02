@@ -100,9 +100,9 @@ class opParams:
     self.fork_params = {'camera_offset': Param(0.06, NUMBER, 'Your camera offset to use in lane_planner.py', live=True),
                         'dynamic_follow': Param('auto', str, static=True, hidden=True),
 
-                        'torque_unification': Param(True, bool, 'Experimental feature designed to normalize the torque response across speeds and cars\n'
-                                                                'Currently it\'s only been tuned for the TSS1 Corolla, other cars MAY NOT PLAY NICELY (but most Toyotas should)\n'
-                                                                'Disable if steering becomes weird. Only works for PID vehicles currently'),
+                        'torque_unification': Param(False, bool, 'Experimental feature designed to normalize the torque response across speeds and cars\n'
+                                                                 'Currently it\'s only been tuned for the TSS1 Corolla, other cars MAY NOT PLAY NICELY (but most Toyotas should)\n'
+                                                                 'Disable if steering becomes weird. Only works for PID vehicles currently'),
                         'lat_p_multiplier': Param(0.325, NUMBER, 'A multiplier value for proportional, this has been tuned for torque unification\n'
                                                                  'Revert to 1 if you disable torque unification', live=True),
                         'lat_i_multiplier': Param(0.2, NUMBER, 'A multiplier value for integral, this has been tuned for torque unification\n'
