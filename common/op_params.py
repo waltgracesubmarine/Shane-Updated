@@ -107,8 +107,10 @@ class opParams:
                                                                  'Revert to 1 if you disable torque unification', live=True),
                         'lat_i_multiplier': Param(0.2, NUMBER, 'A multiplier value for integral, this has been tuned for torque unification\n'
                                                                'Revert to 1 if you disable torque unification', live=True),
-                        'lat_f_multiplier': Param(1.9, NUMBER, 'A multiplier value for feedforward, this has been tuned for torque unification\n'
-                                                               'This value should be between 1.5 and 2.5. Revert to 1 if you disable torque unification', live=True),
+                        'lat_f_multiplier': Param(1.944, NUMBER, 'A multiplier value for feedforward, this has been tuned for torque unification\n'
+                                                                 'This value should be between 1.5 and 2.5. Some known good values:\n'
+                                                                 'For Corolla: 2.3, TSS2 Corolla: 1.96, Impreza: 1.57\n'
+                                                                 'Revert to 1 if you disable torque unification', live=True),
 
                         'eager_accel': Param(None, [type(None), int], 'Experimental❗ Combats hysteresis in the cruise control system, braking sooner to eliminate jerking\n'
                                                                       'Might only work for TSS1 Toyotas\n'
