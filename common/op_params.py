@@ -99,6 +99,10 @@ class opParams:
 
     self.fork_params = {'camera_offset': Param(0.06, NUMBER, 'Your camera offset to use in lane_planner.py', live=True),
                         'dynamic_follow': Param('auto', str, static=True, hidden=True),
+                        'torque_unification': Param(True, bool, 'Experimental feature designed to normalize the torque response across speeds and cars\n'
+                                                                'Currently it\'s only been tuned for the 17 Corolla but has been shown to work well for other cars as well\n'
+                                                                'Disable if steering becomes weird. Only works for PID vehicles currently'),
+                        'lateral_pi_multiplier': Param(1.0, NUMBER, 'A multiplier value for proportional and integral, 0.5 is half current values, etc', live=True),
                         'eager_accel': Param(None, [type(None), int], 'Experimental❗ Combats hysteresis in the cruise control system, braking sooner to eliminate jerking\n'
                                                                       'Might only work for TSS1 Toyotas\n'
                                                                       'Set the param to `1` to use the first method: uses the smoothened derivative of desired accel\n'
