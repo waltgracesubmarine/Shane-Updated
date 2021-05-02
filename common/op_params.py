@@ -103,12 +103,12 @@ class opParams:
                         'torque_unification': Param(True, bool, 'Experimental feature designed to normalize the torque response across speeds and cars\n'
                                                                 'Currently it\'s only been tuned for the 17 Corolla but has been shown to work well for other cars as well\n'
                                                                 'Disable if steering becomes weird. Only works for PID vehicles currently'),
-                        'lat_p_multiplier': Param(0.25, NUMBER, 'A multiplier value for proportional, this has been tuned for torque unification\n'
-                                                                'Revert to 1 if you disable torque unification', live=True),
+                        'lat_p_multiplier': Param(0.325, NUMBER, 'A multiplier value for proportional, this has been tuned for torque unification\n'
+                                                                 'Revert to 1 if you disable torque unification', live=True),
                         'lat_i_multiplier': Param(0.2, NUMBER, 'A multiplier value for integral, this has been tuned for torque unification\n'
                                                                'Revert to 1 if you disable torque unification', live=True),
-                        'lat_f_multiplier': Param(1.833, NUMBER, 'A multiplier value for feedforward, this has been tuned for torque unification\n'
-                                                                 'This value should be between 1. and 2.5. Revert to 1 if you disable torque unification', live=True),
+                        'lat_f_multiplier': Param(1.9, NUMBER, 'A multiplier value for feedforward, this has been tuned for torque unification\n'
+                                                               'This value should be between 1.5 and 2.5. Revert to 1 if you disable torque unification', live=True),
 
                         'eager_accel': Param(None, [type(None), int], 'Experimental❗ Combats hysteresis in the cruise control system, braking sooner to eliminate jerking\n'
                                                                       'Might only work for TSS1 Toyotas\n'
