@@ -99,15 +99,17 @@ class opParams:
 
     self.fork_params = {'camera_offset': Param(0.06, NUMBER, 'Your camera offset to use in lane_planner.py', live=True),
                         'dynamic_follow': Param('auto', str, static=True, hidden=True),
+
                         'torque_unification': Param(True, bool, 'Experimental feature designed to normalize the torque response across speeds and cars\n'
                                                                 'Currently it\'s only been tuned for the 17 Corolla but has been shown to work well for other cars as well\n'
                                                                 'Disable if steering becomes weird. Only works for PID vehicles currently'),
-                        'lat_p_multiplier': Param(0.25, NUMBER, 'A multiplier value for proportional, 0.5 is half current value, etc\n'
-                                                                'This has been adjusted for torque unification. Revert to 1 if you disable torque uni', live=True),
-                        'lat_i_multiplier': Param(0.2, NUMBER, 'A multiplier value for integral, 0.5 is half current value, etc\n'
-                                                               'This has been adjusted for torque unification. Revert to 1 if you disable torque uni', live=True),
-                        'lat_f_multiplier': Param(1.833, NUMBER, 'A multiplier value for feedforward, 0.5 is half current value, etc\n'
-                                                                 'This has been adjusted for torque unification. Revert to 1 if you disable torque uni', live=True),
+                        'lat_p_multiplier': Param(0.25, NUMBER, 'A multiplier value for proportional, this has been tuned for torque unification\n'
+                                                                'Revert to 1 if you disable torque unification', live=True),
+                        'lat_i_multiplier': Param(0.2, NUMBER, 'A multiplier value for integral, this has been tuned for torque unification\n'
+                                                               'Revert to 1 if you disable torque unification', live=True),
+                        'lat_f_multiplier': Param(1.833, NUMBER, 'A multiplier value for feedforward, this has been tuned for torque unification\n'
+                                                                 'This value should be between 1. and 2.5. Revert to 1 if you disable torque unification', live=True),
+
                         'eager_accel': Param(None, [type(None), int], 'Experimental❗ Combats hysteresis in the cruise control system, braking sooner to eliminate jerking\n'
                                                                       'Might only work for TSS1 Toyotas\n'
                                                                       'Set the param to `1` to use the first method: uses the smoothened derivative of desired accel\n'
