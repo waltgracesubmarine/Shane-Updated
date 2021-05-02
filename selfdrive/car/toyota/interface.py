@@ -12,19 +12,6 @@ EventName = car.CarEvent.EventName
 
 class CarInterface(CarInterfaceBase):
   @staticmethod
-  def compute_torque(torque, speed):
-    def std_feedforward(_angle, _speed):
-      return _speed ** 2 * _angle
-
-    def acc_feedforward(_angle, _speed):
-      _c1, _c2, _c3 = 0.35189607550172824, 7.506201251644202, 69.226826411091
-      return (_c1 * _speed ** 2 + _c2 * _speed + _c3) * _angle
-
-    speed = max(speed, 5 * CV.MPH_TO_MS)  # avoids zero div and too high of multipliers
-    mult = acc_feedforward(1, speed) / std_feedforward(1, speed)
-    return float(torque) * mult
-
-  @staticmethod
   def compute_gb(accel, speed):
     return float(accel) / CarControllerParams.ACCEL_SCALE
 

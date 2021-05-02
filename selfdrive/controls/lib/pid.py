@@ -34,18 +34,15 @@ class LatPIDController():
 
   @property
   def k_p(self):
-    return self.op_params.get('lat_p')
-    # return interp(self.speed, self._k_p[0], self._k_p[1])
+    return interp(self.speed, self._k_p[0], self._k_p[1])
 
   @property
   def k_i(self):
-    return self.op_params.get('lat_i')
-    # return interp(self.speed, self._k_i[0], self._k_i[1])
+    return interp(self.speed, self._k_i[0], self._k_i[1])
 
   @property
   def k_d(self):
-    return self.op_params.get('lat_d')
-    # return interp(self.speed, self._k_d[0], self._k_d[1])
+    return interp(self.speed, self._k_d[0], self._k_d[1])
 
   def _check_saturation(self, control, check_saturation, error):
     saturated = (control < self.neg_limit) or (control > self.pos_limit)
@@ -73,7 +70,7 @@ class LatPIDController():
 
     error = float(apply_deadzone(setpoint - measurement, deadzone))
     self.p = error * self.k_p
-    self.f = feedforward * self.k_f * self.op_params.get('lat_f_multipler')
+    self.f = feedforward * self.k_f
 
     d = 0
     if len(self.errors) >= 5:  # makes sure list is long enough

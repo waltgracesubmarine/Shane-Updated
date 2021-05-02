@@ -43,8 +43,16 @@ class CarInterfaceBase():
     return 1.
 
   @staticmethod
-  def compute_torque(torque, speed):  # no behavior change for cars without custom fit torque function
-    return float(torque)
+  def compute_torque(torque, speed):
+    def std_feedforward(_speed):
+      return _speed ** 2
+
+    def acc_feedforward(_speed):
+      return 0.35189607550172824 * _speed ** 2 + 7.506201251644202 * _speed + 69.226826411091
+
+    speed = max(speed, 20 * CV.MPH_TO_MS)  # avoids zero div and too high of multipliers
+    mult = acc_feedforward(speed) / std_feedforward(speed)
+    return float(torque) * mult
 
   @staticmethod
   def compute_gb(accel, speed):
