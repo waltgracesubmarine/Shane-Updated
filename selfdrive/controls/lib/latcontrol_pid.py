@@ -9,7 +9,7 @@ class LatControlPID():
     self.pid = LatPIDController((CP.lateralTuning.pid.kpBP, CP.lateralTuning.pid.kpV),
                                 (CP.lateralTuning.pid.kiBP, CP.lateralTuning.pid.kiV),
                                 (CP.lateralTuning.pid.kdBP, CP.lateralTuning.pid.kdV),
-                                k_f=CP.lateralTuning.pid.kf * 1.833, pos_limit=1.0, sat_limit=CP.steerLimitTimer,
+                                k_f=CP.lateralTuning.pid.kf, pos_limit=1.0, sat_limit=CP.steerLimitTimer,
                                 convert=compute_torque)
     self.angle_steers_des = 0.
 

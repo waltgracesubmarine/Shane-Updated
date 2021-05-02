@@ -102,7 +102,12 @@ class opParams:
                         'torque_unification': Param(True, bool, 'Experimental feature designed to normalize the torque response across speeds and cars\n'
                                                                 'Currently it\'s only been tuned for the 17 Corolla but has been shown to work well for other cars as well\n'
                                                                 'Disable if steering becomes weird. Only works for PID vehicles currently'),
-                        'lateral_pi_multiplier': Param(1.0, NUMBER, 'A multiplier value for proportional and integral, 0.5 is half current values, etc', live=True),
+                        'lat_p_multiplier': Param(0.25, NUMBER, 'A multiplier value for proportional, 0.5 is half current value, etc\n'
+                                                                'This has been adjusted for torque unification. Revert to 1 if you disable torque uni', live=True),
+                        'lat_i_multiplier': Param(0.2, NUMBER, 'A multiplier value for integral, 0.5 is half current value, etc\n'
+                                                               'This has been adjusted for torque unification. Revert to 1 if you disable torque uni', live=True),
+                        'lat_f_multiplier': Param(1.833, NUMBER, 'A multiplier value for feedforward, 0.5 is half current value, etc\n'
+                                                                 'This has been adjusted for torque unification. Revert to 1 if you disable torque uni', live=True),
                         'eager_accel': Param(None, [type(None), int], 'Experimental❗ Combats hysteresis in the cruise control system, braking sooner to eliminate jerking\n'
                                                                       'Might only work for TSS1 Toyotas\n'
                                                                       'Set the param to `1` to use the first method: uses the smoothened derivative of desired accel\n'
