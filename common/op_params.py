@@ -101,7 +101,7 @@ class opParams:
                         'dynamic_follow': Param('auto', str, static=True, hidden=True),
 
                         'torque_unification': Param(True, bool, 'Experimental feature designed to normalize the torque response across speeds and cars\n'
-                                                                'Currently it\'s only been tuned for the 17 Corolla but has been shown to work well for other cars as well\n'
+                                                                'Currently it\'s only been tuned for the TSS1 Corolla, other cars MAY NOT PLAY NICELY (but most Toyotas should)\n'
                                                                 'Disable if steering becomes weird. Only works for PID vehicles currently'),
                         'lat_p_multiplier': Param(0.325, NUMBER, 'A multiplier value for proportional, this has been tuned for torque unification\n'
                                                                  'Revert to 1 if you disable torque unification', live=True),
