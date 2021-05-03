@@ -4,6 +4,7 @@ from typing import Dict
 
 from cereal import car
 from common.kalman.simple_kalman import KF1D
+from common.numpy_fast import interp
 from common.realtime import DT_CTRL
 from selfdrive.car import gen_empty_fingerprint
 from selfdrive.config import Conversions as CV
@@ -50,7 +51,10 @@ class CarInterfaceBase():
     def acc_feedforward(_speed):
       return 0.35189607550172824 * _speed ** 2 + 7.506201251644202 * _speed + 69.226826411091
 
-    speed = max(speed, 20 * CV.MPH_TO_MS)  # avoids zero div and too high of multipliers
+    # avoids zero div and too high of multipliers
+    weight = interp(speed, [0, 20 * CV.MPH_TO_MS], [0.5, 0])
+    speed = speed * (1 - weight) + 20 * CV.MPH_TO_MS * weight
+
     mult = acc_feedforward(speed) / std_feedforward(speed)
     return float(torque) * mult
 
