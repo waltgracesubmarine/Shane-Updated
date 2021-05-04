@@ -105,7 +105,7 @@ class opParams:
                                                                  'Disable if steering becomes weird. Only works for PID vehicles currently'),
                         'lat_p_multiplier': Param(0.4, NUMBER, 'A multiplier value for proportional, this has been tuned for torque unification\n'
                                                                'Revert to 1 if you disable torque unification', live=True),
-                        'lat_i_multiplier': Param(0.5, NUMBER, 'A multiplier value for integral, this has been tuned for torque unification\n'
+                        'lat_i_multiplier': Param(0.6, NUMBER, 'A multiplier value for integral, this has been tuned for torque unification\n'
                                                                'Revert to 1 if you disable torque unification', live=True),
                         'lat_f_multiplier': Param(1.944, NUMBER, 'A multiplier value for feedforward, this has been tuned for torque unification\n'
                                                                  'This value should be between 1.5 and 2.5. Some known good values:\n'
