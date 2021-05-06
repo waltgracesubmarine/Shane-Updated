@@ -74,7 +74,7 @@ class LatPIDController():
 
     error = float(apply_deadzone(setpoint - measurement, deadzone))
     self.p = error * self.k_p
-    mult = self.op_params.get('lat_f_multiplier') if self.use_torque_unification else 1
+    mult = 1  # self.op_params.get('lat_f_multiplier') if self.use_torque_unification else 1
     self.f = feedforward * self.k_f * mult
 
     d = 0

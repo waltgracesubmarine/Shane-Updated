@@ -49,11 +49,16 @@ class CarInterfaceBase():
       return _speed ** 2
 
     def acc_feedforward(_speed):
-      return 0.35189607550172824 * _speed ** 2 + 7.506201251644202 * _speed + 69.226826411091
+      CUSTOM_FIT_KF = 0.00006908923778520113
+      ORIG_KF = 0.00003
+      comp_mult = CUSTOM_FIT_KF/ORIG_KF
+
+      return 0.35189607550172824 * _speed ** 2 + 7.506201251644202 * _speed + 69.226826411091 * comp_mult
 
     # avoids zero div and too high of multipliers
-    weight = interp(speed, [0, 20 * CV.MPH_TO_MS], [0.5, 0])
-    speed = speed * (1 - weight) + 20 * CV.MPH_TO_MS * weight
+    # weight = interp(speed, [0, 20 * CV.MPH_TO_MS], [0.5, 0])
+    # speed = speed * (1 - weight) + 20 * CV.MPH_TO_MS * weight
+    speed = max(speed, 1)
 
     mult = acc_feedforward(speed) / std_feedforward(speed)
     return float(torque) * mult
