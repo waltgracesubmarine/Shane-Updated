@@ -2,6 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from selfdrive.config import Conversions as CV
 
+CUSTOM_FIT_KF = 0.00006908923778520113
+ORIG_KF = 0.00003
+
 
 def std_feedforward(angle, speed, mph=False):
   """
@@ -19,7 +22,7 @@ def acc_feedforward(angle, speed, mph=False):
   speed = CV.MPH_TO_MS * speed if mph else speed
   # todo: this is a bit out of date, it was fitted assuming 0.12s of delay
   _c1, _c2, _c3 = 0.35189607550172824, 7.506201251644202, 69.226826411091
-  return (_c1 * speed ** 2 + _c2 * speed + _c3) * angle
+  return (_c1 * speed ** 2 + _c2 * speed + _c3) * angle * (CUSTOM_FIT_KF/ORIG_KF)
 
 
 def convert_torque_corolla(speed, mph=False):
