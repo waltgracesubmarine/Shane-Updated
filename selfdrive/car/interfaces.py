@@ -53,7 +53,7 @@ class CarInterfaceBase():
       ORIG_KF = 0.00003
       comp_mult = CUSTOM_FIT_KF/ORIG_KF
 
-      return 0.35189607550172824 * _speed ** 2 + 7.506201251644202 * _speed + 69.226826411091 * comp_mult
+      return (0.35189607550172824 * _speed ** 2 + 7.506201251644202 * _speed + 69.226826411091) * comp_mult
 
     # avoids zero div and too high of multipliers
     # weight = interp(speed, [0, 20 * CV.MPH_TO_MS], [0.5, 0])
