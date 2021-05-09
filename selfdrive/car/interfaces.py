@@ -49,7 +49,7 @@ class CarInterfaceBase():
       return _speed ** 2
 
     def acc_feedforward(_speed):
-      CUSTOM_FIT_KF = 0.00006908923778520113
+      CUSTOM_FIT_KF = 0.00006908923778520113 * 0.88
       ORIG_KF = 0.00003
       comp_mult = CUSTOM_FIT_KF/ORIG_KF
 
