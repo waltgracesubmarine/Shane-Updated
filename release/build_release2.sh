@@ -8,9 +8,10 @@ export GIT_AUTHOR_EMAIL="shane@smiskol.com"
 
 export GIT_SSH_COMMAND="ssh -i /data/gitkey"
 
+ln -s ~/openpilot /data/openpilot
+
 # set CLEAN to build outside of CI
 if [ ! -z "$CLEAN" ]; then
-  echo "clean!"
   # Create folders
   rm -rf /data/openpilot
   mkdir -p /data/openpilot
@@ -26,14 +27,8 @@ else
   git branch -D SA-release || true
 fi
 
-git fetch origin SA-release
-
-# Create release2 with no history
-if [ ! -z "$CLEAN" ]; then
-  git checkout --orphan SA-release origin/devel-staging
-else
-  git checkout --orphan SA-release
-fi
+# Create release with no history
+git checkout --orphan SA-release
 
 VERSION=$(cat selfdrive/common/version.h | awk -F[\"-]  '{print $2}')
 echo "#define COMMA_VERSION \"$VERSION-release\"" > selfdrive/common/version.h
@@ -49,7 +44,7 @@ popd
 # Build stuff
 ln -sfn /data/openpilot /data/pythonpath
 export PYTHONPATH="/data/openpilot:/data/openpilot/pyextra"
-scons -j3
+scons -j8
 
 # Run tests
 python selfdrive/manager/test/test_manager.py
@@ -77,7 +72,7 @@ touch prebuilt
 
 # Add built files to git
 git add -f .
-git commit --amend -m "openpilot v$VERSION"
+git commit --amend -m "Stock Additions v$VERSION"
 
 # Print committed files that are normally gitignored
 #git status --ignored
@@ -89,7 +84,7 @@ if [ ! -z "$PUSH" ]; then
   git push -f origin SA-release
 
   # Create dashcam release
-  git rm selfdrive/car/*/carcontroller.py
+#  git rm selfdrive/car/*/carcontroller.py
 
 #  git commit -m "create dashcam release from release2"
 #  git push -f origin release2-staging:dashcam-staging
