@@ -23,17 +23,16 @@ if [ ! -z "$CLEAN" ]; then
 else
   cd /data/openpilot
   git clean -xdf
-  git branch -D release2-staging || true
+  git branch -D SA-release || true
 fi
 
-git fetch origin release2-staging
-git fetch origin dashcam-staging
+git fetch origin SA-release
 
 # Create release2 with no history
 if [ ! -z "$CLEAN" ]; then
-  git checkout --orphan release2-staging origin/devel-staging
+  git checkout --orphan SA-release origin/devel-staging
 else
-  git checkout --orphan release2-staging
+  git checkout --orphan SA-release
 fi
 
 VERSION=$(cat selfdrive/common/version.h | awk -F[\"-]  '{print $2}')
@@ -86,12 +85,12 @@ git commit --amend -m "openpilot v$VERSION"
 if [ ! -z "$PUSH" ]; then
   git remote set-url origin git@github.com:ShaneSmiskol/openpilot.git
 
-  # Push to release2-staging
-  git push -f origin release2-staging
+  # Push to SA-release
+  git push -f origin SA-release
 
   # Create dashcam release
   git rm selfdrive/car/*/carcontroller.py
 
-  git commit -m "create dashcam release from release2"
-  git push -f origin release2-staging:dashcam-staging
+#  git commit -m "create dashcam release from release2"
+#  git push -f origin release2-staging:dashcam-staging
 fi
