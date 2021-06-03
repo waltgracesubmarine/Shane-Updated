@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 set -e
 
-export GIT_COMMITTER_NAME="Vehicle Researcher"
-export GIT_COMMITTER_EMAIL="user@comma.ai"
-export GIT_AUTHOR_NAME="Vehicle Researcher"
-export GIT_AUTHOR_EMAIL="user@comma.ai"
+export GIT_COMMITTER_NAME="Shane Smiskol"
+export GIT_COMMITTER_EMAIL="shane@smiskol.com"
+export GIT_AUTHOR_NAME="Shane Smiskol"
+export GIT_AUTHOR_EMAIL="shane@smiskol.com"
 
 export GIT_SSH_COMMAND="ssh -i /data/gitkey"
 
 # set CLEAN to build outside of CI
 if [ ! -z "$CLEAN" ]; then
+  echo "clean!"
   # Create folders
   rm -rf /data/openpilot
   mkdir -p /data/openpilot
@@ -17,7 +18,7 @@ if [ ! -z "$CLEAN" ]; then
 
   # Create git repo
   git init
-  git remote add origin git@github.com:commaai/openpilot.git
+  git remote add origin git@github.com:ShaneSmiskol/openpilot.git
   git fetch origin devel-staging
 else
   cd /data/openpilot
@@ -83,7 +84,7 @@ git commit --amend -m "openpilot v$VERSION"
 #git status --ignored
 
 if [ ! -z "$PUSH" ]; then
-  git remote set-url origin git@github.com:commaai/openpilot.git
+  git remote set-url origin git@github.com:ShaneSmiskol/openpilot.git
 
   # Push to release2-staging
   git push -f origin release2-staging
