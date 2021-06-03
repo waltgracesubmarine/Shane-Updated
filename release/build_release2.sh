@@ -89,3 +89,5 @@ if [ ! -z "$PUSH" ]; then
 #  git commit -m "create dashcam release from release2"
 #  git push -f origin release2-staging:dashcam-staging
 fi
+
+git checkout SA-master
