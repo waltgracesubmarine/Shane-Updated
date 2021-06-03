@@ -8,7 +8,7 @@ export GIT_AUTHOR_EMAIL="shane@smiskol.com"
 
 export GIT_SSH_COMMAND="ssh -i /data/gitkey"
 
-ln -s ~/openpilot /data/openpilot
+ln -s $HOME/openpilot /data/openpilot
 
 # set CLEAN to build outside of CI
 if [ ! -z "$CLEAN" ]; then
