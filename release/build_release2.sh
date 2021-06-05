@@ -52,8 +52,8 @@ export PYTHONPATH="/data/openpilot:/data/openpilot/pyextra"
 scons -j8
 
 # Run tests
-python selfdrive/manager/test/test_manager.py
-selfdrive/car/tests/test_car_interfaces.py
+#python selfdrive/manager/test/test_manager.py
+#selfdrive/car/tests/test_car_interfaces.py
 
 # Cleanup
 find . -name '*.a' -delete
