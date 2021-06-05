@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -e
 
+sudo apt-get -y install "^libxcb.*" libx11-xcb-dev libglu1-mesa-dev libxrender-dev
+
 export GIT_COMMITTER_NAME="Shane Smiskol"
 export GIT_COMMITTER_EMAIL="shane@smiskol.com"
 export GIT_AUTHOR_NAME="Shane Smiskol"
 export GIT_AUTHOR_EMAIL="shane@smiskol.com"
 
 export GIT_SSH_COMMAND="ssh -i /data/gitkey"
+export QT_DEBUG_PLUGINS=1
 
 ln -s $HOME/openpilot /data/openpilot
 
@@ -23,6 +26,7 @@ ln -s $HOME/openpilot /data/openpilot
 #  git fetch origin devel-staging
 #else
 cd /data/openpilot
+git checkout SA-master
 git clean -xdf
 git branch -D SA-release || true
 #fi
