@@ -66,8 +66,8 @@ rm -rf .sconsign.dblite Jenkinsfile release/
 rm models/supercombo.dlc
 
 # Move back signed panda fw
-mkdir -p panda/board/obj
-mv /tmp/panda.bin.signed panda/board/obj/panda.bin.signed
+#mkdir -p panda/board/obj
+#mv /tmp/panda.bin.signed panda/board/obj/panda.bin.signed
 
 # Restore phonelibs
 git checkout phonelibs/
