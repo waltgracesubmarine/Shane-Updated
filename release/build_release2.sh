@@ -10,22 +10,22 @@ export GIT_SSH_COMMAND="ssh -i /data/gitkey"
 
 ln -s $HOME/openpilot /data/openpilot
 
-# set CLEAN to build outside of CI
-if [ ! -z "$CLEAN" ]; then
-  # Create folders
-  rm -rf /data/openpilot
-  mkdir -p /data/openpilot
-  cd /data/openpilot
-
-  # Create git repo
-  git init
-  git remote add origin git@github.com:ShaneSmiskol/openpilot.git
-  git fetch origin devel-staging
-else
-  cd /data/openpilot
-  git clean -xdf
-  git branch -D SA-release || true
-fi
+## set CLEAN to build outside of CI
+#if [ ! -z "$CLEAN" ]; then
+#  # Create folders
+#  rm -rf /data/openpilot
+#  mkdir -p /data/openpilot
+#  cd /data/openpilot
+#
+#  # Create git repo
+#  git init
+#  git remote add origin git@github.com:ShaneSmiskol/openpilot.git
+#  git fetch origin devel-staging
+#else
+cd /data/openpilot
+git clean -xdf
+git branch -D SA-release || true
+#fi
 
 # Create release with no history
 git checkout --orphan SA-release
@@ -33,7 +33,7 @@ git checkout --orphan SA-release
 VERSION=$(cat selfdrive/common/version.h | awk -F[\"-]  '{print $2}')
 echo "#define COMMA_VERSION \"$VERSION-release\"" > selfdrive/common/version.h
 
-git commit -m "openpilot v$VERSION"
+git commit -m "stock additions v$VERSION"
 
 # Build signed panda firmware
 pushd panda/
@@ -90,4 +90,4 @@ if [ ! -z "$PUSH" ]; then
 #  git push -f origin release2-staging:dashcam-staging
 fi
 
-git checkout SA-master
+git checkout SA-master -f
