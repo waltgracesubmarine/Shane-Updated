@@ -42,8 +42,8 @@ git commit -m "stock additions v$VERSION"
 # Build signed panda firmware
 pushd panda/
 #CERT=/tmp/pandaextra/certs/release RELEASE=1 scons -u .
-scons -u .
-mv board/obj/panda.bin.signed /tmp/panda.bin.signed
+#scons -u .
+#mv board/obj/panda.bin.signed /tmp/panda.bin.signed
 popd
 
 # Build stuff
