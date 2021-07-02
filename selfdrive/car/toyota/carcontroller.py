@@ -120,14 +120,14 @@ class CarController():
     if (frame % 3 == 0 and CS.CP.openpilotLongitudinalControl) or (pcm_cancel_cmd and Ecu.fwdCamera in self.fake_ecus):
       lead = lead or CS.out.vEgo < 12.    # at low speed we always assume the lead is present do ACC can be engaged
 
-      if sec_since_boot() - self.start_time > 5:
-        # Lexus IS uses a different cancellation message
-        if pcm_cancel_cmd and CS.CP.carFingerprint == CAR.LEXUS_IS:
-          can_sends.append(create_acc_cancel_command(self.packer))
-        elif CS.CP.openpilotLongitudinalControl:
-          can_sends.append(create_accel_command(self.packer, pcm_accel_cmd, pcm_cancel_cmd, self.standstill_req, lead))
-        else:
-          can_sends.append(create_accel_command(self.packer, 0, pcm_cancel_cmd, False, lead))
+      # if sec_since_boot() - self.start_time > 5:
+      # Lexus IS uses a different cancellation message
+      if pcm_cancel_cmd and CS.CP.carFingerprint == CAR.LEXUS_IS:
+        can_sends.append(create_acc_cancel_command(self.packer))
+      elif CS.CP.openpilotLongitudinalControl:
+        can_sends.append(create_accel_command(self.packer, pcm_accel_cmd, pcm_cancel_cmd, self.standstill_req, lead))
+      else:
+        can_sends.append(create_accel_command(self.packer, 0, pcm_cancel_cmd, False, lead))
 
     if frame % 2 == 0 and CS.CP.enableGasInterceptor:
       # send exactly zero if gas cmd is zero. Interceptor will send the max between read value and gas cmd.
