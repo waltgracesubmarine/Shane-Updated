@@ -48,7 +48,6 @@ def test_boardd_loopback():
   cp = car.CarParams.new_message()
   cp.safetyModel = car.CarParams.SafetyModel.allOutput
   Params().put("CarVin", b"0"*17)
-  Params().put_bool("ControlsReady", True)
   Params().put("CarParams", cp.to_bytes())
 
   sendcan = messaging.pub_sock('sendcan')

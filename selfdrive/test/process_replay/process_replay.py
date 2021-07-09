@@ -93,6 +93,7 @@ class FakeSubMaster(messaging.SubMaster):
     self.sock = {s: DumbSocket(s) for s in services}
     self.update_called = threading.Event()
     self.update_ready = threading.Event()
+
     self.wait_on_getitem = False
 
   def __getitem__(self, s):
@@ -189,13 +190,6 @@ def get_car_params(msgs, fsm, can_sock, fingerprint):
     _, CP = get_car(can, sendcan)
   Params().put("CarParams", CP.to_bytes())
 
-def controlsd_rcv_callback(msg, CP, cfg, fsm):
-  # no sendcan until controlsd is initialized
-  socks = [s for s in cfg.pub_sub[msg.which()] if
-           (fsm.frame + 1) % int(service_list[msg.which()].frequency / service_list[s].frequency) == 0]
-  if "sendcan" in socks and fsm.frame < 2000:
-    socks.remove("sendcan")
-  return socks, len(socks) > 0
 
 def radar_rcv_callback(msg, CP, cfg, fsm):
   if msg.which() != "can":
@@ -245,7 +239,7 @@ CONFIGS = [
     },
     ignore=["logMonoTime", "valid", "controlsState.startMonoTime", "controlsState.cumLagMs"],
     init_callback=fingerprint,
-    should_recv_callback=controlsd_rcv_callback,
+    should_recv_callback=None,
     tolerance=NUMPY_TOLERANCE,
     fake_pubsubmaster=True,
   ),
@@ -413,7 +407,7 @@ def python_replay_process(cfg, lr, fingerprint=None):
       recv_socks, should_recv = cfg.should_recv_callback(msg, CP, cfg, fsm)
     else:
       recv_socks = [s for s in cfg.pub_sub[msg.which()] if
-                    (fsm.frame + 1) % int(service_list[msg.which()].frequency / service_list[s].frequency) == 0]
+                      (fsm.frame + 1) % int(service_list[msg.which()].frequency / service_list[s].frequency) == 0]
       should_recv = bool(len(recv_socks))
 
     if msg.which() == 'can':
@@ -429,6 +423,7 @@ def python_replay_process(cfg, lr, fingerprint=None):
       while recv_cnt > 0:
         m = fpm.wait_for_msg()
         log_msgs.append(m)
+
         recv_cnt -= m.which() in recv_socks
   return log_msgs
 
