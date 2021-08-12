@@ -40,6 +40,11 @@ def compute_gb_pedal(accel, speed):
   accel_part = ((_e1 * speed + _e2) * accel ** 5 + (_e3 * speed + _e4) * accel ** 4 + _a3 * accel ** 3 + _a4 * accel ** 2 + _a5 * accel)
   return speed_part + accel_part + _offset
 
+# def accel_to_gas(_a_ego, _v_ego):  # TODO: from experiment on stock, see if we can use this
+#   c1, c2, c3, c4, c5, c6 = [-0.0018705298984563084, 0.02114654769128651, 0.013097655866657579, 0.001969107781263706, -0.00572634369922001, 0.10785843778190311]
+#   _gas = (c4 * _v_ego ** 2 + c5 * _v_ego + c6) * _a_ego
+#   _gas_offset = c1 * _v_ego ** 2 + c2 * _v_ego + c3
+#   return _gas + _gas_offset
 
 
 class CarController():
