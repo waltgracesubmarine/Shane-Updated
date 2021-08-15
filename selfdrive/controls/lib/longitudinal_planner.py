@@ -71,6 +71,45 @@ class ModelMpcHelper:
     return distances, speeds, accelerations
 
 
+class StopLinesHelper:
+  def __init(self):
+    pass
+
+  def update(self, v_ego, sm):
+    msg = messaging.new_message("radarState")
+    lead_0 = log.RadarState.LeadData.new_message()
+
+    model = sm['modelV2']
+    # TODO: check length of array
+    velocity_x_adjusted = np.array(model.velocity.x) - np.array(model.velocity.xStd)
+    if not len(velocity_x_adjusted):
+      lead_0.status = False
+      msg.leadOne = lead_0
+      return lead_0
+
+    stop_ahead = (np.any(velocity_x_adjusted <= v_ego / 3.)) or \
+                 (np.any(velocity_x_adjusted < 5. * CV.MPH_TO_MS) and v_ego < 25. * CV.MPH_TO_MS)
+    lead_0.status = stop_ahead
+    if not stop_ahead:
+      msg.leadOne = lead_0
+      return lead_0
+
+    slowest_idx = 0
+    for idx in range(len(velocity_x_adjusted)):
+      if velocity_x_adjusted[idx] < velocity_x_adjusted[slowest_idx]:
+        slowest_idx = idx
+
+    position_x_adjusted = np.array(model.position.x) - np.array(model.position.xStd)
+    RADAR_TO_CAMERA = 1.52
+    lead_0.dRel = float(position_x_adjusted[slowest_idx] + RADAR_TO_CAMERA)
+    lead_0.vLead = 0.
+    lead_0.aLeadK = 0.
+    lead_0.aLeadTau = 0.
+    msg.leadOne = lead_0
+    print('STOPPING in {} m'.format(round(lead_0.dRel)))
+    return lead_0
+
+
 class Planner():
   def __init__(self, CP):
     self.CP = CP
@@ -78,12 +117,14 @@ class Planner():
     self.mpcs['lead0'] = LeadMpc(0)
     self.mpcs['lead1'] = LeadMpc(1)
     self.mpcs['cruise'] = LongitudinalMpc()
+    self.mpcs['stop_lines_mpc'] = LeadMpc(0)
     # self.mpcs['model'] = LongitudinalMpcModel()
 
     self.fcw = False
     self.fcw_checker = FCWChecker()
     # self.op_params = opParams()
-    self.model_mpc_helper = ModelMpcHelper()
+    # self.model_mpc_helper = ModelMpcHelper()
+    self.stop_lines_helper = StopLinesHelper()
 
     self.v_desired = 0.0
     self.a_desired = 0.0
@@ -134,7 +175,11 @@ class Planner():
     next_a = np.inf
     for key in self.mpcs:
       self.mpcs[key].set_cur_state(self.v_desired, self.a_desired)
-      self.mpcs[key].update(sm['carState'], sm['radarState'], v_cruise)
+      if key is not 'stop_lines_mpc':
+        self.mpcs[key].update(sm['carState'], sm['radarState'], v_cruise)
+      else:
+        radarState_msg = self.stop_lines_helper.update(sm['carState'].vEgo, sm['modelV2'])
+        self.mpcs[key].update(sm['carState'], radarState_msg, v_cruise)
       # TODO: handle model long enabled check
       if self.mpcs[key].status and self.mpcs[key].a_solution[5] < next_a:  # picks slowest solution from accel in ~0.2 seconds
         self.longitudinalPlanSource = key
