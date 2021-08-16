@@ -16,7 +16,7 @@ from selfdrive.controls.lib.long_mpc import LongitudinalMpc
 from selfdrive.controls.lib.drive_helpers import V_CRUISE_MAX, CONTROL_N
 from selfdrive.swaglog import cloudlog
 # from selfdrive.controls.lib.long_mpc_model import LongitudinalMpcModel
-# from common.op_params import opParams
+from common.op_params import opParams
 
 LON_MPC_STEP = 0.2  # first step is 0.2s
 AWARENESS_DECEL = -0.2     # car smoothly decel at .2m/s^2 when user is distracted
@@ -75,39 +75,39 @@ class StopLinesHelper:
   def __init(self):
     pass
 
-  def update(self, v_ego, sm):
+  def update(self, v_ego, sm, enabled):
     msg = messaging.new_message("radarState")
-    lead_0 = log.RadarState.LeadData.new_message()
+    # lead_0 = log.RadarState.LeadData.new_message()
 
     model = sm['modelV2']
     # TODO: check length of array
-    velocity_x_adjusted = np.array(model.velocity.x) - np.array(model.velocity.xStd)
-    if not len(velocity_x_adjusted):
-      lead_0.status = False
-      msg.leadOne = lead_0
-      return lead_0
+    velocity_x_adjusted = np.array(model.velocity.x)
+    if not len(velocity_x_adjusted) or not enabled:
+      msg.radarState.leadOne.status = False
+      # msg.radarState.leadOne = lead_0
+      return msg
 
-    stop_ahead = (np.any(velocity_x_adjusted <= v_ego / 3.)) or \
+    stop_ahead = (np.any(velocity_x_adjusted <= v_ego * 0.8)) or \
                  (np.any(velocity_x_adjusted < 5. * CV.MPH_TO_MS) and v_ego < 25. * CV.MPH_TO_MS)
-    lead_0.status = stop_ahead
+    msg.radarState.leadOne.status = bool(stop_ahead)
     if not stop_ahead:
-      msg.leadOne = lead_0
-      return lead_0
+      # msg.radarState.leadOne = lead_0
+      return msg
 
     slowest_idx = 0
     for idx in range(len(velocity_x_adjusted)):
       if velocity_x_adjusted[idx] < velocity_x_adjusted[slowest_idx]:
         slowest_idx = idx
 
-    position_x_adjusted = np.array(model.position.x) - np.array(model.position.xStd)
+    position_x_adjusted = np.array(model.position.x)
     RADAR_TO_CAMERA = 1.52
-    lead_0.dRel = float(position_x_adjusted[slowest_idx] + RADAR_TO_CAMERA)
-    lead_0.vLead = 0.
-    lead_0.aLeadK = 0.
-    lead_0.aLeadTau = 0.
-    msg.leadOne = lead_0
-    print('STOPPING in {} m'.format(round(lead_0.dRel)))
-    return lead_0
+    msg.radarState.leadOne.dRel = float(position_x_adjusted[slowest_idx])
+    msg.radarState.leadOne.vLead = float(velocity_x_adjusted[slowest_idx])
+    msg.radarState.leadOne.aLeadK = 0.
+    msg.radarState.leadOne.aLeadTau = 0.
+    # msg.radarState.leadOne = lead_0
+    print('STOPPING in {} m'.format(round(msg.radarState.leadOne.dRel)))
+    return msg
 
 
 class Planner():
@@ -122,7 +122,7 @@ class Planner():
 
     self.fcw = False
     self.fcw_checker = FCWChecker()
-    # self.op_params = opParams()
+    self.op_params = opParams()
     # self.model_mpc_helper = ModelMpcHelper()
     self.stop_lines_helper = StopLinesHelper()
 
@@ -178,8 +178,8 @@ class Planner():
       if key is not 'stop_lines_mpc':
         self.mpcs[key].update(sm['carState'], sm['radarState'], v_cruise)
       else:
-        radarState_msg = self.stop_lines_helper.update(sm['carState'].vEgo, sm['modelV2'])
-        self.mpcs[key].update(sm['carState'], radarState_msg, v_cruise)
+        radarState_msg = self.stop_lines_helper.update(sm['carState'].vEgo, sm, self.op_params.get("stop_lines"))
+        self.mpcs[key].update(sm['carState'], radarState_msg.radarState, v_cruise)
       # TODO: handle model long enabled check
       if self.mpcs[key].status and self.mpcs[key].a_solution[5] < next_a:  # picks slowest solution from accel in ~0.2 seconds
         self.longitudinalPlanSource = key
@@ -220,7 +220,7 @@ class Planner():
     longitudinalPlan.jerks = [float(x) for x in self.j_desired_trajectory]
 
     longitudinalPlan.hasLead = self.mpcs['lead0'].status
-    longitudinalPlan.longitudinalPlanSource = self.longitudinalPlanSource
+    longitudinalPlan.longitudinalPlanSource = self.longitudinalPlanSource if self.longitudinalPlanSource is not "stop_lines_mpc" else "lead0"
     longitudinalPlan.fcw = self.fcw
 
     pm.send('longitudinalPlan', plan_send)
