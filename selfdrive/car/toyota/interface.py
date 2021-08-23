@@ -406,10 +406,10 @@ class CarInterface(CarInterfaceBase):
       ret.longitudinalTuning.deadzoneV = [0., .15]
       ret.longitudinalTuning.kpBP = [0., 5., 35.]
       ret.longitudinalTuning.kiBP = [0., 35.]
-      ret.longitudinalTuning.kdBP = [0., 35.]
+      ret.longitudinalTuning.kdBP = [0., 5., 35.]
       ret.longitudinalTuning.kpV = [3.6 * 0.9, 2.4 * 0.9, 1.5 * 0.9]
       ret.longitudinalTuning.kiV = [0.54 * 0.8, 0.36 * 0.8]
-      ret.longitudinalTuning.kdV = [0.2, 0.1]
+      ret.longitudinalTuning.kdV = [0.05, 0.1, 0.3]
     elif candidate in [CAR.COROLLA_TSS2, CAR.COROLLAH_TSS2, CAR.RAV4_TSS2, CAR.RAV4H_TSS2, CAR.LEXUS_NX_TSS2]:
       # Improved longitudinal tune
       ret.longitudinalTuning.deadzoneBP = [0., 8.05]
