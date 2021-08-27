@@ -14,7 +14,9 @@
 #include "selfdrive/ui/qt/qt_window.h"
 #include "selfdrive/ui/qt/setup/installer.h"
 
-#define GIT_URL "https://github.com/commaai/openpilot.git"
+#define GIT_URL "https://github.com/271828182845904523536028747135266249775/openpilot.git"  // max 39 chars
+#define BRANCH "1618033988749894848204586834"  // max 28 chars
+#define LOADING_MSG "3141592653589793238462643383"  // max 28 chars
 #define GIT_SSH_URL "git@github.com:commaai/openpilot.git"
 
 #define CONTINUE_PATH "/data/continue.sh"
@@ -44,7 +46,7 @@ Installer::Installer(QWidget *parent) : QWidget(parent) {
   layout->setContentsMargins(150, 290, 150, 150);
   layout->setSpacing(0);
 
-  QLabel *title = new QLabel("Installing...");
+  QLabel *title = new QLabel("Installing " LOADING_MSG);
   title->setStyleSheet("font-size: 90px; font-weight: 600;");
   layout->addWidget(title, 0, Qt::AlignTop);
 
