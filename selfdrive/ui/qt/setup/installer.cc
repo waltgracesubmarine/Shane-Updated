@@ -46,7 +46,7 @@ Installer::Installer(QWidget *parent) : QWidget(parent) {
   layout->setContentsMargins(150, 290, 150, 150);
   layout->setSpacing(0);
 
-  QLabel *title = new QLabel("Installing " LOADING_MSG);
+  title = new QLabel("Installing " LOADING_MSG);
   title->setStyleSheet("font-size: 90px; font-weight: 600;");
   layout->addWidget(title, 0, Qt::AlignTop);
 
@@ -163,6 +163,9 @@ void Installer::cloneFinished(int exitCode, QProcess::ExitStatus exitStatus) {
   assert(err == 0);
   run("git checkout " BRANCH);
   run("git reset --hard origin/" BRANCH);
+
+  // some confirmation
+  title->setText("Installation complete");
 
   // move into place
   run("mv " TMP_INSTALL_PATH " " INSTALL_PATH);

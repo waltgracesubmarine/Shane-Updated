@@ -20,6 +20,7 @@ private slots:
 private:
   QLabel *val;
   QProgressBar *bar;
+  QLabel *title;
   QProcess proc;
 
   void doInstall();
