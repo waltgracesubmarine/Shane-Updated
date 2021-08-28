@@ -81,14 +81,23 @@ Installer::Installer(QWidget *parent) : QWidget(parent) {
       border: none;
       background-color: #292929;
     }
-    QProgressBar::chunk {
-      background-color: #364DEF;
-    }
   )");
 }
 
+float lerp(float a, float b, float f) {
+  return (a * (1.0 - f)) + (b * f);
+}
+
 void Installer::updateProgress(int percent) {
+  int h = (int)(lerp(233, 360 + 131, percent / 100.)) % 360;
+  int s = lerp(78, 62, percent / 100.);
+  int b = lerp(94, 87, percent / 100.);
+
   bar->setValue(percent);
+  bar->setStyleSheet(QString(R"(
+    QProgressBar::chunk {
+      background-color: hsb(%1, %2%, %3%);
+    })").arg(h).arg(s).arg(b));
   val->setText(QString("%1%").arg(percent));
   update();
 }
@@ -156,6 +165,9 @@ void Installer::cloneFinished(int exitCode, QProcess::ExitStatus exitStatus) {
   qDebug() << "git finished with " << exitCode;
   assert(exitCode == 0);
 
+  // some confirmation
+  title->setText("Installation complete");
+
   updateProgress(100);
 
   // ensure correct branch is checked out
@@ -163,9 +175,6 @@ void Installer::cloneFinished(int exitCode, QProcess::ExitStatus exitStatus) {
   assert(err == 0);
   run("git checkout " BRANCH);
   run("git reset --hard origin/" BRANCH);
-
-  // some confirmation
-  title->setText("Installation complete");
 
   // move into place
   run("mv " TMP_INSTALL_PATH " " INSTALL_PATH);
