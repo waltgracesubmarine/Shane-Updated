@@ -97,7 +97,7 @@ opt = Adam(learning_rate=starting_lr, amsgrad=True, decay=decay)
 model.compile(opt, loss='mae', metrics='mse')
 try:
   model.fit(x_train, y_train, batch_size=2048, epochs=100, validation_data=(x_test, y_test))
-  model.fit(x_train, y_train, batch_size=32, epochs=50, validation_data=(x_test, y_test))
+  # model.fit(x_train, y_train, batch_size=32, epochs=50, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=128, epochs=25, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=32, epochs=25, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=64, epochs=100, validation_data=(x_test, y_test))
@@ -154,6 +154,10 @@ def plot_sequence(sequence_idx=3, show_controller=True):  # plots what model wou
   plt.figure()
   plt.clf()
 
+  if show_controller:
+    controller = [pid.update(line['fut_steering_angle'], line['steering_angle'], line['v_ego']) * TORQUE_SCALE for line in sequence]  # what a pf controller would output
+    plt.plot(controller, label='standard controller')
+
   ground_truth = [line['torque'] for line in sequence]
   plt.plot(ground_truth, label='ground truth')
 
@@ -161,10 +165,6 @@ def plot_sequence(sequence_idx=3, show_controller=True):  # plots what model wou
   _x = [[line[inp] for inp in MODEL_INPUTS] for line in _x]
   pred = model.predict(np.array(_x)).reshape(-1) * TORQUE_SCALE
   plt.plot(pred, label='prediction')
-
-  if show_controller:
-    controller = [pid.update(line['fut_steering_angle'], line['steering_angle'], line['v_ego']) * TORQUE_SCALE for line in sequence]  # what a pf controller would output
-    plt.plot(controller, label='standard controller')
 
   plt.legend()
   plt.show()

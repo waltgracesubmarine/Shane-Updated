@@ -18,7 +18,7 @@ DT_CTRL = 0.01
 MIN_SAMPLES = 5 / DT_CTRL  # seconds to frames
 # STATS_KEYS = {'steering_angle': 'angle', 'steering_rate': 'rate', 'v_ego': 'speed', 'torque': 'torque'}  # this renames keys to shorter names to access later quicker
 
-os.chdir('C:/Git/openpilot-repos/op-smiskol-torque/torque_model')
+os.chdir('C:/Git/openpilot-repos/op-smiskol-main/torque_model')
 
 
 def load_processed(file_name):
@@ -27,32 +27,38 @@ def load_processed(file_name):
 
 
 def get_steer_delay(speed):
-  return round(interp(speed, [20 * CV.MPH_TO_MS, 72 * CV.MPH_TO_MS], [32, 52]))
+  return 42  # mean of 32 and 52
+  # return round(interp(speed, [20 * CV.MPH_TO_MS, 72 * CV.MPH_TO_MS], [32, 52]))
 
 
-def offset_torque(_data):  # todo: offsetting both speed and accel seem to decrease model loss by a LOT. maybe we should just offset all gas instead of these two todo: maybe not?
-  for i in range(len(_data)):  # accounts for steer actuator delay (from torque to change in angle)
-    steering_angle = [line['steering_angle'] for line in _data[i]]
-    steering_rate = [line['steering_rate'] for line in _data[i]]
-    data_len = len(_data[i])
+def offset_torque(_data, synthetic=False):
+  for seq_idx in range(len(_data)):  # accounts for steer actuator delay (from torque to change in angle)
+    steering_angle = [line['steering_angle'] for line in _data[seq_idx]]
+    steering_rate = [line['steering_rate'] for line in _data[seq_idx]]
+    data_len = len(_data[seq_idx])
     steer_delay = 0
     for j in range(data_len):
-      steer_delay = get_steer_delay(_data[i][j]['v_ego'])  # interpolate steer delay from speed
+      if not synthetic:
+        steer_delay = get_steer_delay(_data[seq_idx][j]['v_ego'])  # interpolate steer delay from speed
+      else:
+        steer_delay = random.randint(42, 200)
+        torque_key = 'torque_cmd' if _data[seq_idx][j]['engaged'] else 'torque_eps'
+        _data[seq_idx][j][torque_key] *= steer_delay / get_steer_delay(_data[seq_idx][j]['v_ego'])
       if j + steer_delay >= data_len:
         break
-      _data[i][j]['fut_steering_angle'] = float(steering_angle[j + steer_delay])
-      _data[i][j]['fut_steering_rate'] = float(steering_rate[j + steer_delay])
-    _data[i] = _data[i][:-steer_delay]  # removes trailing samples (uses last steer delay)
+      _data[seq_idx][j]['fut_steering_angle'] = float(steering_angle[j + steer_delay])
+      _data[seq_idx][j]['fut_steering_rate'] = float(steering_rate[j + steer_delay])
+    _data[seq_idx] = _data[seq_idx][:-steer_delay]  # removes trailing samples (uses last steer delay)
   return _data
 
 
 def filter_data(_data):
   # KEEP_DATA = 'engaged'  # user, engaged, or all
-  keep_distribution = {'engaged': 100, 'user': 50}
+  keep_distribution = {'engaged': 100, 'user': 75}
 
   def sample_ok(_line):
-    return 1 * CV.MPH_TO_MS < _line['v_ego'] and abs(_line['steering_rate']) < 150 and \
-           abs(_line['fut_steering_rate']) < 200 and abs(_line['torque_eps'] + _line['torque_driver']) < 3000
+    return 2 * CV.MPH_TO_MS < _line['v_ego'] and abs(_line['steering_rate']) < 200 and \
+           abs(_line['fut_steering_rate']) < 300 and abs(_line['torque_eps']) < 1500*3
 
   filtered_sequences = []
   for sequence in _data:
@@ -61,20 +67,17 @@ def filter_data(_data):
       if not sample_ok(line):
         continue
 
-      if line['engaged'] and random_chance(keep_distribution['engaged']):  # and random_chance(15):
+      if line['engaged'] and random_chance(keep_distribution['engaged']):
         line['torque'] = line['torque_cmd']
         filtered_seq.append(line)
-      if not line['engaged'] and random_chance(keep_distribution['user']):
-        line['torque'] = line['torque_eps'] + line['torque_driver']  # fixme: do we add these? (old: i think eps makes more sense than driver)
+      elif not line['engaged'] and random_chance(keep_distribution['user']):
+        line['torque'] = line['torque_eps']  # TODO: pretty sure we train on eps, driver torque is just torque on steering wheel
         filtered_seq.append(line)
 
     if len(filtered_seq):
       filtered_sequences.append(filtered_seq)
 
   return filtered_sequences
-
-  # flattened = [i for j in filtered_sequences for i in j]
-  # return [i for j in filtered_sequences for i in j], filtered_sequences
 
 
 def even_out_torque(_data):
@@ -197,30 +200,15 @@ class SyntheticDataGenerator:
     #         np.random.normal(0, angles_std / 8))
 
 
-def load_data(to_normalize=False, plot_dists=False):  # filters and processes raw pickle data from rlogs
-  data_sequences = load_processed('data')
-
-
-  # for sec in data:
-  #   print('len: {}'.format(len(sec)))
-  #   print('num. 0 steering_rate: {}'.format(len([line for line in sec if line['steering_rate'] == 0])))
-  #   print()
-
-  # there is a delay between sending torque and reaching the angle
-  # this adds future steering angle and rate data to each sample, which we will use to train on as inputs
-  # data for model: what current torque (output) gets us to the future (input)
-  # this makes more sense than training on desired angle from lateral planner since humans don't always follow what the mpc would predict in any given situation
-  data_sequences = offset_torque(data_sequences)
-
-  for seq in data_sequences:  # add angle error
-    for line in seq:
-      line['angle_error'] = abs(line['steering_angle'] - line['fut_steering_angle'])
-
+def process_sequences(_data_sequences, plot_dists):
   # filter data
-  data_sequences = filter_data(data_sequences)  # returns filtered sequences
+  _data_sequences = filter_data(_data_sequences)  # returns filtered sequences
 
   # flatten into 1d list of dictionary samples
-  flat_samples = [i.copy() for j in data_sequences for i in j]  # make a copy of each list sample so any changes don't affect data_sequences
+  flat_samples = [copy.deepcopy(i) for j in _data_sequences for i in j]  # make a copy of each list sample so any changes don't affect _data_sequences
+
+  for line in flat_samples:  # add angle error
+    line['angle_error'] = abs(line['steering_angle'] - line['fut_steering_angle'])
 
   print('Flat samples: {}'.format(len(flat_samples)))
 
@@ -228,8 +216,10 @@ def load_data(to_normalize=False, plot_dists=False):  # filters and processes ra
     plot_distributions(flat_samples)  # this takes a while
 
   # Remove outliers
-  filtered_data = remove_outliers(flat_samples)  # returns stats about filtered data
-  print('Removed outliers: {} samples'.format(len(filtered_data)))
+  # TODO: do we care about outliers?
+  # filtered_data = remove_outliers(flat_samples)  # returns stats about filtered data
+  # print('Removed outliers: {} samples'.format(len(filtered_data)))
+  filtered_data = flat_samples
 
   if plot_dists:
     plot_distributions(filtered_data, 1)
@@ -244,13 +234,14 @@ def load_data(to_normalize=False, plot_dists=False):  # filters and processes ra
 
     if abs(line['steering_angle']) > 90:
       filtered_data_new.append(line)
-    elif random_chance(interp(abs(line['steering_angle']), [0, 45, 90], [25, 75, 100])):
+    # elif random_chance(interp(abs(line['steering_angle']), [0, 45, 90], [25, 75, 100])):  # TODO: experiment with this
+    elif random_chance(interp(abs(line['steering_angle']), [0, 45, 90], [50, 75, 100])):
       filtered_data_new.append(line)
   data = filtered_data_new
   del filtered_data_new
 
+  # TODO: this didn't seem to work, right curves still were weaker. could be coincidence
   data = even_out_torque(data)  # there's more left angled samples than right for some reason
-
 
   print('Removed inliers: {} samples'.format(len(data)))
 
@@ -260,15 +251,43 @@ def load_data(to_normalize=False, plot_dists=False):  # filters and processes ra
     plot_distributions(data, 2)
 
   print(f'Angle mean, std: {data_stats["angle"].mean, data_stats["angle"].std}')
+  return data, data_stats
+
+
+def load_data(to_normalize=False, plot_dists=False):  # filters and processes raw pickle data from rlogs
+  data_sequences_base = load_processed('data')
+
+
+  # for sec in data:
+  #   print('len: {}'.format(len(sec)))
+  #   print('num. 0 steering_rate: {}'.format(len([line for line in sec if line['steering_rate'] == 0])))
+  #   print()
+
+  # there is a delay between sending torque and reaching the angle
+  # this adds future steering angle and rate data to each sample, which we will use to train on as inputs
+  # data for model: what current torque (output) gets us to the future (input)
+  # this makes more sense than training on desired angle from lateral planner since humans don't always follow what the mpc would predict in any given situation
+  data_sequences = offset_torque(copy.deepcopy(data_sequences_base))
+
+  data, data_stats = process_sequences(data_sequences, plot_dists)
+  print(data[0])
 
   data_generator = SyntheticDataGenerator(data, data_stats)
-  ADD_SYNTHETIC_SAMPLES = True  # fixme, this affects mean and std, but not min/max for normalizing
+
+  ADD_SYNTHETIC_SAMPLES = True
   if ADD_SYNTHETIC_SAMPLES:
 
-    n_synthetic_samples = round(len(data) / 14)
+    n_synthetic_samples = round(len(data) / 10)
     print('There are currently {} real samples'.format(len(data)))
     print('Adding {} synthetic samples...'.format(n_synthetic_samples), flush=True)
-    data += data_generator.generate_many(n_synthetic_samples)
+
+    synthetic_sequences = offset_torque(copy.deepcopy(data_sequences_base), synthetic=True)
+    # print(synthetic_sequences[0])
+    synthetic_data = process_sequences(synthetic_sequences, plot_dists)
+    print(synthetic_data[0])
+    data = synthetic_data
+
+    # data += data_generator.generate_many(n_synthetic_samples)
 
     print('Real and synthetic samples: {}'.format(len(data)))
 
