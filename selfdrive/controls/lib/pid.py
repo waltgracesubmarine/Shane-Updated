@@ -43,6 +43,7 @@ class PIDController:
 
   @property
   def k_d(self):
+    return self.op_params.get('long_kd')
     return interp(self.speed, self._k_d[0], self._k_d[1])
 
   def _check_saturation(self, control, check_saturation, error):
