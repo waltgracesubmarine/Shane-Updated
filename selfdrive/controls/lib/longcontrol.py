@@ -84,7 +84,9 @@ class LongControl():
       accel_delay = interp(CS.vEgo, [4.4704, 35.7632], [0.15, 0.3])  # 10 to 80 mph
       v_target = interp(accel_delay, T_IDXS[:CONTROL_N], long_plan.speeds)
       v_target_future = long_plan.speeds[-1]
-      a_target = interp(accel_delay, T_IDXS[:CONTROL_N], long_plan.accels)
+      print('old a_target: {}'.format(round(interp(accel_delay, T_IDXS[:CONTROL_N], long_plan.accels), 2)))
+      a_target = 2 * (v_target - long_plan.speeds[0]) / DEFAULT_LONG_LAG - long_plan.accels[0]
+      print('new a_target: {}'.format(round(a_target, 2)))
     else:
       v_target = 0.0
       v_target_future = 0.0
