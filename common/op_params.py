@@ -101,6 +101,15 @@ class opParams:
     self.fork_params = {'camera_offset': Param(-0.04 if TICI else 0.06, NUMBER, 'Your camera offset to use in lane_planner.py\n'
                                                                                 'If you have a comma three, note that the default camera offset is -0.04!', live=True),
                         'dynamic_follow': Param('stock', str, static=True, hidden=True),
+                        'torque_unification': Param(False, bool, 'Experimental feature designed to normalize the torque response across speeds and cars\n'
+                                                                 'Currently it\'s only been tuned for the TSS1 Corolla, other cars MAY NOT PLAY NICELY (but most Toyotas should)\n'
+                                                                 'Disable if steering becomes weird. Only works for PID vehicles currently'),
+                        'lat_p_multiplier': Param(0.4, NUMBER, 'A multiplier value for proportional, this has been tuned for torque unification\n'
+                                                               'Revert to 1 if you disable torque unification', live=True),
+                        'lat_i_multiplier': Param(0.6, NUMBER, 'A multiplier value for integral, this has been tuned for torque unification\n'
+                                                               'Revert to 1 if you disable torque unification', live=True),
+                        'lat_d_multiplier': Param(0.5, NUMBER, 'A multiplier value for derivative, this has been tuned for torque unification\n'
+                                                               'Revert to 1 if you disable torque unification', live=True),
                         'global_df_mod': Param(1.0, NUMBER, 'The multiplier for the current distance used by dynamic follow. The range is limited from 0.85 to 2.5\n'
                                                             'Smaller values will get you closer, larger will get you farther\n'
                                                             'This is multiplied by any profile that\'s active. Set to 1. to disable', live=True),

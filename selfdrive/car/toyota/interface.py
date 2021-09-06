@@ -54,10 +54,9 @@ class CarInterface(CarInterfaceBase):
       ret.steerActuatorDelay = 0.3
 
       if prius_use_pid:
-        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.07], [0.04]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.2], [0.05]]
         ret.lateralTuning.pid.kdV = [0.]
-        ret.lateralTuning.pid.kf = 0.00009531750004645412
-        ret.lateralTuning.pid.newKfTuned = True
+        ret.lateralTuning.pid.kf = 0.00003
       else:
         ret.lateralTuning.init('indi')
         ret.lateralTuning.indi.innerLoopGainV = [4.0]
@@ -93,10 +92,12 @@ class CarInterface(CarInterfaceBase):
       tire_stiffness_factor = 0.444  # not optimized yet
       ret.mass = 2860. * CV.LB_TO_KG + STD_CARGO_KG  # mean between normal and hybrid
 
-      ret.lateralTuning.init('model')
-      ret.lateralTuning.model.name = "corolla_model_v5"
-      ret.lateralTuning.model.useRates = False  # TODO: makes model sluggish, see comments in latcontrol_model.py
-      ret.lateralTuning.model.multiplier = 1.
+      ret.lateralTuning.pid.kpBP, ret.lateralTuning.pid.kpV = [[0], [0.2]]  # 45 to 70 mph
+      ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kiV = [[0], [0.05]]
+      ret.lateralTuning.pid.kdBP, ret.lateralTuning.pid.kdV = [[0], [0.1]]
+      ret.lateralTuning.pid.kf = 0.00003  # full torque for 20 deg at 80mph means 0.00007818594
+      # ret.lateralTuning.pid.kf = 0.00006908923778520113  # full torque for 20 deg at 80mph means 0.00007818594
+      # ret.lateralTuning.pid.newKfTuned = True
 
     elif candidate == CAR.LEXUS_RX:
       stop_and_go = True
