@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from kf_tests.tools import load_data
+from kf_tests.tools import load_data, load_data_csv
 
 DT_CTRL = 0.01
 
@@ -37,11 +37,11 @@ class KalmanFilter2:
 
   def predict(self, measurement_A, measurement_B):
     # A is steering angle, B is steering rate
-    A = 0.5
+    A = 0.4
     x_hat_prev = float(self.x_hat)
     self.x_hat = self.x_hat + A * (measurement_A - self.x_hat)
 
-    B = 0.2
+    B = 0.1
     # self.x_hat_d = self.x_hat_d + B * (measurement_B - self.x_hat_d)
     self.x_hat_d = self.x_hat_d + B * ((measurement_A - x_hat_prev) / DT_CTRL)
 
@@ -54,36 +54,37 @@ class KalmanFilter2:
 kf = KalmanFilter()
 kf2 = KalmanFilter2()
 
-data = load_data('steering_wheel_data')
+data = load_data_csv('ZSSdata.csv')[320:]
+# print(data)
 
 kf_estimates = []
 kf2_estimates = []
-actual_data = []
+ground_truth = []
 kf_seen_data = []
 
 angle = 0
 for idx, line in enumerate(data):
-  if line['v_ego'] < 5:
+  line['shitty_angle'] += 0.2
+  if line['wheel_speeds.fl'] < 5:
     continue
   kf.update()
   kf2.update()
   # if idx % 5 == 0:
-  angle = np.random.normal(line['angle_steers'], 0.1/3)
-  angle_rate = np.random.normal(line['angle_steers_rate'], 0.1/3)
-  kf.predict(angle, angle_rate)
-  kf2.predict(angle, angle_rate)
+  angle_rate = 0
+  kf.predict(line['shitty_angle'], angle_rate)
+  kf2.predict(line['shitty_angle'], angle_rate)
 
   kf_estimates.append(kf.x_hat)
   kf2_estimates.append(kf2.x_hat)
-  kf_seen_data.append(angle)
-  actual_data.append(line['angle_steers'])
+  kf_seen_data.append(line['shitty_angle'])
+  ground_truth.append(line['angle_steers'])
 
   if idx % 2 == 0:
     window = 200
     x_range = [max(0, idx - window+1), idx+1]
     x_val = range(*x_range)
     plt.clf()
-    plt.plot(x_val, actual_data[-window:], label='real steering angle')
+    plt.plot(x_val, ground_truth[-window:], label='real steering angle')
     plt.plot(x_val, kf_seen_data[-window:], label='angle kalman filter sees')
     # plt.plot(x_val, kf_estimates[-window:], label='kf estimate')
     plt.plot(x_val, kf2_estimates[-window:], label='kf2 estimate')
