@@ -108,3 +108,17 @@ class PIDController:
 
     self.control = clip(control, self.neg_limit, self.pos_limit)
     return self.control
+
+
+class LatPIDController(PIDController):
+  @property
+  def k_p(self):
+    return self.op_params.get('lat_p')
+
+  @property
+  def k_i(self):
+    return self.op_params.get('lat_i')
+
+  @property
+  def k_d(self):
+    return self.op_params.get('lat_d')
