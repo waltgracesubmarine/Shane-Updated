@@ -27,8 +27,9 @@ class TestFollowingDistance(unittest.TestCase):
       v_lead = float(speed)
 
       simulation_steady_state = run_following_distance_simulation(v_lead)
-      correct_steady_state = desired_follow_distance(v_lead, v_lead)
+      correct_steady_state = desired_follow_distance(v_lead, v_lead, 0.9)
 
+      print(simulation_steady_state / speed, correct_steady_state / speed)
       self.assertAlmostEqual(simulation_steady_state, correct_steady_state, delta=(correct_steady_state*.1 + .3))
 
 

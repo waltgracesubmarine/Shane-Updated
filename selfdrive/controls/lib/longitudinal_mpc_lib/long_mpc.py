@@ -51,8 +51,8 @@ def get_stopped_equivalence_factor(v_lead, t_react=T_REACT):
 def get_safe_obstacle_distance(v_ego, t_react=T_REACT):
   return 2 * t_react * v_ego + (v_ego*v_ego) / (2 * MAX_BRAKE) + 4.0
 
-def desired_follow_distance(v_ego, v_lead):
-  return get_safe_obstacle_distance(v_ego) - get_stopped_equivalence_factor(v_lead)
+def desired_follow_distance(v_ego, v_lead, t_react=T_REACT):
+  return get_safe_obstacle_distance(v_ego, t_react) - get_stopped_equivalence_factor(v_lead, t_react)
 
 
 def gen_long_model():
@@ -185,7 +185,7 @@ class LongitudinalMpc():
     self.accel_limit_arr[:,0] = -1.2
     self.accel_limit_arr[:,1] = 1.2
     self.source = SOURCES[2]
-    self.desired_TR = 1.8
+    self.desired_TR = 0.9
 
   def reset(self):
     self.solver = AcadosOcpSolver('long', N, EXPORT_DIR)
@@ -303,19 +303,23 @@ class LongitudinalMpc():
     # This may all be wrong, just some tests to enable a hacky adjustable following distance
 
     # Calculates difference in ideal distance vs actual distance to a TR diff in seconds
-    lead_react_diff_0 = (lead_xv_ideal_0[0][0] - lead_xv_0[0][0]) / lead_xv_0[1][0]
-    lead_react_diff_1 = (lead_xv_ideal_1[0][0] - lead_xv_1[0][0]) / lead_xv_1[1][0]
+    lead_react_diff_0 = (lead_xv_ideal_0[:,0] - lead_xv_0[:,0]) / lead_xv_0[:,1]
+    lead_react_diff_1 = (lead_xv_ideal_1[:,0] - lead_xv_1[:,0]) / lead_xv_1[:,1]
 
     # TODO: some tuning to be had here
     # basically the lower the desired TR the more we want to stick near it
     # so we come up with a cost to multiply difference in actual TR vs. desired TR by
     # and thus the less we change the stopped factor below
-    react_diff_cost = np.interp(self.desired_TR, [0.9, 1.8, 2.7], [2, 1, 0.5])
+    # react_diff_cost = np.interp(self.desired_TR, [0.9, 1.8, 2.7], [2, 1, 0.5])
+    react_diff_cost = 1.
+    # print(lead_react_diff_0[0])
+    lead_react_diff_0 = lead_react_diff_0[0]
+    lead_react_diff_1 = lead_react_diff_1[0]
     react_diff_mult_0 = np.interp(abs(lead_react_diff_0) * react_diff_cost, [0, 0.9], [1, 0.1])
     react_diff_mult_1 = np.interp(abs(lead_react_diff_1) * react_diff_cost, [0, 0.9], [1, 0.1])
 
-    t_react_compensation_0 = T_REACT + (T_REACT - self.desired_TR) * react_diff_mult_0
-    t_react_compensation_1 = T_REACT + (T_REACT - self.desired_TR) * react_diff_mult_1
+    t_react_compensation_0 = T_REACT + (T_REACT - self.desired_TR)
+    t_react_compensation_1 = T_REACT + (T_REACT - self.desired_TR)
     lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1], t_react_compensation_0)
     lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1], t_react_compensation_1)
 
@@ -373,6 +377,6 @@ class LongitudinalMpc():
       self.reset()
 
 
-# if __name__ == "__main__":
-#   ocp = gen_long_mpc_solver()
-#   AcadosOcpSolver.generate(ocp, json_file=JSON_FILE, build=False)
+if __name__ == "__main__":
+  ocp = gen_long_mpc_solver()
+  AcadosOcpSolver.generate(ocp, json_file=JSON_FILE, build=False)
