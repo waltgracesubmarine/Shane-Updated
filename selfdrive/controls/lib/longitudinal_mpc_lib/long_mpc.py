@@ -51,11 +51,11 @@ T_REACT = 1.8
 MAX_BRAKE = 9.81
 
 
-def get_stopped_equivalence_factor(v_lead):
-  return T_REACT * v_lead + (v_lead*v_lead) / (2 * MAX_BRAKE)
+def get_stopped_equivalence_factor(v_lead, t_react=T_REACT):
+  return t_react * v_lead + (v_lead*v_lead) / (2 * MAX_BRAKE)
 
-def get_safe_obstacle_distance(v_ego):
-  return 2 * T_REACT * v_ego + (v_ego*v_ego) / (2 * MAX_BRAKE) + 4.0
+def get_safe_obstacle_distance(v_ego, t_react=T_REACT):
+  return 2 * t_react * v_ego + (v_ego*v_ego) / (2 * MAX_BRAKE) + 4.0
 
 def desired_follow_distance(v_ego, v_lead):
   return get_safe_obstacle_distance(v_ego) - get_stopped_equivalence_factor(v_lead)
@@ -193,6 +193,7 @@ class LongitudinalMpc():
     self.accel_limit_arr[:,0] = -1.2
     self.accel_limit_arr[:,1] = 1.2
     self.source = SOURCES[2]
+    self.desired_TR = 1.8
 
   def reset(self):
     self.solver = AcadosOcpSolverFast('long', N, EXPORT_DIR)
@@ -285,7 +286,9 @@ class LongitudinalMpc():
     v_lead = clip(v_lead, 0.0, 1e8)
     a_lead = clip(a_lead, -10., 5.)
     lead_xv = self.extrapolate_lead(x_lead, v_lead, a_lead, a_lead_tau)
-    return lead_xv
+    # TODO: experiment with setting accel to 0 so lead's accel is factored in (only distance is considered now)
+    lead_xv_ideal = self.extrapolate_lead(get_stopped_equivalence_factor(v_lead, self.desired_TR), v_lead, a_lead, a_lead_tau)
+    return lead_xv, lead_xv_ideal
 
   def set_accel_limits(self, min_a, max_a):
     self.cruise_min_a = min_a
@@ -295,8 +298,8 @@ class LongitudinalMpc():
     v_ego = self.x0[1]
     self.status = radarstate.leadOne.status or radarstate.leadTwo.status
 
-    lead_xv_0 = self.process_lead(radarstate.leadOne)
-    lead_xv_1 = self.process_lead(radarstate.leadTwo)
+    lead_xv_0, lead_xv_ideal_0 = self.process_lead(radarstate.leadOne)
+    lead_xv_1, lead_xv_ideal_1 = self.process_lead(radarstate.leadTwo)
 
     # set accel limits in params
     self.params[:,0] = interp(float(self.status), [0.0, 1.0], [self.cruise_min_a, MIN_ACCEL])
@@ -305,8 +308,25 @@ class LongitudinalMpc():
     # To estimate a safe distance from a moving lead, we calculate how much stopping
     # distance that lead needs as a minimum. We can add that to the current distance
     # and then treat that as a stopped car/obstacle at this new distance.
-    lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1])
-    lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1])
+
+    # This may all be wrong, just some tests to enable a hacky adjustable following distance
+
+    # Calculates difference in ideal distance vs actual distance to a TR diff in seconds
+    lead_react_diff_0 = (lead_xv_ideal_0[0][0] - lead_xv_0[0][0]) / lead_xv_0[1][0]
+    lead_react_diff_1 = (lead_xv_ideal_1[0][0] - lead_xv_1[0][0]) / lead_xv_1[1][0]
+
+    # TODO: some tuning to be had here
+    # basically the lower the desired TR the more we want to stick near it
+    # so we come up with a cost to multiply difference in actual TR vs. desired TR by
+    # and thus the less we change the stopped factor below
+    react_diff_cost = np.interp(self.desired_TR, [0.9, 1.8, 2.7], [2, 1, 0.5])
+    react_diff_mult_0 = np.interp(abs(lead_react_diff_0) * react_diff_cost, [0, 0.9], [1, 0.1])
+    react_diff_mult_1 = np.interp(abs(lead_react_diff_1) * react_diff_cost, [0, 0.9], [1, 0.1])
+
+    t_react_compensation_0 = T_REACT + (T_REACT - self.desired_TR) * react_diff_mult_0
+    t_react_compensation_1 = T_REACT + (T_REACT - self.desired_TR) * react_diff_mult_1
+    lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1], t_react_compensation_0)
+    lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1], t_react_compensation_1)
 
     # Fake an obstacle for cruise, this ensures smooth acceleration to set speed
     # when the leads are no factor.
@@ -367,6 +387,6 @@ class LongitudinalMpc():
       self.reset()
 
 
-if __name__ == "__main__":
-  ocp = gen_long_mpc_solver()
-  AcadosOcpSolver.generate(ocp, json_file=JSON_FILE, build=False)
+# if __name__ == "__main__":
+#   ocp = gen_long_mpc_solver()
+#   AcadosOcpSolver.generate(ocp, json_file=JSON_FILE, build=False)
