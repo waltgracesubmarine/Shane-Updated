@@ -163,19 +163,6 @@ jobs:
         $DOCKER_LOGIN
         docker push $DOCKER_REGISTRY/$BASE_IMAGE:latest
 
-  static_analysis:
-    name: static analysis
-    runs-on: ubuntu-20.04
-    timeout-minutes: 50
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: true
-    - name: Build Docker image
-      run: eval "$BUILD"
-    - name: pre-commit
-      run: ${{ env.RUN }} "git init && git add -A && pre-commit run --all"
-
   valgrind:
     name: valgrind
     runs-on: ubuntu-20.04
