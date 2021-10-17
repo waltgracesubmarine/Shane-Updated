@@ -77,9 +77,10 @@ def gen_long_model():
 
   # live parameters
   x_obstacle = SX.sym('x_obstacle')
+  desired_dist_comfort = SX.sym('desired_dist_comfort')
   a_min = SX.sym('a_min')
   a_max = SX.sym('a_max')
-  model.p = vertcat(a_min, a_max, x_obstacle)
+  model.p = vertcat(a_min, a_max, x_obstacle, desired_dist_comfort)
 
   # dynamics model
   f_expl = vertcat(v_ego, a_ego, j_ego)
@@ -112,17 +113,18 @@ def gen_long_mpc_solver():
 
   a_min, a_max = ocp.model.p[0], ocp.model.p[1]
   x_obstacle = ocp.model.p[2]
+  desired_dist_comfort = ocp.model.p[3]
 
   ocp.cost.yref = np.zeros((COST_DIM, ))
   ocp.cost.yref_e = np.zeros((COST_E_DIM, ))
 
-  desired_dist_comfort = get_safe_obstacle_distance(v_ego)
+  # desired_dist_comfort = get_safe_obstacle_distance(v_ego)
 
   # The main cost in normal operation is how close you are to the "desired" distance
   # from an obstacle at every timestep. This obstacle can be a lead car
   # or other object. In e2e mode we can use x_position targets as a cost
   # instead.
-  costs = [((x_obstacle - x_ego) - (desired_dist_comfort)) / (v_ego + 10.),
+  costs = [((x_obstacle - x_ego) - (desired_dist_comfort[0])) / (v_ego + 10.),
            x_ego,
            a_ego,
            j_ego]
@@ -135,13 +137,13 @@ def gen_long_mpc_solver():
   constraints = vertcat((v_ego),
                         (a_ego - a_min),
                         (a_max - a_ego),
-                        ((x_obstacle - x_ego) - (3/4) * (desired_dist_comfort)) / (v_ego + 10.))
+                        ((x_obstacle - x_ego) - (3/4) * (desired_dist_comfort[0])) / (v_ego + 10.))
   ocp.model.con_h_expr = constraints
   ocp.model.con_h_expr_e = vertcat(np.zeros(CONSTR_DIM))
 
   x0 = np.zeros(X_DIM)
   ocp.constraints.x0 = x0
-  ocp.parameter_values = np.array([-1.2, 1.2, 0.0])
+  ocp.parameter_values = np.array([-1.2, 1.2, 0.0, 0.0])
 
   # We put all constraint cost weights to 0 and only set them at runtime
   cost_weights = np.zeros(CONSTR_DIM)
@@ -303,25 +305,27 @@ class LongitudinalMpc():
     # This may all be wrong, just some tests to enable a hacky adjustable following distance
 
     # Calculates difference in ideal distance vs actual distance to a TR diff in seconds
-    lead_react_diff_0 = (lead_xv_ideal_0[:,0] - lead_xv_0[:,0]) / lead_xv_0[:,1]
-    lead_react_diff_1 = (lead_xv_ideal_1[:,0] - lead_xv_1[:,0]) / lead_xv_1[:,1]
+    # lead_react_diff_0 = (lead_xv_ideal_0[:,0] - lead_xv_0[:,0]) / lead_xv_0[:,1]
+    # lead_react_diff_1 = (lead_xv_ideal_1[:,0] - lead_xv_1[:,0]) / lead_xv_1[:,1]
 
     # TODO: some tuning to be had here
     # basically the lower the desired TR the more we want to stick near it
     # so we come up with a cost to multiply difference in actual TR vs. desired TR by
     # and thus the less we change the stopped factor below
     # react_diff_cost = np.interp(self.desired_TR, [0.9, 1.8, 2.7], [2, 1, 0.5])
-    react_diff_cost = 1.
+    # react_diff_cost = 1.
     # print(lead_react_diff_0[0])
-    lead_react_diff_0 = lead_react_diff_0[0]
-    lead_react_diff_1 = lead_react_diff_1[0]
-    react_diff_mult_0 = np.interp(abs(lead_react_diff_0) * react_diff_cost, [0, 0.9], [1, 0.1])
-    react_diff_mult_1 = np.interp(abs(lead_react_diff_1) * react_diff_cost, [0, 0.9], [1, 0.1])
+    # lead_react_diff_0 = lead_react_diff_0[0]
+    # lead_react_diff_1 = lead_react_diff_1[0]
+    # react_diff_mult_0 = np.interp(abs(lead_react_diff_0) * react_diff_cost, [0, 0.9], [1, 0.1])
+    # react_diff_mult_1 = np.interp(abs(lead_react_diff_1) * react_diff_cost, [0, 0.9], [1, 0.1])
 
-    t_react_compensation_0 = T_REACT + (T_REACT - self.desired_TR)
-    t_react_compensation_1 = T_REACT + (T_REACT - self.desired_TR)
-    lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1], t_react_compensation_0)
-    lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1], t_react_compensation_1)
+    # t_react_compensation_0 = T_REACT + (T_REACT - self.desired_TR)
+    # t_react_compensation_1 = T_REACT + (T_REACT - self.desired_TR)
+    # lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1], t_react_compensation_0)
+    # lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1], t_react_compensation_1)
+    lead_0_obstacle = lead_xv_0[:, 0] + get_stopped_equivalence_factor(lead_xv_0[:, 1])
+    lead_1_obstacle = lead_xv_1[:, 0] + get_stopped_equivalence_factor(lead_xv_1[:, 1])
 
     # Fake an obstacle for cruise, this ensures smooth acceleration to set speed
     # when the leads are no factor.
@@ -335,6 +339,7 @@ class LongitudinalMpc():
     x_obstacles = np.column_stack([lead_0_obstacle, lead_1_obstacle, cruise_obstacle])
     self.source = SOURCES[np.argmin(x_obstacles[0])]
     self.params[:,2] = np.min(x_obstacles, axis=1)
+    self.params[:,3] = get_safe_obstacle_distance(v_ego, self.desired_TR)
 
     self.run()
     if (np.any(lead_xv_0[:,0] - self.x_sol[:,0] < CRASH_DISTANCE) and
