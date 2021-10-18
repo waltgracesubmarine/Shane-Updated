@@ -190,12 +190,12 @@ def gen_long_mpc_solver():
 class LongitudinalMpc():
   def __init__(self, e2e=False, desired_TR=T_REACT):
     self.e2e = e2e
+    self.desired_TR = desired_TR
     self.reset()
     self.accel_limit_arr = np.zeros((N+1, 2))
     self.accel_limit_arr[:,0] = -1.2
     self.accel_limit_arr[:,1] = 1.2
     self.source = SOURCES[2]
-    self.desired_TR = desired_TR
 
   def reset(self):
     self.solver = AcadosOcpSolverFast('long', N, EXPORT_DIR)
@@ -225,8 +225,16 @@ class LongitudinalMpc():
       self.set_weights_for_lead_policy()
 
   def set_weights_for_lead_policy(self):
-    # TODO: tune x_ego cost based on TR
-    W = np.asfortranarray(np.diag([X_EGO_OBSTACLE_COST, X_EGO_COST, V_EGO_COST, A_EGO_COST, J_EGO_COST]))
+    # WARNING: deceleration tests with these costs:
+    # 0.9 TR gives FCW at 2 m/s/s test and fails at 3 m/s/s test
+    # 1.2 TR fails at 3 m/s/s test
+    # 1.4 TR gives FCW at 3 m/s/s test and fails at 3+ m/s/s test
+    # 1.6 TR succeeds at 3+ m/s/s test without FCW
+    TRs = [0.9, 1.8, 2.7]
+    mults = [10.0, 1.0, 0.1]
+    x_ego_mult = interp(self.desired_TR, TRs, mults)
+
+    W = np.asfortranarray(np.diag([X_EGO_OBSTACLE_COST, X_EGO_COST * x_ego_mult, V_EGO_COST, A_EGO_COST, J_EGO_COST]))
     for i in range(N):
       self.solver.cost_set(i, 'W', W)
     # Setting the slice without the copy make the array not contiguous,
