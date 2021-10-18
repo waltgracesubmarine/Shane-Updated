@@ -208,7 +208,7 @@ class LongitudinalMpc():
     self.solver.cost_set(N, "yref", self.yref[N][:COST_E_DIM])
     self.x_sol = np.zeros((N+1, X_DIM))
     self.u_sol = np.zeros((N,1))
-    self.params = np.zeros((N+1,3))
+    self.params = np.zeros((N+1,4))
     for i in range(N+1):
       self.solver.set(i, 'x', np.zeros(X_DIM))
     self.last_cloudlog_t = 0
@@ -333,8 +333,8 @@ class LongitudinalMpc():
     # t_react_compensation_1 = T_REACT + (T_REACT - self.desired_TR)
     # lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1], t_react_compensation_0)
     # lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1], t_react_compensation_1)
-    lead_0_obstacle = lead_xv_0[:, 0] + get_stopped_equivalence_factor(lead_xv_0[:, 1])
-    lead_1_obstacle = lead_xv_1[:, 0] + get_stopped_equivalence_factor(lead_xv_1[:, 1])
+    lead_0_obstacle = lead_xv_0[:, 0] + get_stopped_equivalence_factor(lead_xv_0[:, 1], self.desired_TR)
+    lead_1_obstacle = lead_xv_1[:, 0] + get_stopped_equivalence_factor(lead_xv_1[:, 1], self.desired_TR)
 
     # Fake an obstacle for cruise, this ensures smooth acceleration to set speed
     # when the leads are no factor.
@@ -343,7 +343,7 @@ class LongitudinalMpc():
     v_cruise_clipped = np.clip(v_cruise * np.ones(N+1),
                                cruise_lower_bound,
                                cruise_upper_bound)
-    cruise_obstacle = T_IDXS*v_cruise_clipped + get_safe_obstacle_distance(v_cruise_clipped)
+    cruise_obstacle = T_IDXS*v_cruise_clipped + get_safe_obstacle_distance(v_cruise_clipped, self.desired_TR)
 
     x_obstacles = np.column_stack([lead_0_obstacle, lead_1_obstacle, cruise_obstacle])
     self.source = SOURCES[np.argmin(x_obstacles[0])]
