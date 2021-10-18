@@ -180,14 +180,14 @@ def gen_long_mpc_solver():
 
 
 class LongitudinalMpc():
-  def __init__(self, e2e=False):
+  def __init__(self, e2e=False, desired_TR=T_REACT):
     self.e2e = e2e
     self.reset()
     self.accel_limit_arr = np.zeros((N+1, 2))
     self.accel_limit_arr[:,0] = -1.2
     self.accel_limit_arr[:,1] = 1.2
     self.source = SOURCES[2]
-    self.desired_TR = 1.8
+    self.desired_TR = desired_TR
 
   def reset(self):
     self.solver = AcadosOcpSolver('long', N, EXPORT_DIR)
@@ -300,8 +300,8 @@ class LongitudinalMpc():
     # To estimate a safe distance from a moving lead, we calculate how much stopping
     # distance that lead needs as a minimum. We can add that to the current distance
     # and then treat that as a stopped car/obstacle at this new distance.
-    lead_0_obstacle = lead_xv_0[:, 0] + get_stopped_equivalence_factor(lead_xv_0[:, 1], self.desired_TR)
-    lead_1_obstacle = lead_xv_1[:, 0] + get_stopped_equivalence_factor(lead_xv_1[:, 1], self.desired_TR)
+    lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1], self.desired_TR)
+    lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1], self.desired_TR)
 
     # Fake an obstacle for cruise, this ensures smooth acceleration to set speed
     # when the leads are no factor.
@@ -331,7 +331,7 @@ class LongitudinalMpc():
     self.accel_limit_arr[:,0] = -10.
     self.accel_limit_arr[:,1] = 10.
     x_obstacle = 1e5*np.ones((N+1))
-    # this doesn't consider fourth TR param, set to anything if needed
+    # FIXME: this doesn't consider fourth TR param, set to anything if needed
     self.params = np.concatenate([self.accel_limit_arr,
                              x_obstacle[:,None]], axis=1)
     self.run()
