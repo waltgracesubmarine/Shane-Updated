@@ -76,11 +76,11 @@ def gen_long_model():
   model.xdot = vertcat(x_ego_dot, v_ego_dot, a_ego_dot)
 
   # live parameters
-  x_obstacle = SX.sym('x_obstacle')
-  desired_dist_comfort = SX.sym('desired_dist_comfort')
   a_min = SX.sym('a_min')
   a_max = SX.sym('a_max')
-  model.p = vertcat(a_min, a_max, x_obstacle, desired_dist_comfort)
+  x_obstacle = SX.sym('x_obstacle')
+  desired_TR = SX.sym('desired_TR')
+  model.p = vertcat(a_min, a_max, x_obstacle, desired_TR)
 
   # dynamics model
   f_expl = vertcat(v_ego, a_ego, j_ego)
@@ -143,7 +143,7 @@ def gen_long_mpc_solver():
 
   x0 = np.zeros(X_DIM)
   ocp.constraints.x0 = x0
-  ocp.parameter_values = np.array([-1.2, 1.2, 0.0, 1.8])
+  ocp.parameter_values = np.array([-1.2, 1.2, 0.0, T_REACT])
 
   # We put all constraint cost weights to 0 and only set them at runtime
   cost_weights = np.zeros(CONSTR_DIM)
@@ -216,6 +216,7 @@ class LongitudinalMpc():
       self.set_weights_for_lead_policy()
 
   def set_weights_for_lead_policy(self):
+    # TODO: tune x_ego cost based on TR
     W = np.diag([X_EGO_COST, 0.0, A_EGO_COST, J_EGO_COST])
     Ws = np.tile(W[None], reps=(N,1,1))
     self.solver.cost_set_slice(0, N, 'W', Ws, api='old')
@@ -279,9 +280,7 @@ class LongitudinalMpc():
     v_lead = clip(v_lead, 0.0, 1e8)
     a_lead = clip(a_lead, -10., 5.)
     lead_xv = self.extrapolate_lead(x_lead, v_lead, a_lead, a_lead_tau)
-    # TODO: experiment with setting accel to 0 so lead's accel is factored in (only distance is considered now)
-    lead_xv_ideal = self.extrapolate_lead(get_stopped_equivalence_factor(v_lead, self.desired_TR), v_lead, a_lead, a_lead_tau)
-    return lead_xv, lead_xv_ideal
+    return lead_xv
 
   def set_accel_limits(self, min_a, max_a):
     self.cruise_min_a = min_a
@@ -291,8 +290,8 @@ class LongitudinalMpc():
     v_ego = self.x0[1]
     self.status = radarstate.leadOne.status or radarstate.leadTwo.status
 
-    lead_xv_0, lead_xv_ideal_0 = self.process_lead(radarstate.leadOne)
-    lead_xv_1, lead_xv_ideal_1 = self.process_lead(radarstate.leadTwo)
+    lead_xv_0 = self.process_lead(radarstate.leadOne)
+    lead_xv_1 = self.process_lead(radarstate.leadTwo)
 
     # set accel limits in params
     self.params[:,0] = interp(float(self.status), [0.0, 1.0], [self.cruise_min_a, MIN_ACCEL])
@@ -301,29 +300,6 @@ class LongitudinalMpc():
     # To estimate a safe distance from a moving lead, we calculate how much stopping
     # distance that lead needs as a minimum. We can add that to the current distance
     # and then treat that as a stopped car/obstacle at this new distance.
-
-    # This may all be wrong, just some tests to enable a hacky adjustable following distance
-
-    # Calculates difference in ideal distance vs actual distance to a TR diff in seconds
-    # lead_react_diff_0 = (lead_xv_ideal_0[:,0] - lead_xv_0[:,0]) / lead_xv_0[:,1]
-    # lead_react_diff_1 = (lead_xv_ideal_1[:,0] - lead_xv_1[:,0]) / lead_xv_1[:,1]
-
-    # TODO: some tuning to be had here
-    # basically the lower the desired TR the more we want to stick near it
-    # so we come up with a cost to multiply difference in actual TR vs. desired TR by
-    # and thus the less we change the stopped factor below
-    # react_diff_cost = np.interp(self.desired_TR, [0.9, 1.8, 2.7], [2, 1, 0.5])
-    # react_diff_cost = 1.
-    # print(lead_react_diff_0[0])
-    # lead_react_diff_0 = lead_react_diff_0[0]
-    # lead_react_diff_1 = lead_react_diff_1[0]
-    # react_diff_mult_0 = np.interp(abs(lead_react_diff_0) * react_diff_cost, [0, 0.9], [1, 0.1])
-    # react_diff_mult_1 = np.interp(abs(lead_react_diff_1) * react_diff_cost, [0, 0.9], [1, 0.1])
-
-    # t_react_compensation_0 = T_REACT + (T_REACT - self.desired_TR)
-    # t_react_compensation_1 = T_REACT + (T_REACT - self.desired_TR)
-    # lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1], t_react_compensation_0)
-    # lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1], t_react_compensation_1)
     lead_0_obstacle = lead_xv_0[:, 0] + get_stopped_equivalence_factor(lead_xv_0[:, 1], self.desired_TR)
     lead_1_obstacle = lead_xv_1[:, 0] + get_stopped_equivalence_factor(lead_xv_1[:, 1], self.desired_TR)
 
@@ -355,6 +331,7 @@ class LongitudinalMpc():
     self.accel_limit_arr[:,0] = -10.
     self.accel_limit_arr[:,1] = 10.
     x_obstacle = 1e5*np.ones((N+1))
+    # this doesn't consider fourth TR param, set to anything if needed
     self.params = np.concatenate([self.accel_limit_arr,
                              x_obstacle[:,None]], axis=1)
     self.run()
