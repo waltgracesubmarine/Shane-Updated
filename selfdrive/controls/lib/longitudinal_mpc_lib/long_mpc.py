@@ -231,10 +231,11 @@ class LongitudinalMpc():
     # 1.4 TR gives FCW at 3 m/s/s test and fails at 3+ m/s/s test
     # 1.6 TR succeeds at 3+ m/s/s test without FCW
     TRs = [0.9, 1.8, 2.7]
-    mults = [10.0, 1.0, 0.1]
-    x_ego_mult = interp(self.desired_TR, TRs, mults)
+    x_ego_cost_multiplier = interp(self.desired_TR, TRs, [15., 1.0, 0.1])
+    j_ego_cost_multiplier = interp(self.desired_TR, TRs, [0.5, 1.0, 1.0])
+    d_zone_cost_multiplier = interp(self.desired_TR, TRs, [15., 1.0, 1.0])
 
-    W = np.asfortranarray(np.diag([X_EGO_OBSTACLE_COST, X_EGO_COST * x_ego_mult, V_EGO_COST, A_EGO_COST, J_EGO_COST]))
+    W = np.asfortranarray(np.diag([X_EGO_OBSTACLE_COST, X_EGO_COST * x_ego_cost_multiplier, V_EGO_COST, A_EGO_COST, J_EGO_COST * j_ego_cost_multiplier]))
     for i in range(N):
       self.solver.cost_set(i, 'W', W)
     # Setting the slice without the copy make the array not contiguous,
@@ -242,7 +243,7 @@ class LongitudinalMpc():
     self.solver.cost_set(N, 'W', np.copy(W[:COST_E_DIM, :COST_E_DIM]))
 
     # Set L2 slack cost on lower bound constraints
-    Zl = np.array([LIMIT_COST, LIMIT_COST, LIMIT_COST, DANGER_ZONE_COST])
+    Zl = np.array([LIMIT_COST, LIMIT_COST, LIMIT_COST, DANGER_ZONE_COST * d_zone_cost_multiplier])
     for i in range(N):
       self.solver.cost_set(i, 'Zl', Zl)
 
