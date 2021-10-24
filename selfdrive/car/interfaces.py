@@ -60,7 +60,8 @@ class CarInterfaceBase():
   def get_steer_feedforward_default(desired_angle, v_ego):
     # Proportional to realigning tire momentum: lateral acceleration.
     # TODO: something with lateralPlan.curvatureRates
-    return desired_angle * (v_ego**2)
+    _c1, _c2, _c3 = 0.35189607550172824, 7.506201251644202, 69.226826411091
+    return desired_angle * (_c1 * v_ego ** 2 + _c2 * v_ego + _c3)
 
   @classmethod
   def get_steer_feedforward_function(cls):
