@@ -46,7 +46,7 @@ class LatControlPID():
                                      feedforward=steer_feedforward, speed=CS.vEgo, deadzone=deadzone)
 
       # estimates average kf using accurate feedforward function, only when actively steering
-      if abs(CS.steeringRateDeg) < 10 and abs(angle_steers_des_no_offset) > 10 and CS.vEgo > 5:
+      if abs(CS.steeringRateDeg) < 10 and abs(angle_steers_des_no_offset) > 10 and CS.vEgo > 10 and not CS.steeringPressed:
         self.kf_mean.predict(abs(output_steer / (angle_steers_des_no_offset * steer_feedforward)))
         self.pid.k_f = self.kf_mean.x_hat
         print('Using kf: {}'.format(round(self.kf_mean.x_hat, 7)))
