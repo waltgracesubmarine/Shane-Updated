@@ -122,7 +122,7 @@ def gen_long_mpc_solver():
   # from an obstacle at every timestep. This obstacle can be a lead car
   # or other object. In e2e mode we can use x_position targets as a cost
   # instead.
-  costs = [((x_obstacle - x_ego) - (desired_dist_comfort)) / (v_ego + 10.),
+  costs = [((x_obstacle - x_ego) - (desired_dist_comfort)) / (0.9 * v_ego + 15.),
            x_ego,
            a_ego,
            j_ego]
