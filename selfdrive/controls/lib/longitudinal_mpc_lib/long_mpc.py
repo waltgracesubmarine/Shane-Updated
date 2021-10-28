@@ -244,7 +244,7 @@ class LongitudinalMpc:
       self.solver.cost_set(i, 'Zl', Zl)
 
   def set_weights_for_xva_policy(self):
-    W = np.asfortranarray(np.diag([0., 10., 1., 10., 0.0, 1.]))
+    W = np.diag([0., 0.1, .5, 1., 0.0, 1.])
     for i in range(N):
       self.solver.cost_set(i, 'W', W)
     # Setting the slice without the copy make the array not contiguous,
@@ -302,7 +302,7 @@ class LongitudinalMpc:
     self.cruise_max_a = max_a
 
   def update(self, carstate, radarstate, v_cruise, x, v, a, prev_accel_constraint=False):
-    v_ego = self.x0[1]
+    #v_ego = self.x0[1]
     a_ego = self.x0[2]
     self.yref[:,1] = x
     self.yref[:,2] = v
