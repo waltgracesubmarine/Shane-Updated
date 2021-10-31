@@ -16,9 +16,10 @@ from torque_model.load import load_data
 from sklearn.model_selection import train_test_split
 from selfdrive.config import Conversions as CV
 import seaborn as sns
+from common.basedir import BASEDIR
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-os.chdir('C:/Git/openpilot-repos/op-smiskol-torque/torque_model')
+os.chdir(os.path.join(BASEDIR, 'torque_model'))
 
 # print(tf.config.optimizer.get_experimental_options())
 # tf.config.optimizer.set_experimental_options({'constant_folding': True, 'pin_to_host_optimization': True, 'loop_optimization': True, 'scoped_allocator_optimization': True})
@@ -30,8 +31,8 @@ except:
   # Invalid device or cannot modify virtual devices once initialized.
   pass
 
-to_normalize = False
-data, data_sequences, data_stats, _ = load_data(to_normalize)
+NORMALIZED = False
+data, data_sequences, data_stats, _ = load_data(NORMALIZED)
 # del data_high_delay, data_sequences
 print(f'Number of samples: {len(data)}')
 
@@ -96,8 +97,8 @@ opt = Adam(learning_rate=starting_lr, amsgrad=True, decay=decay)
 # opt = Adagrad(learning_rate=0.2)
 model.compile(opt, loss='mae', metrics='mse')
 try:
-  model.fit(x_train, y_train, batch_size=2048, epochs=100, validation_data=(x_test, y_test))
-  model.fit(x_train, y_train, batch_size=32, epochs=50, validation_data=(x_test, y_test))
+  model.fit(x_train, y_train, batch_size=512, epochs=100, validation_data=(x_test, y_test))
+  model.fit(x_train, y_train, batch_size=128, epochs=50, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=128, epochs=25, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=32, epochs=25, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=64, epochs=100, validation_data=(x_test, y_test))
@@ -130,13 +131,13 @@ def plot_response(angle=15, around=15, speed=37):  # plots model output compared
   plt.clf()
   desired = np.linspace(angle - around, angle + around, 200)
   error = np.array(desired) - angle
-  rate = normalize_value(0, 'rate', data_stats, to_normalize)
+  rate = normalize_value(0, 'rate', data_stats, NORMALIZED)
   speed *= CV.MPH_TO_MS
   y_pid = []
   y_model = []
   for des in desired:
     y_model.append(
-      model.predict_on_batch(np.array([[normalize_value(des, "angle", data_stats, to_normalize), normalize_value(angle, "angle", data_stats, to_normalize), rate, rate, normalize_value(speed, "speed", data_stats, to_normalize)]]))[0][0] * 1500)
+      model.predict_on_batch(np.array([[normalize_value(des, "angle", data_stats, NORMALIZED), normalize_value(angle, "angle", data_stats, NORMALIZED), rate, rate, normalize_value(speed, "speed", data_stats, NORMALIZED)]]))[0][0] * 1500)
     y_pid.append(pid.update(des, angle, speed) * 1500)
   plt.plot(error, y_pid, label='standard pf controller')
   plt.plot(error, y_model, label='model')
@@ -146,7 +147,6 @@ def plot_response(angle=15, around=15, speed=37):  # plots model output compared
   plt.legend()
   plt.show()
 
-
 pid = LatControlPF()
 def plot_sequence(sequence_idx=3, show_controller=True):  # plots what model would do in a sequence of data
   sequence = data_sequences[sequence_idx]
@@ -154,10 +154,10 @@ def plot_sequence(sequence_idx=3, show_controller=True):  # plots what model wou
   plt.figure()
   plt.clf()
 
-  ground_truth = [line['torque'] for line in sequence]
+  ground_truth = [line['torque_eps'] for line in sequence]
   plt.plot(ground_truth, label='ground truth')
 
-  _x = [normalize_sample(line, data_stats, to_normalize) for line in sequence]
+  _x = [normalize_sample(line, data_stats, NORMALIZED) for line in sequence]
   _x = [[line[inp] for inp in MODEL_INPUTS] for line in _x]
   pred = model.predict(np.array(_x)).reshape(-1) * TORQUE_SCALE
   plt.plot(pred, label='prediction')
@@ -169,6 +169,8 @@ def plot_sequence(sequence_idx=3, show_controller=True):  # plots what model wou
   plt.legend()
   plt.show()
 
-plot_sequence(-3)
-plot_sequence(4)
-plot_sequence(15)
+
+plot_response()
+# plot_sequence(-3)
+# plot_sequence(4)
+# plot_sequence(15)

@@ -56,13 +56,13 @@ def model_feedforward(angle, speed):
 
 class LatControlPF:
   def __init__(self):
-    self.k_f = 0.00006908923778520113
+    self.k_f = 0.00008
     # self.k_f = 0.00003
     self.speed = 0
 
   @property
   def k_p(self):
-    return interp(self.speed, [20 * CV.MPH_TO_MS, 70 * CV.MPH_TO_MS], [.05, .15])
+    return 0.3  # interp(self.speed, [20 * CV.MPH_TO_MS, 70 * CV.MPH_TO_MS], [.05, .15])
 
   def update(self, setpoint, measurement, speed):
     self.speed = speed
@@ -80,3 +80,28 @@ class LatControlPF:
 
 def random_chance(percent: int):
   return percent == 0 or random.randint(0, 100) < percent
+
+
+def tokenize(data: list, seq_length: int, seq_offset: int = 0):
+  """
+  1-d convolutes/tokenizes any list type
+
+  data: list of your choice to be convoluted
+  seq_length: how long each sublist should be
+  seq_offset: [[N, N+1, N+2], [N+seq_offset, N+1+seq_offset, N+2+seq_offset], etc]
+    useful if you don't want extremely dense data
+  """
+  seq = []
+  for i in range(len(data) - seq_length + 1):
+    offset = i * seq_offset
+    token = data[i + offset:i + seq_length + offset]
+    if len(token) == seq_length:
+      seq.append(token)
+  return seq
+
+
+def split_list(l, n, enforce_len=True):
+  output = []
+  for i in range(0, len(l), n):
+    output.append(l[i:i + n])
+  return [i for i in output if (len(i) == n and enforce_len) or not enforce_len]

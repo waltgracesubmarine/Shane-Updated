@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import copy
 import os
 import random
@@ -12,13 +11,15 @@ from selfdrive.config import Conversions as CV
 import seaborn as sns
 import time
 import pickle
-from torque_model.helpers import feedforward, random_chance, TORQUE_SCALE, LatControlPF, STATS_KEYS, REVERSED_STATS_KEYS, MODEL_INPUTS, normalize_sample
+from common.basedir import BASEDIR
+from torque_model.helpers import feedforward, random_chance, TORQUE_SCALE, LatControlPF, STATS_KEYS, REVERSED_STATS_KEYS, MODEL_INPUTS, normalize_sample, tokenize
 
 DT_CTRL = 0.01
 MIN_SAMPLES = 5 / DT_CTRL  # seconds to frames
+STANDARD_STEER_DELAY = int(0.5 / DT_CTRL)
 # STATS_KEYS = {'steering_angle': 'angle', 'steering_rate': 'rate', 'v_ego': 'speed', 'torque': 'torque'}  # this renames keys to shorter names to access later quicker
 
-os.chdir('C:/Git/openpilot-repos/op-smiskol-torque/torque_model')
+os.chdir(os.path.join(BASEDIR, 'torque_model'))
 
 
 def load_processed(file_name):
@@ -27,23 +28,91 @@ def load_processed(file_name):
 
 
 def get_steer_delay(speed):
+  # TODO: should this be a static value? if we compensate for lag at runtime, can't we ask
   return round(interp(speed, [20 * CV.MPH_TO_MS, 72 * CV.MPH_TO_MS], [32, 52]))
 
 
-def offset_torque(_data):  # todo: offsetting both speed and accel seem to decrease model loss by a LOT. maybe we should just offset all gas instead of these two todo: maybe not?
-  for i in range(len(_data)):  # accounts for steer actuator delay (from torque to change in angle)
-    steering_angle = [line['steering_angle'] for line in _data[i]]
-    steering_rate = [line['steering_rate'] for line in _data[i]]
-    data_len = len(_data[i])
-    steer_delay = 0
-    for j in range(data_len):
-      steer_delay = get_steer_delay(_data[i][j]['v_ego'])  # interpolate steer delay from speed
-      if j + steer_delay >= data_len:
-        break
-      _data[i][j]['fut_steering_angle'] = float(steering_angle[j + steer_delay])
-      _data[i][j]['fut_steering_rate'] = float(steering_rate[j + steer_delay])
-    _data[i] = _data[i][:-steer_delay]  # removes trailing samples (uses last steer delay)
-  return _data
+# 2*(t-STANDARD_STEER_DELAY)+STANDARD_STEER_DELAY
+def offset_torque(seq):
+  """
+  Accounts for steer actuator delay (from torque to change in angle).
+  Also adds synthetic data generated using real data, by using future angles
+  and the average of torques to get there multiplied by time
+
+  Torque multiplication function: 2*(t-STANDARD_STEER_DELAY)+STANDARD_STEER_DELAY
+  (t/STANDARD_STEER_DELAY-STANDARD_STEER_DELAY)
+  probably just: (t+0.5)
+  """
+
+  pid = LatControlPF()
+
+  data_processed = []
+
+  # time delay in seconds, and minimum angle error for each delay
+  # TODO: (too small of angle error at high delays causes weirdness where torque is too small) (maybe?)
+  time_delays = {0.5: 0.05,  # all have 0.5 seconds added as delay
+                 1.0: 0.1,
+                 2.0: 1.0,
+                 4.0: 4.0,
+                 8.0: 8.0}
+
+  time_delays = [
+    (0.5, 0.0),
+    (1, 0),
+    (2, 0),
+    # (1, .11),
+    # 10: 10
+  ]
+
+  for delay, min_angle_error in time_delays:
+    delay = int(delay / DT_CTRL)
+    # compensate for steering lag by adding extra time to take torque from
+    for token_list in tokenize(seq, delay + STANDARD_STEER_DELAY, seq_offset=10):  # TODO: tune the /4. can be 0 if dense data is okay
+      if min([line['v_ego'] for line in token_list]) < 1:
+        continue
+      if max([line['steering_rate'] for line in token_list]) > 150:
+        continue
+
+      setpoint = token_list[-1]['steering_angle']
+      measurement = token_list[STANDARD_STEER_DELAY]['steering_angle']
+      token_list[0]['angle_error'] = abs(measurement - setpoint)
+      if abs(token_list[0]['angle_error']) < min_angle_error:
+        continue
+
+      engaged = [line['engaged'] for line in token_list]
+      # sequences need to be only engaged or only disengaged, not mixed
+      assert all(engaged) or not any(engaged), "Sequence isn't fully engaged or fully disengaged"
+
+      if engaged[0]:
+        torque = [line['torque_cmd'] for line in token_list]
+      else:  # FIXME: if torque scaling (cmd to eps safetyParam) is wrong, this can lead to torque issues (not enough or too much)
+        torque = [line['torque_eps'] for line in token_list]
+
+      pid_torque = pid.update(setpoint, measurement, token_list[0]['v_ego']) * 1500
+      avg_torque = np.mean(torque[:STANDARD_STEER_DELAY]) * (delay * DT_CTRL + 0.5)  # compensate for steering lag
+      # avg_torque = np.mean(torque) * (delay + STANDARD_STEER_DELAY) * DT_CTRL  # or not?
+      sample = token_list[0]
+      sample['steering_angle'] = token_list[STANDARD_STEER_DELAY]['steering_angle']
+      sample['steering_rate'] = token_list[STANDARD_STEER_DELAY]['steering_rate']
+      sample['fut_steering_angle'] = setpoint
+      sample['fut_steering_rate'] = token_list[-1]['steering_rate']
+      sample['torque'] = avg_torque
+      sample['pid_torque'] = pid_torque
+      data_processed.append(sample)
+
+      # print('setpoint: {}, measurement: {}\n'.format(token_list[-1]['steering_angle'], token_list[0]['steering_angle']))
+      # # TODO: should we multiply by the time delay?
+      # # TODO: should we get torque from current timestep or near end? Or middle?
+      # print(f"{pid_torque=}, {avg_torque=}")
+      # plt.plot(torque, label='torque')
+      # plt.figure()
+      # plt.plot([line['steering_angle'] for line in token_list], label='angle')
+      # plt.legend()
+      # # print(torque)
+      # break
+  # raise Exception
+
+  return data_processed
 
 
 def filter_data(_data):
@@ -197,7 +266,7 @@ class SyntheticDataGenerator:
     #         np.random.normal(0, angles_std / 8))
 
 
-def load_data(to_normalize=False, plot_dists=False):  # filters and processes raw pickle data from rlogs
+def load_data(to_normalize=False, plot_dists=True):  # filters and processes raw pickle data from rlogs
   data_sequences = load_processed('data')
 
 
@@ -210,7 +279,20 @@ def load_data(to_normalize=False, plot_dists=False):  # filters and processes ra
   # this adds future steering angle and rate data to each sample, which we will use to train on as inputs
   # data for model: what current torque (output) gets us to the future (input)
   # this makes more sense than training on desired angle from lateral planner since humans don't always follow what the mpc would predict in any given situation
-  data_sequences = offset_torque(data_sequences)
+  data = []
+  for idx in range(len(data_sequences)):
+    if idx < 4:
+      continue
+    data += offset_torque(data_sequences[idx])
+    # raise Exception
+
+  errors = [abs(line['torque'] - line['pid_torque']) for line in data]
+  # print([line['torque'] for line in data])
+  print(np.mean(errors))
+
+  data_stats = get_stats(data)
+
+  return data, data_sequences, data_stats, None
 
   for seq in data_sequences:  # add angle error
     for line in seq:
@@ -381,3 +463,6 @@ if __name__ == "__main__":
 #   # plt.plot(x, [feedforward(_x, np.mean(speed_range)) * 0.00006908923778520113 * 1500 for _x in x])
 #   # plt.scatter(angles, torque, s=0.5)
 #   # plt.legend()
+
+if __name__ == "__main__":
+  load_data()
