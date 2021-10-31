@@ -155,8 +155,11 @@ class CarInterface(CarInterfaceBase):
       ret.steerRatio = 13.7
       tire_stiffness_factor = 0.7933
       ret.mass = 3400. * CV.LB_TO_KG + STD_CARGO_KG  # mean between normal and hybrid
-      ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.6], [0.1]]
-      ret.lateralTuning.pid.kf = 0.00006
+
+      ret.lateralTuning.init('model')
+      ret.lateralTuning.model.name = "camryh_tss2"
+      ret.lateralTuning.model.useRates = False  # TODO: makes model sluggish, see comments in latcontrol_model.py
+      ret.lateralTuning.model.multiplier = 1.
 
     elif candidate in [CAR.HIGHLANDER_TSS2, CAR.HIGHLANDERH_TSS2]:
       stop_and_go = True
