@@ -18,7 +18,7 @@ DT_CTRL = 0.01
 MIN_SAMPLES = 5 / DT_CTRL  # seconds to frames
 # STATS_KEYS = {'steering_angle': 'angle', 'steering_rate': 'rate', 'v_ego': 'speed', 'torque': 'torque'}  # this renames keys to shorter names to access later quicker
 
-os.chdir(os.path.join(BASEDIR, '/torque_model'))
+os.chdir(os.path.join(BASEDIR, 'torque_model'))
 
 
 def load_processed(file_name):
@@ -63,8 +63,10 @@ def filter_data(_data):
 
       if line['engaged'] and random_chance(keep_distribution['engaged']):  # and random_chance(15):
         line['torque'] = line['torque_cmd']
+        print('engaged!')
         filtered_seq.append(line)
       if not line['engaged'] and random_chance(keep_distribution['user']):
+        print('disengaged!')
         line['torque'] = line['torque_eps'] + line['torque_driver']  # fixme: do we add these? (old: i think eps makes more sense than driver)
         filtered_seq.append(line)
 

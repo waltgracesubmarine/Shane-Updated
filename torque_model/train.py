@@ -19,7 +19,7 @@ import seaborn as sns
 from common.basedir import BASEDIR
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-os.chdir(os.path.join(BASEDIR, '/torque_model'))
+os.chdir(os.path.join(BASEDIR, 'torque_model'))
 
 # print(tf.config.optimizer.get_experimental_options())
 # tf.config.optimizer.set_experimental_options({'constant_folding': True, 'pin_to_host_optimization': True, 'loop_optimization': True, 'scoped_allocator_optimization': True})

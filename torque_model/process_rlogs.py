@@ -55,13 +55,14 @@ def load_and_process_rlogs(lrs, file_name):
       if cp is None:  # no carParams msg yet
         continue
 
+      if msg.which() in ['can', 'sendcan']:
+        cp_updated = cp.update_string(msg.as_builder().to_bytes())  # usually all can signals are updated so we don't need to iterate through the updated list
+        for u in cp_updated:
+          if u == 608:  # STEER_TORQUE_SENSOR
+            can_updated = True
+
       if msg.which() != 'can':  # only store when can is updated
         continue
-      cp_updated = cp.update_string(msg.as_builder().to_bytes())  # usually all can signals are updated so we don't need to iterate through the updated list
-
-      for u in cp_updated:
-        if u == 608:  # STEER_TORQUE_SENSOR
-          can_updated = True
 
       # wait for first carState msg and CAN is updated
       if not can_updated or CS is None:
