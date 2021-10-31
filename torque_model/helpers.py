@@ -56,13 +56,13 @@ def model_feedforward(angle, speed):
 
 class LatControlPF:
   def __init__(self):
-    self.k_f = 0.00006908923778520113
+    self.k_f = 0.00008
     # self.k_f = 0.00003
     self.speed = 0
 
   @property
   def k_p(self):
-    return interp(self.speed, [20 * CV.MPH_TO_MS, 70 * CV.MPH_TO_MS], [.05, .15])
+    return interp(self.speed, [20 * CV.MPH_TO_MS, 70 * CV.MPH_TO_MS], [.1, .25])
 
   def update(self, setpoint, measurement, speed):
     self.speed = speed
