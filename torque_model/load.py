@@ -63,10 +63,8 @@ def filter_data(_data):
 
       if line['engaged'] and random_chance(keep_distribution['engaged']):  # and random_chance(15):
         line['torque'] = line['torque_cmd']
-        print('engaged!')
         filtered_seq.append(line)
       if not line['engaged'] and random_chance(keep_distribution['user']):
-        print('disengaged!')
         line['torque'] = line['torque_eps'] + line['torque_driver']  # fixme: do we add these? (old: i think eps makes more sense than driver)
         filtered_seq.append(line)
 
@@ -320,7 +318,7 @@ if __name__ == "__main__":
 
   angles = [l['torque'] for l in data]
   print(f'real torque mean, std: {np.mean(angles), np.std(angles)}')
-  sns.distplot(angles, label='data', bins=200)
+  sns.distplot(angles, label='torque in data', bins=200)
 
   angles_std = np.std(angles)
 
@@ -328,7 +326,7 @@ if __name__ == "__main__":
   # generated_angles += [np.random.normal(0, angles_std/12) for _ in range(int(len(angles)))]
   # generated_angles = [generate_syn_angle() for _ in range(len(angles) * 2)]
   generated_angles = [data_generator.generate_one()['torque'] for _ in range(len(angles))]
-  sns.distplot(generated_angles, label='generated', bins=200)
+  sns.distplot(generated_angles, label='generated torque', bins=200)
 
   plt.legend()
 
