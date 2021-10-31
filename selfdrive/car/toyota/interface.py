@@ -157,8 +157,8 @@ class CarInterface(CarInterfaceBase):
       ret.mass = 3400. * CV.LB_TO_KG + STD_CARGO_KG  # mean between normal and hybrid
 
       ret.lateralTuning.init('model')
-      ret.lateralTuning.model.name = "camryh_tss2_v2"
-      ret.lateralTuning.model.useRates = False  # TODO: makes model sluggish, see comments in latcontrol_model.py
+      ret.lateralTuning.model.name = "camryh_tss2_v3"
+      ret.lateralTuning.model.useRates = True  # TODO: makes model sluggish, see comments in latcontrol_model.py
       ret.lateralTuning.model.multiplier = 1.
 
     elif candidate in [CAR.HIGHLANDER_TSS2, CAR.HIGHLANDERH_TSS2]:
