@@ -16,9 +16,10 @@ from torque_model.load import load_data
 from sklearn.model_selection import train_test_split
 from selfdrive.config import Conversions as CV
 import seaborn as sns
+from common.basedir import BASEDIR
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-os.chdir('C:/Git/openpilot-repos/op-smiskol-torque/torque_model')
+os.chdir(os.path.join(BASEDIR, '/torque_model'))
 
 # print(tf.config.optimizer.get_experimental_options())
 # tf.config.optimizer.set_experimental_options({'constant_folding': True, 'pin_to_host_optimization': True, 'loop_optimization': True, 'scoped_allocator_optimization': True})
@@ -171,4 +172,4 @@ def plot_sequence(sequence_idx=3, show_controller=True):  # plots what model wou
 
 plot_sequence(-3)
 plot_sequence(4)
-plot_sequence(15)
+plot_sequence(8)

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import copy
 import os
 import random
@@ -13,12 +12,13 @@ import seaborn as sns
 import time
 import pickle
 from torque_model.helpers import feedforward, random_chance, TORQUE_SCALE, LatControlPF, STATS_KEYS, REVERSED_STATS_KEYS, MODEL_INPUTS, normalize_sample
+from common.basedir import BASEDIR
 
 DT_CTRL = 0.01
 MIN_SAMPLES = 5 / DT_CTRL  # seconds to frames
 # STATS_KEYS = {'steering_angle': 'angle', 'steering_rate': 'rate', 'v_ego': 'speed', 'torque': 'torque'}  # this renames keys to shorter names to access later quicker
 
-os.chdir('C:/Git/openpilot-repos/op-smiskol-torque/torque_model')
+os.chdir(os.path.join(BASEDIR, '/torque_model'))
 
 
 def load_processed(file_name):
