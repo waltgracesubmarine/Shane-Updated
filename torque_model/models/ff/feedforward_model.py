@@ -4,7 +4,7 @@
 
 import numpy as np
 
-wb = np.load('C:/Git/openpilot-repos/op-smiskol-torque/torque_model/models/ff/feedforward_model_weights.npz', allow_pickle=True)
+wb = np.load('models/ff/feedforward_model_weights.npz', allow_pickle=True)
 w, b = wb['wb']
 
 def predict(x):
