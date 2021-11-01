@@ -230,26 +230,10 @@ class CarInterface(CarInterfaceBase):
       tire_stiffness_factor = 0.444  # not optimized yet
       ret.mass = 3060. * CV.LB_TO_KG + STD_CARGO_KG
 
-      if corollaTSS2_use_indi:  # birdman6450#7399's Corolla 2020 TSS2 Tune
-        ret.lateralTuning.init('indi')
-        ret.lateralTuning.indi.innerLoopGainBP = [18, 22, 26]
-        ret.lateralTuning.indi.innerLoopGainV = [9, 12, 15]
-        ret.lateralTuning.indi.outerLoopGainBP = [18, 22, 26]
-        ret.lateralTuning.indi.outerLoopGainV = [8, 11, 14.99]
-        ret.lateralTuning.indi.timeConstantBP = [18, 22, 26]
-        ret.lateralTuning.indi.timeConstantV = [1, 3, 4.5]
-        ret.lateralTuning.indi.actuatorEffectivenessBP = [18, 22, 26]
-        ret.lateralTuning.indi.actuatorEffectivenessV = [9, 12, 15]
-        ret.steerActuatorDelay = 0.42 - 0.2
-      else:
-        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.6], [0.1]]
-        ret.lateralTuning.pid.kf = 0.00007818594
-        # TODO: is this good?
-        # ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[.028], [.0012]]  # birdman6450#7399's Corolla 2020 PIF Tune
-        # ret.lateralTuning.pid.kdV = [0.]
-        # ret.lateralTuning.pid.kf = 0.000153263811757641
-        # ret.lateralTuning.pid.newKfTuned = True
-        # ret.steerActuatorDelay = 0.48 - 0.2
+      ret.lateralTuning.init('model')
+      ret.lateralTuning.model.name = "camryh_tss2_v4_1"
+      ret.lateralTuning.model.useRates = True  # TODO: makes model sluggish, see comments in latcontrol_model.py
+      ret.lateralTuning.model.multiplier = 1.
 
     elif candidate in [CAR.LEXUS_ES_TSS2, CAR.LEXUS_ESH_TSS2]:
       stop_and_go = True
@@ -318,8 +302,11 @@ class CarInterface(CarInterfaceBase):
       ret.steerRatio = 13.4   # True steerRation from older prius
       tire_stiffness_factor = 0.6371   # hand-tune
       ret.mass = 3115. * CV.LB_TO_KG + STD_CARGO_KG
-      ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.35], [0.15]]
-      ret.lateralTuning.pid.kf = 0.00007818594
+
+      ret.lateralTuning.init('model')
+      ret.lateralTuning.model.name = "camryh_tss2_v4_1"
+      ret.lateralTuning.model.useRates = True  # TODO: makes model sluggish, see comments in latcontrol_model.py
+      ret.lateralTuning.model.multiplier = 1.
 
     elif candidate == CAR.MIRAI:
       stop_and_go = True
