@@ -63,7 +63,7 @@ class LatControlPF:
 
   @property
   def k_p(self):
-    return interp(self.speed, [20 * CV.MPH_TO_MS, 70 * CV.MPH_TO_MS], [.1, .25])
+    return interp(self.speed, [20 * CV.MPH_TO_MS, 70 * CV.MPH_TO_MS], [.1, .2])
 
   def update(self, setpoint, measurement, speed):
     self.speed = speed

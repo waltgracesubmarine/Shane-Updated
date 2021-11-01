@@ -93,13 +93,15 @@ starting_lr = .01
 ending_lr = 0.001
 decay = (starting_lr - ending_lr) / epochs
 
-opt = Adam(learning_rate=starting_lr, amsgrad=True, decay=decay)
-# opt = Adadelta(learning_rate=1)
+# opt = Adam(learning_rate=starting_lr, amsgrad=True, decay=decay)
+opt = Adadelta(learning_rate=1)
 # opt = Adagrad(learning_rate=0.2)
 model.compile(opt, loss='mae', metrics='mse')
 try:
-  model.fit(x_train, y_train, batch_size=2048, epochs=100, validation_data=(x_test, y_test))
-  model.fit(x_train, y_train, batch_size=32, epochs=50, validation_data=(x_test, y_test))
+  model.fit(x_train, y_train, batch_size=512, epochs=20, validation_data=(x_test, y_test))
+  model.fit(x_train, y_train, batch_size=128, epochs=20, validation_data=(x_test, y_test))
+  model.fit(x_train, y_train, batch_size=64, epochs=40, validation_data=(x_test, y_test))
+  model.fit(x_train, y_train, batch_size=32, epochs=100, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=128, epochs=25, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=32, epochs=25, validation_data=(x_test, y_test))
   # model.fit(x_train, y_train, batch_size=64, epochs=100, validation_data=(x_test, y_test))

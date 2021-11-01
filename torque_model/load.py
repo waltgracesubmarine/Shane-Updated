@@ -48,10 +48,10 @@ def offset_torque(_data):  # todo: offsetting both speed and accel seem to decre
 
 def filter_data(_data):
   # KEEP_DATA = 'engaged'  # user, engaged, or all
-  keep_distribution = {'engaged': 100, 'user': 50}
+  keep_distribution = {'engaged': 50, 'user': 50}
 
   def sample_ok(_line):
-    return 1 * CV.MPH_TO_MS < _line['v_ego'] and -4 < _line['a_ego'] < 2 and abs(_line['steering_rate']) < 200 and \
+    return 1 * CV.MPH_TO_MS < _line['v_ego'] and -4 < _line['a_ego'] < 3 and abs(_line['steering_rate']) < 300 and \
            abs(_line['fut_steering_rate']) < 300 and abs(_line['torque_eps']) < 3000
 
   filtered_sequences = []
@@ -188,7 +188,7 @@ class SyntheticDataGenerator:
       return _sample
 
     sample = _gen()
-    while abs(sample['torque']) > self.torque_range[1] or abs(sample['torque']) < self.torque_range[0] or sample['angle_error'] < 5 or sample['angle_error'] > 15:
+    while abs(sample['torque']) > self.torque_range[1] or abs(sample['torque']) < self.torque_range[0] or sample['angle_error'] < 3 or sample['angle_error'] > 25:
       sample = _gen()
     return sample
     # this was fairly accurate, but the above will automatically change with the data (no manual tuning required)
@@ -265,7 +265,7 @@ def load_data(fn='data', to_normalize=False, plot_dists=False):  # filters and p
   ADD_SYNTHETIC_SAMPLES = True  # fixme, this affects mean and std, but not min/max for normalizing
   if ADD_SYNTHETIC_SAMPLES:
 
-    n_synthetic_samples = round(len(data) / 14)
+    n_synthetic_samples = round(len(data) / 20)
     print('There are currently {} real samples'.format(len(data)))
     print('Adding {} synthetic samples...'.format(n_synthetic_samples), flush=True)
     data += data_generator.generate_many(n_synthetic_samples)

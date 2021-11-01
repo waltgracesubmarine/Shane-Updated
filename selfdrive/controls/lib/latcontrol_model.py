@@ -13,6 +13,7 @@ class LatControlModel:
     model_weights_file = f'{BASEDIR}/models/steering/{CP.lateralTuning.model.name}_weights.npz'
     self.w, self.b = np.load(model_weights_file, allow_pickle=True)['wb']
 
+    self.use_accel = self.w[0].shape[0] == 6  # 6 inputs is accel models
     self.use_rates = CP.lateralTuning.model.useRates
     self.sat_count_rate = 1.0 * DT_CTRL
     self.sat_limit = CP.steerLimitTimer
@@ -67,6 +68,8 @@ class LatControlModel:
       rate_des = rate_des if self.use_rates else 0
       rate = CS.steeringRateDeg if self.use_rates else 0
       model_input = [angle_steers_des, CS.steeringAngleDeg, rate_des, rate, CS.vEgo]
+      if self.use_accel:
+        model_input.append(CS.aEgo)
 
       output_steer = self.predict(model_input)[0]
       output_steer = clip(output_steer, neg_limit, pos_limit)
