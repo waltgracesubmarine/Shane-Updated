@@ -31,7 +31,6 @@ def load_and_process_rlogs(lrs, file_name):
       ("STEER_TORQUE_CMD", "STEERING_LKA", 0),
       ("STEER_TORQUE_DRIVER", "STEER_TORQUE_SENSOR", 0),
       ("STEER_TORQUE_EPS", "STEER_TORQUE_SENSOR", 0),
-      ("STEER_RATE", "STEER_ANGLE_SENSOR", 0),
     ]
     cp = None
     car_fingerprint = None
@@ -68,9 +67,7 @@ def load_and_process_rlogs(lrs, file_name):
       if not can_updated or CS is None:
         continue
 
-      # FIXME: this is probably all Toyota (Corolla) specific
-      user_override = abs(cp.vl['STEER_TORQUE_SENSOR']['STEER_TORQUE_DRIVER']) > 100
-
+      # TODO: this should be adjusted by make/model
       torque_cmd = cp.vl['STEERING_LKA']['STEER_TORQUE_CMD']
       torque_eps = cp.vl['STEER_TORQUE_SENSOR']['STEER_TORQUE_EPS']
       torque_driver = cp.vl['STEER_TORQUE_SENSOR']['STEER_TORQUE_DRIVER']
@@ -81,7 +78,7 @@ def load_and_process_rlogs(lrs, file_name):
         print(abs(msg.logMonoTime - last_time) * 1e-9)
 
       # gather data if user driving, or engaged and not user override
-      should_gather = not engaged or (engaged and steer_req and not user_override)
+      should_gather = not engaged or (engaged and steer_req and not CS.steeringPressed)
 
       # creates uninterrupted sections of engaged data
       if (should_gather and CS.gearShifter == car.CarState.GearShifter.drive and engaged == last_engaged and
@@ -96,12 +93,12 @@ def load_and_process_rlogs(lrs, file_name):
 
   del all_msgs
 
+  data = [seq for seq in data if len(seq) > MIN_SAMPLES]  # long enough sections
+
   seq_lens = [len(seq) for seq in data]
   print('Max seq. len: {} ({} s)'.format(max(seq_lens), max(seq_lens) * DT_CTRL))
   print('Sum seq. len: {} ({} s)'.format(sum(seq_lens), sum(seq_lens) * DT_CTRL))
   print('Sequences: {}'.format([len(seq) for seq in data]))
-
-  data = [seq for seq in data if len(seq) > MIN_SAMPLES]  # long enough sections
 
   with open(file_name, 'wb') as f:  # now dump
     pickle.dump(data, f)

@@ -17,7 +17,7 @@ if __name__ == "__main__":
   os.makedirs(route_path, exist_ok=True)
   os.makedirs(os.path.join(route_path, "exclude"), exist_ok=True)
   os.makedirs(os.path.join(route_path, ".tmp"), exist_ok=True)
-  for segment in route.segments:
+  for idx, segment in enumerate(route.segments):
     segment_fn = segment.name.replace("|", "_") + "--rlog.bz2"
     tmp_log_path = os.path.join(route_path, ".tmp", segment_fn)
     local_log_path = os.path.join(route_path, segment_fn)
@@ -27,7 +27,7 @@ if __name__ == "__main__":
       print("Skipping already downloaded file: {}".format(segment_fn))
       continue
 
-    print("Downloading: {}".format(segment_fn))
+    print("Downloading ({} of {}): {}".format(idx + 1, len(route.segments), segment_fn))
     urllib.request.urlretrieve(segment.log_path, tmp_log_path)
 
     # move downloaded file to final location

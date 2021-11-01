@@ -51,8 +51,8 @@ def filter_data(_data):
   keep_distribution = {'engaged': 100, 'user': 50}
 
   def sample_ok(_line):
-    return 1 * CV.MPH_TO_MS < _line['v_ego'] and abs(_line['steering_rate']) < 150 and \
-           abs(_line['fut_steering_rate']) < 200 and abs(_line['torque_eps'] + _line['torque_driver']) < 3000
+    return 1 * CV.MPH_TO_MS < _line['v_ego'] and -4 < _line['a_ego'] < 2 and abs(_line['steering_rate']) < 200 and \
+           abs(_line['fut_steering_rate']) < 300 and abs(_line['torque_eps']) < 3000
 
   filtered_sequences = []
   for sequence in _data:
@@ -146,7 +146,7 @@ def remove_outliers(_flattened):  # calculate current mean and std to filter, th
   stats = get_stats(_flattened)
   print(stats['angle'].mean, stats['angle'].std)
 
-  print(f'Data cut offs: {[stats[k].cut_off for k in stats]}')
+  print('Data cut offs: {}'.format({k: stats[k].cut_off for k in stats}))
 
   new_data = []
   for line in _flattened:
@@ -169,7 +169,7 @@ class SyntheticDataGenerator:
     print(f'Torque range: {self.torque_range}')
 
     self.max_idx = len(self.data) - 1
-    self.keys = ['fut_steering_angle', 'steering_angle', 'fut_steering_rate', 'steering_rate', 'v_ego']
+    self.keys = ['fut_steering_angle', 'steering_angle', 'fut_steering_rate', 'steering_rate', 'v_ego', 'a_ego']
     self.idxs_needed = len(self.keys)
     self.pid = LatControlPF()
 
@@ -197,8 +197,8 @@ class SyntheticDataGenerator:
     #         np.random.normal(0, angles_std / 8))
 
 
-def load_data(to_normalize=False, plot_dists=False):  # filters and processes raw pickle data from rlogs
-  data_sequences = load_processed('data')
+def load_data(fn='data', to_normalize=False, plot_dists=False):  # filters and processes raw pickle data from rlogs
+  data_sequences = load_processed(fn)
 
 
   # for sec in data:

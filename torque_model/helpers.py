@@ -5,15 +5,16 @@ from torque_model.models.ff.feedforward_model import predict as feedforward_pred
 
 from selfdrive.config import Conversions as CV
 
-TORQUE_SCALE = 1500
-STATS_KEYS = {'angle': ['fut_steering_angle', 'steering_angle'], 'rate': ['fut_steering_rate', 'steering_rate'], 'speed': ['v_ego'], 'torque': ['torque'], 'angle_error': ['angle_error']}  # this renames keys to shorter names to access later quicker
+TORQUE_SCALE = 1500  # toyota
+# TORQUE_SCALE = 300  # volks
+STATS_KEYS = {'angle': ['fut_steering_angle', 'steering_angle'], 'rate': ['fut_steering_rate', 'steering_rate'], 'speed': ['v_ego'], 'accel': ['a_ego'], 'torque': ['torque'], 'angle_error': ['angle_error']}  # this renames keys to shorter names to access later quicker
 REVERSED_STATS_KEYS = {}
 for stat_k, data_keys in STATS_KEYS.items():
   for data_k in data_keys:
     REVERSED_STATS_KEYS[data_k] = stat_k
 
 
-MODEL_INPUTS = ['fut_steering_angle', 'steering_angle', 'fut_steering_rate', 'steering_rate', 'v_ego']
+MODEL_INPUTS = ['fut_steering_angle', 'steering_angle', 'fut_steering_rate', 'steering_rate', 'v_ego', 'a_ego']
 # inputs = ['fut_steering_angle', 'steering_angle', 'v_ego']
 
 
