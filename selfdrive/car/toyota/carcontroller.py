@@ -1,5 +1,7 @@
 from cereal import car
 from common.numpy_fast import clip, interp
+from common.realtime import DT_CTRL
+from common.filter_simple import FirstOrderFilter
 from selfdrive.car import apply_toyota_steer_torque_limits, create_gas_command, make_can_msg
 from selfdrive.car.toyota.toyotacan import create_steer_command, create_ui_command, \
                                            create_accel_command, create_acc_cancel_command, \
@@ -25,6 +27,15 @@ def accel_hysteresis(accel, accel_steady, enabled):
   return accel, accel_steady
 
 
+def remap_accel(a_ego, j_ego, _c1=-0.5):
+  if j_ego > 0 and a_ego > 0 or j_ego < 0 and a_ego < 0:
+    _c1 = -0.5
+  else:
+    # right now it always has a bias back towards 0
+    # set to positive to have a delayed reaction effect in both directions
+    _c1 = -0.5
+  return a_ego * (_c1 * abs(j_ego) + 1)
+
 class CarController():
   def __init__(self, dbc_name, CP, VM):
     self.last_steer = 0
@@ -34,6 +45,8 @@ class CarController():
     self.standstill_req = False
     self.steer_rate_limited = False
     self.use_interceptor = False
+    self.filter_slow = FirstOrderFilter(0, 0.5, DT_CTRL)
+    self.filter_fast = FirstOrderFilter(0, 0.05, DT_CTRL)
 
     self.packer = CANPacker(dbc_name)
 
@@ -60,7 +73,13 @@ class CarController():
         interceptor_gas_cmd = clip(actuators.accel / PEDAL_SCALE, 0., MAX_INTERCEPTOR_GAS)
         pcm_accel_cmd = 0.18 - max(0, -actuators.accel)
 
-    pcm_accel_cmd, self.accel_steady = accel_hysteresis(pcm_accel_cmd, self.accel_steady, enabled)
+    # pcm_accel_cmd, self.accel_steady = accel_hysteresis(pcm_accel_cmd, self.accel_steady, enabled)
+    pcm_accel_cmd = pcm_accel_cmd if enabled else 0
+
+    self.filter_slow.update(pcm_accel_cmd)
+    self.filter_fast.update(pcm_accel_cmd)
+    pcm_accel_cmd = remap_accel(pcm_accel_cmd, (self.filter_fast.x - self.filter_slow.x) * 2.0)
+
     pcm_accel_cmd = clip(pcm_accel_cmd, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX)
 
     # steer torque
