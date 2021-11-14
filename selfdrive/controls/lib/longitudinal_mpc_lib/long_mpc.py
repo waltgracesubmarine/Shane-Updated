@@ -358,9 +358,9 @@ class LongitudinalMpc():
     self.accel_limit_arr[:,0] = -10.
     self.accel_limit_arr[:,1] = 10.
     x_obstacle = 1e5*np.ones((N+1))
-    # FIXME: this doesn't consider fourth TR param, set to anything if needed
+    desired_TR = T_REACT*np.ones((N+1))
     self.params = np.concatenate([self.accel_limit_arr,
-                             x_obstacle[:,None]], axis=1)
+                             x_obstacle[:,None], desired_TR[:,None]], axis=1)
     self.run()
 
 
