@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import math
 import numpy as np
-from common.numpy_fast import interp, clip
+from common.numpy_fast import interp
 
 import cereal.messaging as messaging
 from common.realtime import DT_MDL
