@@ -233,11 +233,10 @@ class LongitudinalMpc():
 
     TRs = [1.2, 1.8, 2.7]
     x_ego_obstacle_cost_multiplier = interp(self.desired_TR, TRs, [3., 1.0, 0.1])
-    x_ego_cost_multiplier = interp(self.desired_TR, TRs, [3., 1.0, 0.1])
     j_ego_cost_multiplier = interp(self.desired_TR, TRs, [0.5, 1.0, 1.0])
     d_zone_cost_multiplier = interp(self.desired_TR, TRs, [4., 1.0, 1.0])
 
-    W = np.asfortranarray(np.diag([X_EGO_OBSTACLE_COST * x_ego_obstacle_cost_multiplier, X_EGO_COST * x_ego_cost_multiplier, V_EGO_COST, A_EGO_COST, J_EGO_COST * j_ego_cost_multiplier]))
+    W = np.asfortranarray(np.diag([X_EGO_OBSTACLE_COST * x_ego_obstacle_cost_multiplier, X_EGO_COST, V_EGO_COST, A_EGO_COST, J_EGO_COST * j_ego_cost_multiplier]))
     for i in range(N):
       self.solver.cost_set(i, 'W', W)
     # Setting the slice without the copy make the array not contiguous,
@@ -307,9 +306,7 @@ class LongitudinalMpc():
     self.cruise_max_a = max_a
 
   def set_desired_TR(self, desired_TR):
-    sng_speed = 8.04672
-    self.desired_TR = interp(self.v_ego, [sng_speed * 0.7, sng_speed], [1.8, desired_TR])
-    # print(self.desired_TR)
+    self.desired_TR = clip(desired_TR, 1.2, 2.7)
     self.set_weights()
 
   def update(self, carstate, radarstate, v_cruise):
