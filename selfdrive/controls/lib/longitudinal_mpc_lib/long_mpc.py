@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import math
 import os
 import numpy as np
 
@@ -55,7 +56,7 @@ def get_stopped_equivalence_factor(v_lead):
   return T_REACT * v_lead + (v_lead*v_lead) / (2 * MAX_BRAKE)
 
 def get_safe_obstacle_distance(v_ego):
-  return 2 * T_REACT * v_ego + (v_ego*v_ego) / (2 * MAX_BRAKE) + 4.0
+  return math.sqrt(2 * T_REACT * v_ego + (v_ego*v_ego) / (2 * MAX_BRAKE) + 4.0)
 
 def desired_follow_distance(v_ego, v_lead):
   return get_safe_obstacle_distance(v_ego) - get_stopped_equivalence_factor(v_lead)
@@ -128,7 +129,7 @@ def gen_long_mpc_solver():
   # from an obstacle at every timestep. This obstacle can be a lead car
   # or other object. In e2e mode we can use x_position targets as a cost
   # instead.
-  costs = [((x_obstacle - x_ego) - (desired_dist_comfort)) / (v_ego + 12.),
+  costs = [((x_obstacle - x_ego) - (desired_dist_comfort)) / (v_ego + 10.),
            x_ego,
            v_ego,
            a_ego,
@@ -142,7 +143,7 @@ def gen_long_mpc_solver():
   constraints = vertcat((v_ego),
                         (a_ego - a_min),
                         (a_max - a_ego),
-                        ((x_obstacle - x_ego) - (3/4) * (desired_dist_comfort)) / (v_ego + 12.))
+                        ((x_obstacle - x_ego) - (3/4) * (desired_dist_comfort)) / (v_ego + 10.))
   ocp.model.con_h_expr = constraints
   ocp.model.con_h_expr_e = vertcat(np.zeros(CONSTR_DIM))
 
