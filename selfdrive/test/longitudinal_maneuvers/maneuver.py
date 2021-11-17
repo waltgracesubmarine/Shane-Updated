@@ -1,5 +1,9 @@
 import numpy as np
 from selfdrive.test.longitudinal_maneuvers.plant import Plant
+import matplotlib
+matplotlib.rcParams['figure.raise_window'] = False
+import matplotlib.pyplot as plt
+import time
 
 
 class Maneuver():
@@ -31,7 +35,9 @@ class Maneuver():
 
     valid = True
     logs = []
+    i = 0
     while plant.current_time() < self.duration:
+      i += 1
       speed_lead = np.interp(plant.current_time(), self.breakpoints, self.speed_lead_values)
       prob = np.interp(plant.current_time(), self.breakpoints, self.prob_lead_values)
       cruise = np.interp(plant.current_time(), self.breakpoints, self.cruise_values)
@@ -48,9 +54,21 @@ class Maneuver():
                             speed_lead,
                             log['acceleration']]))
 
+      if i % 20 == 0:
+        plt.clf()
+        plt.title('rel dist: {} m'.format(round(logs[-1][2] - logs[-1][1], 3)))
+        N = 600  # len(logs) + 1
+        plt.plot([i[1] for i in logs[-N:]], label='ego')
+        plt.plot([i[2] for i in logs[-N:]], label='lead')
+        # plt.plot([i[2] - i[1] for i in logs[-N:]], label='lead')
+        plt.legend()
+        plt.pause(0.01)
+        # plt.show()
+
       if d_rel < .4 and (self.only_radar or prob > 0.5):
         print("Crashed!!!!")
         valid = False
 
     print("maneuver end", valid)
+    input()
     return valid, np.array(logs)
