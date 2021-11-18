@@ -115,7 +115,7 @@ class LongControl():
     # Intention is to stop, switch to a different brake control until we stop
     elif self.long_control_state == LongCtrlState.stopping:
       # Keep applying brakes until the car is stopped
-      if abs(output_accel - CP.stopAccel) > 0.1:
+      if abs(output_accel - CP.stopAccel) > 0.02:
         if output_accel > CP.stopAccel:
           output_accel -= CP.stoppingDecelRate * DT_CTRL
         else:
