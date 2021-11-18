@@ -15,7 +15,6 @@ ACCEL_MAX_ISO = 2.0 # m/s^2
 def long_control_state_trans(CP, active, long_control_state, v_ego, v_target,
                              output_accel, brake_pressed, cruise_standstill):
   """Update longitudinal control state machine"""
-  # use min_speed_can for radar leads only, since they can jump near zero
   stopping_condition = (v_ego < 2.0 and cruise_standstill) or \
                        (v_ego < CP.vEgoStopping and
                         (v_target < CP.vEgoStopping or brake_pressed))
