@@ -120,8 +120,9 @@ class LongControl():
           output_accel -= CP.stoppingDecelRate * DT_CTRL
         else:
           output_accel += CP.stoppingDecelRate * DT_CTRL
+      else:
+        output_accel = CP.stopAccel
       output_accel = clip(output_accel, accel_limits[0], accel_limits[1])
-
       self.reset(CS.vEgo)
 
     # Intention is to move again, release brake fast before handing control to PID
