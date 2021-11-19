@@ -271,7 +271,7 @@ class CarInterface(CarInterfaceBase):
     elif candidate in TSS2_CAR:
       set_long_tune(ret.longitudinalTuning, LongTunes.TSS2)
       ret.vEgoStopping = 0.2  # car is near 0.1 to 0.2 when car starts requesting stopping accel
-      ret.vEgoStarting = 0.1  # estimation from above, since we can't know the stock v_target
+      ret.vEgoStarting = 0.2  # needs to be > or == vEgoStopping
       ret.startAccel = 0.0  # Toyota requests 0 instantly, then hands control off to some controller
       ret.stopAccel = -0.4  # Toyota requests -0.4 when stopped
       ret.stoppingDecelRate = 0.8  # reach stopping target smoothly - seems to take 0.5 seconds to go from 0 to -0.4
