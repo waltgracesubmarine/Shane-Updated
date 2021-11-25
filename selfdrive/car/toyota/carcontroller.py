@@ -25,6 +25,20 @@ def accel_hysteresis(accel, accel_steady, enabled):
   return accel, accel_steady
 
 
+def coast_accel(speed):  # given a speed, output coasting acceleration
+  points = [[0.0, 0.03], [.166, .424], [.335, .568],
+            [.731, .440], [1.886, 0.262], [2.809, -0.207],
+            [3.443, -0.249], [MIN_ACC_SPEED, -0.145]]
+  return interp(speed, *zip(*points))
+
+
+def compute_gb_pedal(accel, speed):
+  _a3, _a4, _a5, _offset, _e1, _e2, _e3, _e4, _e5, _e6, _e7, _e8 = [-0.07264304340456754, -0.007522016704006004, 0.16234124452228196, 0.0029096574419830296, 1.1674372321165579e-05, -0.008010070095545522, -5.834025253616562e-05, 0.04722441060805912, 0.001887454016549489, -0.0014370672920621269, -0.007577594283906699, 0.01943515032956308]
+  speed_part = (_e5 * accel + _e6) * speed ** 2 + (_e7 * accel + _e8) * speed
+  accel_part = ((_e1 * speed + _e2) * accel ** 5 + (_e3 * speed + _e4) * accel ** 4 + _a3 * accel ** 3 + _a4 * accel ** 2 + _a5 * accel)
+  return speed_part + accel_part + _offset
+
+
 class CarController():
   def __init__(self, dbc_name, CP, VM):
     self.last_steer = 0
@@ -56,8 +70,8 @@ class CarController():
       if self.use_interceptor and active:
         # only send negative accel when using interceptor. gas handles acceleration
         # +0.18 m/s^2 offset to reduce ABS pump usage when OP is engaged
-        MAX_INTERCEPTOR_GAS = interp(CS.out.vEgo, [0.0, MIN_ACC_SPEED], [0.2, 0.5])
-        interceptor_gas_cmd = clip(actuators.accel / PEDAL_SCALE, 0., MAX_INTERCEPTOR_GAS)
+        if pcm_accel_cmd > coast_accel(CS.out.vEgo):
+          interceptor_gas_cmd = clip(compute_gb_pedal(pcm_accel_cmd, CS.out.vEgo), 0., 1.)
         pcm_accel_cmd = 0.18 - max(0, -actuators.accel)
 
     pcm_accel_cmd, self.accel_steady = accel_hysteresis(pcm_accel_cmd, self.accel_steady, enabled)
