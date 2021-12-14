@@ -40,7 +40,7 @@ def long_control_state_trans(CP, active, long_control_state, v_ego, v_target_fut
     elif long_control_state == LongCtrlState.starting:
       if stopping_condition:
         long_control_state = LongCtrlState.stopping
-      elif output_accel >= CP.startAccel:
+      elif output_accel - CP.startAccel >= -1e-3:
         long_control_state = LongCtrlState.pid
 
   return long_control_state
@@ -121,6 +121,7 @@ class LongControl():
     elif self.long_control_state == LongCtrlState.starting:
       if output_accel < CP.startAccel:
         output_accel += CP.startingAccelRate * DT_CTRL
+      output_accel = min(output_accel, CP.startAccel)
       self.reset(CS.vEgo)
 
     self.last_output_accel = output_accel
