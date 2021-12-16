@@ -115,9 +115,6 @@ class CarController():
        (not (fcw_alert or steer_alert) and self.alert_active):
       send_ui = True
       self.alert_active = not self.alert_active
-    elif pcm_cancel_cmd:
-      # forcing the pcm to disengage causes a bad fault sound so play a good sound instead
-      send_ui = True
 
     if (frame % 100 == 0 or send_ui):
       can_sends.append(create_ui_command(self.packer, steer_alert, 0, left_line, right_line, left_lane_depart, right_lane_depart, enabled))
