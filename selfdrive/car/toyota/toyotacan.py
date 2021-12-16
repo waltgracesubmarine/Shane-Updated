@@ -55,6 +55,26 @@ def create_acc_cancel_command(packer):
   }
   return packer.make_can_msg("PCM_CRUISE", 0, values)
 
+def create_acc_cancel_command_2(packer):
+  values = {
+    "MAIN_ON": 0,
+  }
+  return packer.make_can_msg("PCM_CRUISE_2", 0, values)
+
+def create_acc_cancel_command_3(packer):
+  values = {
+    "MAIN_ON": 0,
+    "CANCEL_BTN": 1,
+  }
+  return packer.make_can_msg("DSU_CRUISE", 0, values)
+
+def create_acc_cancel_command_4(packer):
+  values = {
+    "MAIN_ON": 0,
+    "CRUISE_CONTROL_STATE": 2,
+  }
+  return packer.make_can_msg("PCM_CRUISE_SM", 0, values)
+
 
 def create_fcw_command(packer, fcw):
   values = {
