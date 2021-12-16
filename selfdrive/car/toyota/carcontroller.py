@@ -57,7 +57,7 @@ class CarController():
 
     # TODO: probably can delete this. CS.pcm_acc_status uses a different signal
     # than CS.cruiseState.enabled. confirm they're not meaningfully different
-    if not enabled and CS.pcm_acc_status:
+    if not enabled:  # and CS.pcm_acc_status:
       pcm_cancel_cmd = 1
 
     # on entering standstill, send standstill request
@@ -95,6 +95,9 @@ class CarController():
       if pcm_cancel_cmd and CS.CP.carFingerprint in [CAR.LEXUS_IS, CAR.LEXUS_RC]:
         can_sends.append(create_acc_cancel_command(self.packer))
       elif CS.CP.openpilotLongitudinalControl:
+        if pcm_cancel_cmd:  # try to spam this instead of just once
+          print('sending cancel cmd')
+          can_sends.append(create_acc_cancel_command(self.packer))
         can_sends.append(create_accel_command(self.packer, pcm_accel_cmd, pcm_cancel_cmd, self.standstill_req, lead, CS.acc_type))
       else:
         can_sends.append(create_accel_command(self.packer, 0, pcm_cancel_cmd, False, lead, CS.acc_type))
