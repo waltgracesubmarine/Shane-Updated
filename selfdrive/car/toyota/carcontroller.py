@@ -2,7 +2,7 @@ from cereal import car
 from common.numpy_fast import clip, interp
 from selfdrive.car import apply_toyota_steer_torque_limits, create_gas_interceptor_command, make_can_msg
 from selfdrive.car.toyota.toyotacan import create_steer_command, create_ui_command, \
-                                           create_accel_command, create_acc_cancel_command, create_acc_cancel_command_2, create_acc_cancel_command_3, create_acc_cancel_command_4, create_acc_cancel_command_5, \
+                                           create_accel_command, create_acc_cancel_command, create_acc_cancel_command_2, create_acc_cancel_command_3, create_acc_cancel_command_4, create_acc_cancel_command_5, create_acc_cancel_command_6, \
                                            create_fcw_command, create_lta_steer_command
 from selfdrive.car.toyota.values import CAR, STATIC_DSU_MSGS, NO_STOP_TIMER_CAR, TSS2_CAR, \
                                         MIN_ACC_SPEED, PEDAL_TRANSITION, CarControllerParams
@@ -102,7 +102,8 @@ class CarController():
           # can_sends.append(create_acc_cancel_command_2(self.packer))
           # can_sends.append(create_acc_cancel_command_3(self.packer))
           # can_sends.append(create_acc_cancel_command_4(self.packer))
-          can_sends.append(create_acc_cancel_command_5(self.packer))
+          # can_sends.append(create_acc_cancel_command_5(self.packer))
+          can_sends.append(create_acc_cancel_command_6(self.packer))
         can_sends.append(create_accel_command(self.packer, pcm_accel_cmd, pcm_cancel_cmd, self.standstill_req, lead, CS.acc_type))
       else:
         can_sends.append(create_accel_command(self.packer, 0, pcm_cancel_cmd, False, lead, CS.acc_type))
