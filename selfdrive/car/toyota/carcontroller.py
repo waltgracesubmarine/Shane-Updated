@@ -99,11 +99,11 @@ class CarController():
         if pcm_cancel_cmd:  # try to spam this instead of just once
           print('sending cancel cmds')
           # can_sends.append(create_acc_cancel_command(self.packer))
-          # can_sends.append(create_acc_cancel_command_2(self.packer))
+          can_sends.append(create_acc_cancel_command_2(self.packer))
           # can_sends.append(create_acc_cancel_command_3(self.packer))
           # can_sends.append(create_acc_cancel_command_4(self.packer))
           # can_sends.append(create_acc_cancel_command_5(self.packer))
-          can_sends.append(create_acc_cancel_command_6(self.packer))
+          # can_sends.append(create_acc_cancel_command_6(self.packer))
         can_sends.append(create_accel_command(self.packer, pcm_accel_cmd, pcm_cancel_cmd, self.standstill_req, lead, CS.acc_type))
       else:
         can_sends.append(create_accel_command(self.packer, 0, pcm_cancel_cmd, False, lead, CS.acc_type))

@@ -39,6 +39,7 @@ def create_accel_command(packer, accel, pcm_cancel, standstill_req, lead, acc_ty
     "RELEASE_STANDSTILL": not standstill_req,
     # CANCEL_REQ seems to be an indicator that ACC is unavailable (not to cancel engagement) which might be why the HUD shows a fault
     "CANCEL_REQ": 0,  # pcm_cancel
+    # "LVSTP": pcm_cancel,  # TODO: try this
     "ALLOW_LONG_PRESS": 1,
   }
   return packer.make_can_msg("ACC_CONTROL", 0, values)
@@ -57,7 +58,7 @@ def create_acc_cancel_command(packer):
 
 def create_acc_cancel_command_2(packer):
   values = {
-    "MAIN_ON": 0,
+    "WSTL2": 1,
   }
   return packer.make_can_msg("PCM_CRUISE_2", 0, values)
 
