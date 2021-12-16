@@ -117,15 +117,15 @@ function tici_init {
   # set success flag for current boot slot
   sudo abctl --set_success
 
-  # Check if AGNOS update is required
-  if [ $(< /VERSION) != "$AGNOS_VERSION" ]; then
-    AGNOS_PY="$DIR/selfdrive/hardware/tici/agnos.py"
-    MANIFEST="$DIR/selfdrive/hardware/tici/agnos.json"
-    if $AGNOS_PY --verify $MANIFEST; then
-      sudo reboot
-    fi
-    $DIR/selfdrive/hardware/tici/updater $AGNOS_PY $MANIFEST
-  fi
+#  # Check if AGNOS update is required
+#  if [ $(< /VERSION) != "$AGNOS_VERSION" ]; then
+#    AGNOS_PY="$DIR/selfdrive/hardware/tici/agnos.py"
+#    MANIFEST="$DIR/selfdrive/hardware/tici/agnos.json"
+#    if $AGNOS_PY --verify $MANIFEST; then
+#      sudo reboot
+#    fi
+#    $DIR/selfdrive/hardware/tici/updater $AGNOS_PY $MANIFEST
+#  fi
 }
 
 function launch {
