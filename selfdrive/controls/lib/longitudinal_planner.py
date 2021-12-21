@@ -25,6 +25,7 @@ _A_TOTAL_MAX_BP = [15., 40.]
 
 
 def get_max_accel(v_ego):
+  # change A_CRUISE_MAX_VALS live
   return interp(v_ego, A_CRUISE_MAX_BP, A_CRUISE_MAX_VALS)
 
 
