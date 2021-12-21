@@ -17,6 +17,7 @@ Want to request a feature or create a bug report? [Open an issue here!](https://
   * [**~~Dynamic camera offsetting~~ (removed temporarily)**](#Dynamic-camera-offset-based-on-oncoming-traffic) - moves you over if adjacent lane has oncoming traffic
 * [**~~Dynamic gas~~** (no longer needed)](#dynamic-gas) - smoother gas control
 * [**~~Adding derivative to PI for better control~~**](#pi---pid-controller-for-long-and-lat) - lat: smoother control in turns; long: fix for comma pedal overshoot
+* ***something about changing distance profiles using stock distance button***
 
 ### General Features
 * [**~~Smoother long control using delay~~ (stock added this!)**](#compensate-for-longitudinal-delay-for-earlier-braking) - using an accel delay, just like for lateral
