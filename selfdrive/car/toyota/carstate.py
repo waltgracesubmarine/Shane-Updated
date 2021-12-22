@@ -87,6 +87,8 @@ class CarState(CarStateBase):
 
     can_gear = int(cp.vl["GEAR_PACKET"]["GEAR"])
     ret.gearShifter = self.parse_gear_shifter(self.shifter_values.get(can_gear, None))
+    ret.sportOn = bool(cp.vl["GEAR_PACKET"]["SPORT_ON"])
+    ret.econOn = bool(cp.vl["GEAR_PACKET"]["ECON_ON"])
     ret.leftBlinker = cp.vl["STEERING_LEVERS"]["TURN_SIGNALS"] == 1
     ret.rightBlinker = cp.vl["STEERING_LEVERS"]["TURN_SIGNALS"] == 2
 
@@ -157,6 +159,8 @@ class CarState(CarStateBase):
       # sig_name, sig_address, default
       ("STEER_ANGLE", "STEER_ANGLE_SENSOR", 0),
       ("GEAR", "GEAR_PACKET", 0),
+      ("SPORT_ON", "GEAR_PACKET", 0),
+      ("ECON_ON", "GEAR_PACKET", 0),
       ("BRAKE_PRESSED", "BRAKE_MODULE", 0),
       ("GAS_PEDAL", "GAS_PEDAL", 0),
       ("WHEEL_SPEED_FL", "WHEEL_SPEEDS", 0),
