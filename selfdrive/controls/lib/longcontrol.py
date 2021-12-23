@@ -77,14 +77,14 @@ class LongControl():
 
     # TODO: This check is not complete and needs to be enforced by MPC
     a_target = clip(a_target, ACCEL_MIN_ISO, ACCEL_MAX_ISO)
-
     self.pid.neg_limit = accel_limits[0]
     if CS.sportOn:
-      self.pid.pos_limit = accel_limits[1]  # maximum accel
+      pass  # already max accel from CarControllerParams
     elif CS.econOn:
-      self.pid.pos_limit = 1.2
+      accel_limits[1] = 1.2
     else:
-      self.pid.pos_limit = 1.5
+      accel_limits[1] = 1.5
+    self.pid.pos_limit = accel_limits[1]
 
     # Update state machine
     output_accel = self.last_output_accel
