@@ -4,6 +4,7 @@ from common.realtime import DT_CTRL
 from selfdrive.controls.lib.pid import PIDController
 from selfdrive.controls.lib.drive_helpers import CONTROL_N
 from selfdrive.modeld.constants import T_IDXS
+from selfdrive.controls.lib.dynamic_gas import DynamicGas
 from common.op_params import opParams
 
 LongCtrlState = car.CarControl.Actuators.LongControlState
@@ -53,6 +54,9 @@ class LongControl():
     self.v_pid = 0.0
     self.last_output_accel = 0.0
 
+    # self.op_params = opParams()
+    # self.dynamic_gas = DynamicGas(CP, candidate)
+
   def reset(self, v_pid):
     """Reset PID controller and change setpoint"""
     self.pid.reset()
@@ -86,6 +90,9 @@ class LongControl():
     else:
       accel_limits[1] = 1.6
     self.pid.pos_limit = accel_limits[1]
+
+    # if self.op_params.get('dynamic_gas'):
+    #   gas_max = self.dynamic_gas.update(CS, extras)
 
     # Update state machine
     output_accel = self.last_output_accel
