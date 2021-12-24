@@ -8,7 +8,7 @@
 #include "selfdrive/common/swaglog.h"
 #include "selfdrive/hardware/hw.h"
 
-QString getQParam(const &QString key, int strip) {
+QString getQParam(const std::string &key, int strip) {
   static QString value = QString::fromStdString(Params().get(key));
   return value.left(strip);
 }
@@ -22,7 +22,7 @@ QString getBrandVersion() {
 }
 
 QString getUserAgent() {
-  return "openpilot-" + getVersion();
+  return "openpilot-" + getQParam("Version", -1);
 }
 
 std::optional<QString> getDongleId() {
