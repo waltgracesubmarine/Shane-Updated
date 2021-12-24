@@ -88,7 +88,7 @@ class LongControl():
     elif CS.econOn:
       accel_limits[1] = 1.3
     else:
-      accel_limits[1] = 1.6
+      accel_limits[1] = 1.5
     self.pid.pos_limit = accel_limits[1]
 
     # if self.op_params.get('dynamic_gas'):
