@@ -18,7 +18,10 @@ QString getBrand() {
 }
 
 QString getBrandVersion() {
-  return getBrand() + " v" + (getQParam("GitBranch", 10).contains("master") ? getQParam("GitCommit", 10) :  getQParam("Version", 10)).trimmed();
+  QString ret = getBrand() + " v" + getQParam("Version", 14).trimmed();
+  if (getQParam("GitBranch").contains("master"))
+    ret += " " + getQParam("GitCommit", 10);
+  return ret;
 }
 
 QString getUserAgent() {
