@@ -19,7 +19,7 @@ QString getBrand() {
 
 QString getBrandVersion() {
   QString ret = getBrand() + " v" + getQParam("Version", 14).trimmed();
-  if (getQParam("GitBranch").contains("master"))
+  if (getQParam("GitBranch", -1).contains("master"))
     ret += " " + getQParam("GitCommit", 10);
   return ret;
 }
