@@ -8,9 +8,9 @@
 #include "selfdrive/common/swaglog.h"
 #include "selfdrive/hardware/hw.h"
 
-QString getVersion() {
-  static QString version =  QString::fromStdString(Params().get("Version"));
-  return version;
+QString getQParam(const &QString key, int strip) {
+  static QString value = QString::fromStdString(Params().get(key));
+  return value.left(strip);
 }
 
 QString getBrand() {
@@ -18,7 +18,7 @@ QString getBrand() {
 }
 
 QString getBrandVersion() {
-  return getBrand() + " v" + getVersion().left(14).trimmed();
+  return getBrand() + " v" + (getQParam("GitBranch", 10).contains("master") ? getQParam("GitCommit", 10) :  getQParam("Version", 10)).trimmed();
 }
 
 QString getUserAgent() {
