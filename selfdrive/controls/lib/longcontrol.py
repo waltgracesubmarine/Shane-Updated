@@ -83,12 +83,13 @@ class LongControl():
     a_target = clip(a_target, ACCEL_MIN_ISO, ACCEL_MAX_ISO)
 
     self.pid.neg_limit = accel_limits[0]
-    if CS.sportOn:
-      pass  # already max accel from CarControllerParams
-    elif CS.econOn:
-      accel_limits[1] = 1.3
-    else:
-      accel_limits[1] = 1.5
+    # if CS.sportOn:
+    #   pass  # already max accel from CarControllerParams
+    # elif CS.econOn:
+    #   accel_limits[1] = 1.3
+    # else:
+    #   accel_limits[1] = 1.5
+    accel_limits[1] = 1.5
     self.pid.pos_limit = accel_limits[1]
 
     # if self.op_params.get('dynamic_gas'):
