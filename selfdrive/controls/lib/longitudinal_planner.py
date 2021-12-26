@@ -18,9 +18,13 @@ AWARENESS_DECEL = -0.2  # car smoothly decel at .2m/s^2 when user is distracted
 A_CRUISE_MIN = -1.2
 # TODO: tune from DATA!
 A_CRUISE_MAX_VALS = [1.6, 1.5, 0.6, 0.4]
-A_CRUISE_MAX_VALS_SPORT = [1.9, 1.6, 1.0, 0.8]
-A_CRUISE_MAX_VALS_ECON = [1.4, 0.92, 0.5, 0.186]
 A_CRUISE_MAX_BP = [0., 6.4, 22.5, 40.]  # 0., 14., 50.3, 90 mph
+
+A_CRUISE_MAX_VALS_SPORT = [1.0, 0.656]
+A_CRUISE_MAX_BP_SPORT = [11.3876, 29.238]
+
+A_CRUISE_MAX_VALS_ECON = [1.0, 0.64, 0.5, 0.36]
+A_CRUISE_MAX_BP_ECON = [3., 16.6332, 22.4933, 30.2597]
 
 # Lookup table for turns
 _A_TOTAL_MAX_V = [2.5, 3.8]
@@ -30,9 +34,9 @@ _A_TOTAL_MAX_BP = [15., 40.]
 def get_max_accel(v_ego, CS):
   # change A_CRUISE_MAX_VALS live
   if CS.sportOn:
-    return interp(v_ego, A_CRUISE_MAX_BP, A_CRUISE_MAX_VALS_SPORT)
+    return interp(v_ego, A_CRUISE_MAX_BP_SPORT, A_CRUISE_MAX_VALS_SPORT)
   elif CS.econOn:
-    return interp(v_ego, A_CRUISE_MAX_BP, A_CRUISE_MAX_VALS_ECON)
+    return interp(v_ego, A_CRUISE_MAX_BP_ECON, A_CRUISE_MAX_VALS_ECON)
   else:
     return interp(v_ego, A_CRUISE_MAX_BP, A_CRUISE_MAX_VALS)
 
