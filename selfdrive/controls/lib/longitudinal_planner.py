@@ -68,7 +68,7 @@ class Planner:
     long_control_state = sm['controlsState'].longControlState
     force_slow_decel = sm['controlsState'].forceDecel
 
-    prev_accel_cost = 20.
+    prev_accel_cost = 0.
     active = long_control_state != LongCtrlState.off and not sm['carState'].gasPressed
     if not active:
       self.v_desired = v_ego
