@@ -155,7 +155,7 @@ def gen_long_mpc_solver():
 
   x0 = np.zeros(X_DIM)
   ocp.constraints.x0 = x0
-  ocp.parameter_values = np.array([-1.2, 1.2, 0.0, 0.0])
+  ocp.parameter_values = np.array([-1.2, 1.2, 0.0, 0.0, 20.])
 
   # We put all constraint cost weights to 0 and only set them at runtime
   cost_weights = np.zeros(CONSTR_DIM)
