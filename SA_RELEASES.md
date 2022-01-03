@@ -1,5 +1,7 @@
 Stock Additions 0.8.13
 ===
+## - 2022-01-03
+ * Revert "follow longitudinal plan earlier" change as it had some minor bugs. Re-do in progress
 ## - 2022-01-01
  * Improve lateral performance by interpolating lateral plan to 100hz (from 20hz)
 ## - 2021-12-31, 5:00pm MST Notes
