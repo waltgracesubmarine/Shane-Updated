@@ -387,7 +387,7 @@ class AutoReboot:
             and self.need_reboot and REBOOT_ON_UPDATE)
 
 
-def main():
+def main() -> None:
   auto_reboot = AutoReboot()
   params = Params()
 
@@ -398,7 +398,7 @@ def main():
   ov_lock_fd = open(LOCK_FILE, 'w')
   try:
     fcntl.flock(ov_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-  except IOError as e:
+  except OSError as e:
     raise RuntimeError("couldn't get overlay lock; is another instance running?") from e
 
   # Set low io priority
@@ -418,7 +418,7 @@ def main():
   overlay_init.unlink(missing_ok=True)
 
   first_run = True
-  last_fetch_time = 0
+  last_fetch_time = 0.0
   update_failed_count = 0
 
   # Set initial params for offroad alerts
