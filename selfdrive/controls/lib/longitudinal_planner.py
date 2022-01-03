@@ -68,13 +68,13 @@ class Planner:
     long_control_state = sm['controlsState'].longControlState
     force_slow_decel = sm['controlsState'].forceDecel
 
-    prev_accel_cost = 0.
+    quick_convergence = False
     active = long_control_state != LongCtrlState.off and not sm['carState'].gasPressed
     if not active:
       self.v_desired = v_ego
       self.a_desired = a_ego
     if not active or (active and not self.last_active):
-      prev_accel_cost = 0.
+      quick_convergence = True
     self.last_active = active
 
     # Prevent divergence, smooth in current v_ego
@@ -92,7 +92,7 @@ class Planner:
     accel_limits_turns[1] = max(accel_limits_turns[1], self.a_desired - 0.05)
     self.mpc.set_accel_limits(accel_limits_turns[0], accel_limits_turns[1])
     self.mpc.set_cur_state(self.v_desired, self.a_desired)
-    self.mpc.update(sm['carState'], sm['radarState'], v_cruise, prev_accel_cost=prev_accel_cost)
+    self.mpc.update(sm['carState'], sm['radarState'], v_cruise, quick_convergence=quick_convergence)
     self.v_desired_trajectory = np.interp(T_IDXS[:CONTROL_N], T_IDXS_MPC, self.mpc.v_solution)
     self.a_desired_trajectory = np.interp(T_IDXS[:CONTROL_N], T_IDXS_MPC, self.mpc.a_solution)
     self.j_desired_trajectory = np.interp(T_IDXS[:CONTROL_N], T_IDXS_MPC[:-1], self.mpc.j_solution)
