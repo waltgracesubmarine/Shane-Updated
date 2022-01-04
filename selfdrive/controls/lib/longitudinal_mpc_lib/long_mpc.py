@@ -198,6 +198,7 @@ class LongitudinalMpc:
     self.accel_limit_arr[:,0] = -1.2
     self.accel_limit_arr[:,1] = 1.2
     self.source = SOURCES[2]
+    self.v_ego = 0.
 
   def reset(self):
     self.solver = AcadosOcpSolverFast('long', N, EXPORT_DIR)
@@ -228,14 +229,16 @@ class LongitudinalMpc:
       self.set_weights_for_lead_policy()
 
   def set_weights_for_lead_policy(self, quick_convergence=False):
+    _A_CHANGE_COST = A_CHANGE_COST * interp(self.v_ego, [0.5, 1.0], [0.1, 1.0])
+    _J_EGO_COST = J_EGO_COST * interp(self.v_ego, [0.5, 1.0], [0.1, 1.0])
     W = np.asfortranarray(np.diag([X_EGO_OBSTACLE_COST,
                                    X_EGO_COST,
                                    V_EGO_COST,
                                    A_EGO_COST,
-                                   0.0 if quick_convergence else A_CHANGE_COST,
-                                   0.0 if quick_convergence else J_EGO_COST]))
+                                   0.0 if quick_convergence else _A_CHANGE_COST,
+                                   0.0 if quick_convergence else _J_EGO_COST]))
     for i in range(N):
-      W[4,4] = A_CHANGE_COST * np.interp(T_IDXS[i], [0.0, 1.0, 2.0], [1.0, 1.0, 0.0])
+      W[4,4] = _A_CHANGE_COST * np.interp(T_IDXS[i], [0.0, 1.0, 2.0], [1.0, 1.0, 0.0])
       self.solver.cost_set(i, 'W', W)
     # Setting the slice without the copy make the array not contiguous,
     # causing issues with the C interface.
@@ -305,6 +308,7 @@ class LongitudinalMpc:
     self.cruise_max_a = max_a
 
   def update(self, carstate, radarstate, v_cruise, quick_convergence=False):
+    self.v_ego = carstate.vEgo
     v_ego = self.x0[1]
     self.status = radarstate.leadOne.status or radarstate.leadTwo.status
 

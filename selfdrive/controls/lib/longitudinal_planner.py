@@ -48,7 +48,6 @@ class Planner:
 
     self.fcw = False
     self.last_enabled = False
-    self.last_starting = False
 
     self.v_desired = init_v
     self.a_desired = init_a
@@ -71,15 +70,12 @@ class Planner:
 
     quick_convergence = False
     enabled = long_control_state != LongCtrlState.off and not sm['carState'].gasPressed
-    starting = long_control_state == LongCtrlState.starting
     if not enabled:
       self.v_desired = v_ego
       self.a_desired = a_ego
-    # TODO: messy, clean up
-    if not enabled or (enabled and not self.last_enabled) or (not starting and self.last_starting):
+    if not enabled or (enabled and not self.last_enabled):
       quick_convergence = True
     self.last_enabled = enabled
-    self.last_starting = starting
 
     # Prevent divergence, smooth in current v_ego
     self.v_desired = self.alpha * self.v_desired + (1 - self.alpha) * v_ego
