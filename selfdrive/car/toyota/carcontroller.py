@@ -57,7 +57,7 @@ class CarController():
 
     # TODO: probably can delete this. CS.pcm_acc_status uses a different signal
     # than CS.cruiseState.enabled. confirm they're not meaningfully different
-    if not enabled and CS.pcm_acc_status:
+    if not enabled and CS.pcm_acc_status or abs(CS.out.steeringAngleDeg) > 45:
       pcm_cancel_cmd = 1
 
     # on entering standstill, send standstill request
