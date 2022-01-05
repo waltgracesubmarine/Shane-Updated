@@ -45,14 +45,21 @@ def create_accel_command(packer, accel, pcm_cancel, standstill_req, lead, acc_ty
 
 def create_acc_cancel_command(packer):
   values = {
-    "GAS_RELEASED": 0,
-    "CRUISE_ACTIVE": 0,
-    "STANDSTILL_ON": 0,
-    "ACCEL_NET": 0,
-    "CRUISE_STATE": 0,
-    "CANCEL_REQ": 1,
+    "PCSWAR": 1,
+    "PCSALM": 1,
+    "PCSOPR": 1,
+    "PCSABK": 1,
+    "PPTRGR": 1,
+    "IBTRGR": 1,
+    "CLEXTRGR": 1,
+    "IRLT_REQ": 1,
+    "AVSTRGR": 1,
+    "PREFILL": 1,
+    "PBRTRGR": 1,
+    "PCSDIS": 1,
+    "PBPREPMP": 1,
   }
-  return packer.make_can_msg("PCM_CRUISE", 0, values)
+  return packer.make_can_msg("PRE_COLLISION_2", 0, values)
 
 
 def create_fcw_command(packer, fcw):
@@ -67,7 +74,7 @@ def create_fcw_command(packer, fcw):
   return packer.make_can_msg("ACC_HUD", 0, values)
 
 
-def create_ui_command(packer, steer, chime, left_line, right_line, left_lane_depart, right_lane_depart, enabled):
+def create_ui_command(packer, steer, left_line, right_line, left_lane_depart, right_lane_depart, enabled):
   values = {
     "RIGHT_LINE": 3 if right_lane_depart else 1 if right_line else 2,
     "LEFT_LINE": 3 if left_lane_depart else 1 if left_line else 2,
@@ -79,7 +86,7 @@ def create_ui_command(packer, steer, chime, left_line, right_line, left_lane_dep
     "SET_ME_X01": 1,
     "SET_ME_X01_2": 1,
     "REPEATED_BEEPS": 0,
-    "TWO_BEEPS": chime,
+    "TWO_BEEPS": 0,
     "LDA_ALERT": steer,
   }
   return packer.make_can_msg("LKAS_HUD", 0, values)
