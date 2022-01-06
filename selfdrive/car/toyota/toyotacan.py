@@ -58,8 +58,26 @@ def create_acc_cancel_command(packer):
     "PBRTRGR": 1,
     "PCSDIS": 1,
     "PBPREPMP": 1,
+    "VGRSTRGR": 1,
+    "PBATRGR": 1,
+    "DS1STBK2": 1,
   }
   return packer.make_can_msg("PRE_COLLISION_2", 0, values)
+
+
+def create_acc_cancel_command_2(packer):
+  values = {
+    "DSLCCW1": 1,
+    "DSSTPBZ": 1,
+    "PBRTRGR2": 1,
+    "DSSFTRQD": 1,
+    "DSBHOK": 1,
+    "PPTRGR2": 1,
+    "DSRQBH": 1,
+    "IBTRGR2": 1,
+    "PCSABK2": 1,
+  }
+  return packer.make_can_msg("PRE_COLLISION", 0, values)
 
 
 def create_fcw_command(packer, fcw):
