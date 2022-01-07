@@ -59,7 +59,6 @@ class Planner:
 
   def update(self, sm):
     v_ego = sm['carState'].vEgo
-    a_ego = sm['carState'].aEgo
 
     v_cruise_kph = sm['controlsState'].vCruise
     v_cruise_kph = min(v_cruise_kph, V_CRUISE_MAX)
@@ -72,7 +71,7 @@ class Planner:
     enabled = long_control_state != LongCtrlState.off and not sm['carState'].gasPressed
     if not enabled:
       self.v_desired_filter.x = v_ego
-      self.a_desired = a_ego
+      self.a_desired = 0.
     if not enabled or (enabled and not self.last_enabled):
       # Smoothly changing between accel trajectory is only relevant when OP is driving
       prev_accel_constraint = False

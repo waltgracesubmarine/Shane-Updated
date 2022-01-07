@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import math
 import numpy as np
 
 from common.realtime import sec_since_boot
@@ -193,6 +194,7 @@ def gen_long_mpc_solver():
 class LongitudinalMpc:
   def __init__(self, e2e=False):
     self.e2e = e2e
+    self.v_ego = 0.
     self.reset()
     self.source = SOURCES[2]
 
@@ -229,7 +231,7 @@ class LongitudinalMpc:
 
   def set_weights_for_lead_policy(self, prev_accel_constraint=False):
     _A_CHANGE_COST = A_CHANGE_COST if prev_accel_constraint else 0.0
-    _J_EGO_COST = J_EGO_COST if prev_accel_constraint else 0.0
+    _J_EGO_COST = J_EGO_COST if prev_accel_constraint else math.sqrt(max(self.v_ego + 1., 0.))
     W = np.asfortranarray(np.diag([X_EGO_OBSTACLE_COST, X_EGO_COST, V_EGO_COST, A_EGO_COST, _A_CHANGE_COST, _J_EGO_COST]))
     for i in range(N):
       W[4,4] = _A_CHANGE_COST * np.interp(T_IDXS[i], [0.0, 1.0, 2.0], [1.0, 1.0, 0.0])
@@ -302,6 +304,7 @@ class LongitudinalMpc:
     self.cruise_max_a = max_a
 
   def update(self, carstate, radarstate, v_cruise, prev_accel_constraint=False):
+    self.v_ego = carstate.vEgo
     v_ego = self.x0[1]
     self.status = radarstate.leadOne.status or radarstate.leadTwo.status
 
