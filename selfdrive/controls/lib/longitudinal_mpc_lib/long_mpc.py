@@ -303,7 +303,6 @@ class LongitudinalMpc:
 
   def update(self, carstate, radarstate, v_cruise, prev_accel_constraint=False):
     v_ego = self.x0[1]
-    a_ego = self.x0[2]
     self.status = radarstate.leadOne.status or radarstate.leadTwo.status
 
     lead_xv_0 = self.process_lead(radarstate.leadOne)
@@ -332,7 +331,6 @@ class LongitudinalMpc:
     self.source = SOURCES[np.argmin(x_obstacles[0])]
     self.params[:,2] = np.min(x_obstacles, axis=1)
     self.params[:,3] = np.copy(self.prev_a)
-
     if not self.e2e:
       self.set_weights_for_lead_policy(prev_accel_constraint=prev_accel_constraint)
 

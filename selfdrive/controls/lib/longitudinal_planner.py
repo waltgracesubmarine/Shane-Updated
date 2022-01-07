@@ -48,6 +48,7 @@ class Planner:
     self.mpc = LongitudinalMpc()
 
     self.fcw = False
+    self.last_enabled = False
 
     self.a_desired = init_a
     self.v_desired_filter = FirstOrderFilter(init_v, 2.0, DT_MDL)
@@ -68,11 +69,14 @@ class Planner:
     force_slow_decel = sm['controlsState'].forceDecel
 
     prev_accel_constraint = True
-    if long_control_state == LongCtrlState.off or sm['carState'].gasPressed:
+    enabled = long_control_state != LongCtrlState.off and not sm['carState'].gasPressed
+    if not enabled:
       self.v_desired_filter.x = v_ego
       self.a_desired = a_ego
+    if not enabled or (enabled and not self.last_enabled):
       # Smoothly changing between accel trajectory is only relevant when OP is driving
       prev_accel_constraint = False
+    self.last_enabled = enabled
 
     # Prevent divergence, smooth in current v_ego
     self.v_desired_filter.x = max(0.0, self.v_desired_filter.update(v_ego))
