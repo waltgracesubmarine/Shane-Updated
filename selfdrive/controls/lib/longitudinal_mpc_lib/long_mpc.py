@@ -229,9 +229,9 @@ class LongitudinalMpc:
     else:
       self.set_weights_for_lead_policy()
 
-  def set_weights_for_lead_policy(self, rising_engage=False):
-    _A_CHANGE_COST = A_CHANGE_COST  # if not rising_engage else 0.0
-    _J_EGO_COST = J_EGO_COST if not rising_engage else 0.0  # math.sqrt(max(self.v_ego + 1., 0.))
+  def set_weights_for_lead_policy(self, prev_accel_constraint=False):
+    _A_CHANGE_COST = A_CHANGE_COST if prev_accel_constraint else 0.0
+    _J_EGO_COST = J_EGO_COST if prev_accel_constraint else math.sqrt(max(self.v_ego + 1., 0.))
     W = np.asfortranarray(np.diag([X_EGO_OBSTACLE_COST, X_EGO_COST, V_EGO_COST, A_EGO_COST, _A_CHANGE_COST, _J_EGO_COST]))
     for i in range(N):
       W[4,4] = _A_CHANGE_COST * np.interp(T_IDXS[i], [0.0, 1.0, 2.0], [1.0, 1.0, 0.0])
@@ -303,10 +303,9 @@ class LongitudinalMpc:
     self.cruise_min_a = min_a
     self.cruise_max_a = max_a
 
-  def update(self, carstate, radarstate, v_cruise, rising_engage, prev_accel_constraint=False):
+  def update(self, carstate, radarstate, v_cruise, prev_accel_constraint=False):
     self.v_ego = carstate.vEgo
     v_ego = self.x0[1]
-    a_ego = self.x0[2]
     self.status = radarstate.leadOne.status or radarstate.leadTwo.status
 
     lead_xv_0 = self.process_lead(radarstate.leadOne)
@@ -335,12 +334,8 @@ class LongitudinalMpc:
     self.source = SOURCES[np.argmin(x_obstacles[0])]
     self.params[:,2] = np.min(x_obstacles, axis=1)
     self.params[:,3] = np.copy(self.prev_a)
-    if prev_accel_constraint:
-      self.params[:, 3] = np.copy(self.prev_a)
-    else:
-      self.params[:, 3] = a_ego
     if not self.e2e:
-      self.set_weights_for_lead_policy(rising_engage=rising_engage)
+      self.set_weights_for_lead_policy(prev_accel_constraint=prev_accel_constraint)
 
     self.run()
     if (np.any(lead_xv_0[:,0] - self.x_sol[:,0] < CRASH_DISTANCE) and
