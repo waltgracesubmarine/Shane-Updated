@@ -16,7 +16,7 @@ else:
   # from pyextra.acados_template import AcadosOcpSolver as AcadosOcpSolverFast
   from selfdrive.controls.lib.longitudinal_mpc_lib.c_generated_code.acados_ocp_solver_pyx import AcadosOcpSolverFast  # pylint: disable=no-name-in-module, import-error
 
-from casadi import SX, vertcat, if_else
+from casadi import SX, vertcat
 
 LONG_MPC_DIR = os.path.dirname(os.path.abspath(__file__))
 EXPORT_DIR = os.path.join(LONG_MPC_DIR, "c_generated_code")
@@ -58,10 +58,10 @@ STOP_DISTANCE = 6.0
 def get_stopped_equivalence_factor(v_lead, v_ego):
   # KRK add linear offset based on speed differential in attempt to
   # rectify sluggish start issue
-  v_diff_offset = if_else(v_lead - v_ego > 0, (v_lead - v_ego) * 1, 0)  # Linear offset
-  v_diff_offset = if_else(v_diff_offset > STOP_DISTANCE, STOP_DISTANCE, v_diff_offset) # Limit max offset
-  v_diff_offset = v_diff_offset * ((10 - v_ego)/10)  # Offset tapers off ending at v_ego of 10m/s
-  distance = (v_lead**2) / (2 * COMFORT_BRAKE) + v_diff_offset
+  v_diff_offset = v_lead - v_ego  # Linear offset
+  v_diff_offset *= (10 - v_ego) / 10  # Offset tapers off ending at v_ego of 10m/s
+  v_diff_offset = min(max(v_diff_offset, 0), STOP_DISTANCE)  # Clip offset
+  distance = (v_lead ** 2) / (2 * COMFORT_BRAKE) + v_diff_offset
   return distance
 
 def get_safe_obstacle_distance(v_ego, t_follow=T_FOLLOW):
