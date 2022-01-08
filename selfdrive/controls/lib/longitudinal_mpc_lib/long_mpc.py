@@ -240,24 +240,6 @@ class LongitudinalMpc:
     else:
       self.set_weights_for_lead_policy()
 
-  def get_cost_multipliers(self):
-    v_ego = self.x0[1]
-    v_ego_bps = [0, 10]
-    TFs = [1.0, 1.25, T_FOLLOW]
-    # KRKeegan adjustments to costs for different TFs
-    # these were calculated using the test_longitudial.py deceleration tests
-    x_ego_obstacle_cost_multiplier_tf = interp(self.desired_TF, TFs, [2., 1.3, 1.])
-    j_ego_cost_multiplier_tf = interp(self.desired_TF, TFs, [.1, .8, 1.])
-    d_zone_cost_multiplier_tf = interp(self.desired_TF, TFs, [1.8, 1.3, 1.])
-    # KRKeegan adjustments to improve sluggish acceleration these also
-    # alter deceleration in the same range
-    x_ego_obstacle_cost_multiplier_v_ego = interp(v_ego, v_ego_bps, [2., 1.])  # double
-    j_ego_cost_multiplier_v_ego = interp(v_ego, v_ego_bps, [.5, 1.])  # halve
-    # Select the appropriate min/max of the options
-    x_ego_obstacle_cost_multiplier = max(x_ego_obstacle_cost_multiplier_tf, x_ego_obstacle_cost_multiplier_v_ego)
-    j_ego_cost_multiplier = min(j_ego_cost_multiplier_tf, j_ego_cost_multiplier_v_ego)
-    return (x_ego_obstacle_cost_multiplier, j_ego_cost_multiplier, d_zone_cost_multiplier_tf)
-
   def set_weights_for_lead_policy(self):
     # WARNING: deceleration tests with these costs:
     # 1.0 TR fails at 3 m/s/s test
