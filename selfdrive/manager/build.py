@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import time
+t = time.time()
 import os
 import subprocess
 import sys
@@ -13,6 +15,7 @@ from common.text_window import TextWindow
 from selfdrive.hardware import TICI
 from selfdrive.swaglog import cloudlog, add_file_handler
 from selfdrive.version import is_dirty
+print(time.time() - t)
 
 MAX_CACHE_SIZE = 4e9 if "CI" in os.environ else 2e9
 CACHE_DIR = Path("/data/scons_cache" if TICI else "/tmp/scons_cache")
