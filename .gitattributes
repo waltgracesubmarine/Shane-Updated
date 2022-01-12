@@ -4,5 +4,6 @@
 *.pb filter=lfs diff=lfs merge=lfs -text
 *.bin filter=lfs diff=lfs merge=lfs -text
 *.jpg filter=lfs diff=lfs merge=lfs -text
+.media/df_profiles.jpg !filter !diff !merge text
 *.ipynb filter=nbstripout -diff
 external/ffmpeg/bin/ffmpeg_cuda filter=lfs diff=lfs merge=lfs -text
