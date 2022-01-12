@@ -28,6 +28,15 @@ MIN_SAMPLES = int(30 / DT_CTRL)
 MAX_TORQUE = 1500  # fixme: auto detect, this is toyota
 
 
+def tokenize(data, seq_length):
+  seq = []
+  for i in range(len(data) - seq_length + 1):
+    token = data[i:i + seq_length]
+    if len(token) == seq_length:
+      seq.append(token)
+  return seq
+
+
 def feedforward(v_ego, angle_steers, kf=1.):  # outputs unscaled ~lateral accel, with optional kf param to scale
   steer_feedforward = angle_steers * v_ego ** 2
   return steer_feedforward * kf
@@ -47,60 +56,57 @@ def load_processed(file_name):
 def load_and_process_rlogs(lr, file_name):
   data = [[]]
 
-  v_ego, angle_offset, angle_steers, angle_rate, torque_cmd, eps_torque = None, None, None, None, None, None
+  log_msgs = {
+    'carState': {
+      'vEgo': None,
+      'aEgo': None,
+      'gasPressed': None
+    },
+    'controlsState': {
+      'enabled': False
+    }
+  }
   last_time = 0
   can_updated = False
 
-  signals = [
-    ("STEER_REQUEST", "STEERING_LKA", 0),
-    ("STEER_TORQUE_CMD", "STEERING_LKA", 0),
-    ("STEER_TORQUE_DRIVER", "STEER_TORQUE_SENSOR", 0),
-    ("STEER_ANGLE", "STEER_TORQUE_SENSOR", 0),
-    ("STEER_ANGLE", "STEER_ANGLE_SENSOR", 0),
-    ("STEER_FRACTION", "STEER_ANGLE_SENSOR", 0),
+  can_signals = [
+    ("ACCEL_CMD", "ACC_CONTROL", 0),
   ]
-  cp = CANParser("toyota_nodsu_pt_generated", signals, enforce_checks=False)  # todo: auto load dbc from logs
+  cp = CANParser("toyota_nodsu_hybrid_pt_generated", can_signals, enforce_checks=False)  # todo: auto load dbc from logs
 
   all_msgs = sorted(lr, key=lambda msg: msg.logMonoTime)
 
   for msg in tqdm(all_msgs):
-    if msg.which() == 'carState':
-      v_ego = msg.carState.vEgo
-      angle_steers = msg.carState.steeringAngleDeg  # this is offset from can by 1 frame. it's within acceptable margin of error and we get more accuracy for TSS2
-      angle_rate = msg.carState.steeringRateDeg
-      eps_torque = msg.carState.steeringTorqueEps
+    for log_msg in log_msgs:
+      if msg.which() == log_msg:
+        for log_signal in log_msgs[log_msg]:
+          log_msgs[log_msg][log_signal] = getattr(getattr(msg, log_msg), log_signal)
 
-    elif msg.which() == 'liveParameters':
-      angle_offset = msg.liveParameters.angleOffsetDeg
-
-    if msg.which() != 'can':
+    if msg.which() != 'sendcan':
       continue
 
     cp_updated = cp.update_string(msg.as_builder().to_bytes())
     for u in cp_updated:
-      if u == 0x2e4:  # STEERING_LKA
+      if u == 0x343:  # ACC_CONTROL
         can_updated = True
 
-    torque_cmd = int(cp.vl['STEERING_LKA']['STEER_TORQUE_CMD'])
-    steer_req = bool(cp.vl['STEERING_LKA']['STEER_REQUEST'])
-    steering_pressed = abs(cp.vl['STEER_TORQUE_SENSOR']['STEER_TORQUE_DRIVER']) > STEER_THRESHOLD
+    accel_cmd = float(cp.vl['ACC_CONTROL']['ACCEL_CMD'])
 
-    sample_ok = None not in [v_ego, angle_offset, torque_cmd] and can_updated
-    sample_ok = sample_ok and (steer_req and not steering_pressed or not steer_req)  # bad sample if engaged and override, but not if disengaged
-
-    final_torque = torque_cmd if steer_req else eps_torque
+    sample_ok = None not in [log_msgs['carState']['vEgo'], log_msgs['carState']['aEgo'], accel_cmd] and can_updated
+    sample_ok = sample_ok and log_msgs['controlsState']['enabled'] and not log_msgs['carState']['gasPressed']
 
     # creates uninterupted sections of engaged data
     if sample_ok and abs(msg.logMonoTime - last_time) * 1e-9 < 1 / 20:  # also split if there's a break in time
-      data[-1].append({'angle_steers': angle_steers, 'angle_rate': angle_rate, 'v_ego': v_ego,
-                       'angle_offset': angle_offset, 'torque': final_torque, 'time': msg.logMonoTime * 1e-9})
+      to_append = {'accel_cmd': accel_cmd, 'time': msg.logMonoTime * 1e-9}
+      for log_signals in log_msgs.values():
+        to_append = {**to_append, **log_signals}
+      data[-1].append(to_append)
     elif len(data[-1]):  # if last list has items in it, append new empty section
       data.append([])
     last_time = msg.logMonoTime
 
-  print('Max seq. len: {}'.format(max([len(line) for line in data])))
   del all_msgs
-  data = [sec for sec in data if len(sec) > 5 / DT_CTRL]  # long enough sections
+  data = [sec for sec in data if len(sec) > (5 / DT_CTRL)]  # long enough sections
 
   with open(file_name, 'wb') as f:  # now dump
     pickle.dump(data, f)
@@ -108,9 +114,6 @@ def load_and_process_rlogs(lr, file_name):
 
 
 def main(lr):
-  # TSS2 Corolla looks to be around 0.5 to 0.6
-  STEER_DELAY = round(0.12 + 0.2 / DT_CTRL)  # important: needs to be accurate
-
   if os.path.exists('processed_data'):
     print('exists')
     data = load_processed('processed_data')
@@ -118,32 +121,20 @@ def main(lr):
     print('processing')
     data = load_and_process_rlogs(lr, file_name='processed_data')
   print('Max seq. len: {}'.format(max([len(line) for line in data])))
+  print('Seq. lens: {}'.format([len(line) for line in data]))
 
-  data = [sec for sec in data if len(sec) > DT_CTRL]  # long enough sections
-  for i in range(len(data)):  # accounts for steer actuator delay (moves torque cmd up by x samples)
-    torque = [line['torque'] for line in data[i]]
-    for j in range(len(data[i])):
-      if j < STEER_DELAY:
-        continue
-      data[i][j]['torque'] = torque[j - STEER_DELAY]
-    data[i] = data[i][STEER_DELAY:]  # removes leading samples
-  data = [i for j in data for i in j]  # flatten
-  print(f'Samples (before filtering): {len(data)}')
+  data_tokenized = []
+  for seq in data:
+    data_tokenized += tokenize(seq, round(2. / DT_CTRL))
+  del data
 
-  # Data filtering
-  # we want samples where wheel not moving very much, less reliance on lag compensation above
-  data = [line for line in data if 1 <= abs(line['angle_steers']) <= 45.]  # no need for higher
-  data = [line for line in data if abs(line['angle_rate']) <= 25.]  # TODO: tune this
-  data = [line for line in data if abs(line['v_ego']) >= 2 * CV.MPH_TO_MS]
-  data = [line for line in data if abs(line['torque']) <= 1500]
-
-  assert len(data) > MIN_SAMPLES, 'too few valid samples found in route'
-
-  print(f'Samples (after filtering):  {len(data)}\n')
-  print('Max angle: {}'.format(round(max([i['angle_steers'] for i in data]), 2)))
-  print('Max angle rate: {}'.format(round(max([i['angle_rate'] for i in data]), 2)))
-  print('Top speed: {} mph'.format(round(max([i['v_ego'] for i in data]) * CV.MS_TO_MPH, 2)))
-  print('Torque: min: {}, max: {}\n'.format(*[func([i['torque'] for i in data]) for func in [min, max]]))
+  print(f'One second sequences: {len(data_tokenized)}')
+  r = np.random.randint(25000)
+  plt.plot([i['aEgo'] for i in data_tokenized[r]], label='aEgo')
+  plt.plot([i['accel_cmd'] for i in data_tokenized[r]], label='acc_command')
+  plt.legend()
+  plt.pause(5)
+  input()
 
   # Data preprocessing
   for line in data:
@@ -289,7 +280,11 @@ def main(lr):
 
 
 if __name__ == '__main__':
-  r = Route(sys.argv[1])
-  lr = MultiLogIterator(r.log_paths(), wraparound=False)
+  # r = Route(sys.argv[1])
+  # lr = MultiLogIterator(r.log_paths(), wraparound=False)
+  use_dir = os.path.join(dir_name, 'rlogs')
+  route_files = [os.path.join(use_dir, f) for f in os.listdir(use_dir) if f != 'exclude' and '.ini' not in f]
+  print(route_files)
+  lr = MultiLogIterator(route_files)
 
   n = main(lr)
