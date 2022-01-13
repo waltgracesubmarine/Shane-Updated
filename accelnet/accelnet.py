@@ -224,7 +224,7 @@ if __name__ == "__main__":
     # x_train.append([seq[0]['vEgo'], seq[FUTURE_FRAMES]['vEgo']])
     accels = [seq[t_frame]['aEgo'] for t_frame in T_FRAMES]
     speeds = [seq[t_frame]['vEgo'] for t_frame in T_FRAMES]
-    x_train.append([seq[0]['vEgo']] + accels)
+    x_train.append(accels)
     accel_cmds = [seq[t_frame]['accel_cmd'] for t_frame in T_FRAMES]
     y_train.append(accel_cmds)
 
@@ -236,11 +236,11 @@ if __name__ == "__main__":
 
   model = Sequential()
   # model.add(GaussianNoise(0.1, input_shape=(3,)))
-  model.add(Dense(32, input_shape=(len(T_FRAMES)+1,), activation=LeakyReLU()))
-  model.add(Dropout(0.1))
+  model.add(Dense(32, input_shape=(len(T_FRAMES),), activation=LeakyReLU()))
+  model.add(Dropout(0.05))
   model.add(Dense(32, activation=LeakyReLU()))
   # model.add(Dense(16, activation=LeakyReLU()))
-  model.add(Dropout(0.2))
+  model.add(Dropout(0.1))
   model.add(Dense(len(T_FRAMES), activation='linear'))
 
   opt = Adam(lr=0.001, amsgrad=True)
@@ -278,7 +278,7 @@ if __name__ == "__main__":
       # preds.append(model.predict([[seq[idx]['accels'][0], seq[idx + FUTURE_FRAMES]['accels'][2]]])[0])
       # preds.append(model.predict([[seq[idx]['vEgo'], seq[idx]['speeds'][2], seq[idx]['aEgo'], seq[idx]['accels'][2]]])[0])
       # preds.append(model.predict([[seq[idx]['vEgo'], fut_speed]])[0])
-      pred_accels = model.predict([[seq[idx]['vEgo']] + seq[idx]['accels']])[0]
+      pred_accels = model.predict([seq[idx]['accels']])[0]
       # preds.append(np.interp(FUTURE_TIME, T_IDXS, pred_accels))
       preds.append(pred_accels[0])
       # preds.append(model.predict([[seq[idx]['vEgo'], seq[idx]['speeds'][2]]])[0])
