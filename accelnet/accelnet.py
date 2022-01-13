@@ -14,6 +14,8 @@ from tools.lib.logreader import MultiLogIterator
 from tools.lib.route import Route
 from cereal import car
 from common.filter_simple import FirstOrderFilter
+from selfdrive.controls.lib.drive_helpers import CONTROL_N
+from selfdrive.modeld.constants import T_IDXS
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,15 +25,20 @@ from tqdm import tqdm   # type: ignore
 from scipy.optimize import curve_fit
 
 from selfdrive.config import Conversions as CV
+from common.realtime import DT_CTRL
 import pickle
 
 dir_name = os.path.dirname(os.path.realpath(__file__))
-STEER_THRESHOLD = 100
-DT_CTRL = 0.01
+os.chdir(dir_name)
 
-old_kf = 0.00004  # for plotting old function compared to new polynomial function
 MIN_SAMPLES = int(30 / DT_CTRL)
-MAX_TORQUE = 1500  # fixme: auto detect, this is toyota
+
+T_IDXS = np.array(T_IDXS[:CONTROL_N])
+T_FRAMES = [int(round(t * 100.)) for t in T_IDXS]
+
+FUTURE_TIME = 0.15
+FUTURE_FRAMES = round(FUTURE_TIME / DT_CTRL)
+# T_FRAME_IDX_FUTURE = np.argmin([abs(i - FUTURE_TIME) for i in T_IDXS])  # find closest index
 
 
 def tokenize(data, seq_length):
@@ -66,6 +73,19 @@ def load_processed(file_name):
     return pickle.load(f)
 
 
+def show_pred():
+  seq = data_tokenized_test[np.random.randint(len(data_tokenized_test))]
+  idx = np.random.randint(len(seq))
+  pred = model.predict([[seq[idx]['vEgo']] + seq[idx]['accels']])
+  plt.clf()
+  plt.plot(seq[idx]['accels'], label='accels')
+  plt.plot(pred[0], label='prediction')
+  plt.legend()
+  plt.show()
+  plt.pause(1)
+  plt.show()
+
+
 def load_and_process_rlogs(lr, file_name):
   data = [[]]
 
@@ -80,7 +100,8 @@ def load_and_process_rlogs(lr, file_name):
     },
     'longitudinalPlan': {
       'jerks': None,
-      'accels': None
+      'accels': None,
+      'speeds': None,
     }
   }
   jEgo = 0.
@@ -146,10 +167,19 @@ def load_and_process_rlogs(lr, file_name):
   return data
 
 
-def main(lr):
-  if os.path.exists('processed_data'):
+if __name__ == "__main__":
+  # r = Route(sys.argv[1])
+  # lr = MultiLogIterator(r.log_paths(), wraparound=False)
+  use_dir = os.path.join(dir_name, 'rlogs')
+  route_files = [os.path.join(use_dir, f) for f in os.listdir(use_dir) if f != 'exclude' and '.ini' not in f]
+  print(route_files)
+  lr = MultiLogIterator(route_files)
+
+
+  if os.path.exists('processed_data_new'):
     print('exists')
-    data = load_processed('processed_data')
+    data = load_processed('processed_data_new')
+    data += load_processed('processed_data_1st')
   else:
     print('processing')
     data = load_and_process_rlogs(lr, file_name='processed_data')
@@ -157,17 +187,21 @@ def main(lr):
   print('Seq. lens: {}'.format([len(line) for line in data]))
 
   data_tokenized = []
+  data_tokenized_test = []
   for seq in data:
-    data_tokenized += tokenize(seq, round(0.31 / DT_CTRL))
+    data_tokenized += tokenize(seq, max(T_FRAMES) + 1)
+    data_tokenized_test += tokenize(seq, round(5. / DT_CTRL))
   del data
 
-  data_sequences = []
-  idx = 0
-  for seq in data_tokenized:
-    if idx > 1:
-      data_sequences.append(seq)
-      idx = 0
-    idx += 1
+  # data_sequences = []
+  # idx = 0
+  # for seq in data_tokenized:
+  #   if idx > 1:
+  #     data_sequences.append(seq)
+  #     idx = 0
+  #   idx += 1
+  data_sequences = data_tokenized
+  del data_tokenized
 
   print(f'Tokenized sequences: {len(data_sequences)}')
   if PLOT := False:
@@ -185,11 +219,16 @@ def main(lr):
   y_train = []
   for seq in data_sequences:
     # given current and future accel, output accel cmd we used to get there
-    # x_train.append([seq[0]['vEgo'], seq[0]['aEgo'], seq[15]['aEgo']])
-    x_train.append([seq[0]['aEgo'], seq[15]['aEgo']])
-    y_train.append(seq[0]['accel_cmd'])
+    # x_train.append([seq[0]['vEgo'], seq[FUTURE_FRAMES]['vEgo'], seq[0]['aEgo'], seq[FUTURE_FRAMES]['aEgo']])
+    # x_train.append([seq[0]['vEgo'], seq[FUTURE_FRAMES]['vEgo']])
+    # x_train.append([seq[0]['vEgo'], seq[FUTURE_FRAMES]['vEgo']])
+    accels = [seq[t_frame]['aEgo'] for t_frame in T_FRAMES]
+    speeds = [seq[t_frame]['vEgo'] for t_frame in T_FRAMES]
+    x_train.append([seq[0]['vEgo']] + accels)
+    accel_cmds = [seq[t_frame]['accel_cmd'] for t_frame in T_FRAMES]
+    y_train.append(accel_cmds)
 
-  x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, test_size=0.4, random_state=42)
+  x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, test_size=0.5, random_state=42)
 
   x_train = np.array(x_train)
   y_train = np.array(y_train)
@@ -197,24 +236,24 @@ def main(lr):
 
   model = Sequential()
   # model.add(GaussianNoise(0.1, input_shape=(3,)))
-  model.add(Dense(8, input_shape=(2,), activation=LeakyReLU()))
-  # model.add(BatchNormalization())
-  # model.add(Dropout(0.2))
-  # model.add(Dense(4, activation='relu'))
-  # model.add(Dropout(1/8*.1))
-  model.add(Dense(4, activation=LeakyReLU()))
-  # model.add(Dropout(0.1))
-  model.add(Dense(1, activation='linear'))
+  model.add(Dense(32, input_shape=(len(T_FRAMES)+1,), activation=LeakyReLU()))
+  model.add(Dropout(0.1))
+  model.add(Dense(32, activation=LeakyReLU()))
+  # model.add(Dense(16, activation=LeakyReLU()))
+  model.add(Dropout(0.2))
+  model.add(Dense(len(T_FRAMES), activation='linear'))
 
-  opt = Adam(lr=0.001/2, amsgrad=True)
+  opt = Adam(lr=0.001, amsgrad=True)
+  # opt = Adagrad(lr=0.001)
+  # opt = Adadelta(lr=1.)
 
   model.compile(opt, loss='mse', metrics='mae')
   try:
-    model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=90, batch_size=16)
+    model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=2000, batch_size=16)
   except KeyboardInterrupt:
     pass
 
-  def show_preds(num=20):
+  def show_random_preds(num=20):
     rand_idxs = np.random.randint(len(x_test), size=num)
     _x = np.take(x_test, rand_idxs, axis=0)
     _y = np.take(y_test, rand_idxs, axis=0)
@@ -227,13 +266,68 @@ def main(lr):
     plt.show()
     plt.pause(0.01)
 
+  def show_pred_seqs():
+    rand_idx = np.random.randint(len(data_tokenized_test))
+    seq = data_tokenized_test[rand_idx]
+    preds = []
+    for idx, line in enumerate(seq):
+      if idx + FUTURE_FRAMES >= len(seq):
+        break
+      fut_speed = np.interp(FUTURE_TIME, T_IDXS, seq[idx]['speeds'])
+      fut_accel = np.interp(FUTURE_TIME, T_IDXS, seq[idx]['accels'])
+      # preds.append(model.predict([[seq[idx]['accels'][0], seq[idx + FUTURE_FRAMES]['accels'][2]]])[0])
+      # preds.append(model.predict([[seq[idx]['vEgo'], seq[idx]['speeds'][2], seq[idx]['aEgo'], seq[idx]['accels'][2]]])[0])
+      # preds.append(model.predict([[seq[idx]['vEgo'], fut_speed]])[0])
+      pred_accels = model.predict([[seq[idx]['vEgo']] + seq[idx]['accels']])[0]
+      # preds.append(np.interp(FUTURE_TIME, T_IDXS, pred_accels))
+      preds.append(pred_accels[0])
+      # preds.append(model.predict([[seq[idx]['vEgo'], seq[idx]['speeds'][2]]])[0])
+
+    plt.figure(0)
+    plt.clf()
+    plt.plot([line['accel_cmd'] for line in seq], label='accel_cmd')
+    plt.plot([line['aEgo'] for line in seq], label='aEgo')
+    plt.plot([line['accels'][0] for line in seq], label='accels[0]')
+    plt.plot([np.interp(FUTURE_TIME, T_IDXS, line['accels']) for line in seq], label='future accel')
+    plt.plot(preds, label='prediction')
+    plt.legend()
+
+    plt.figure(1)
+    plt.clf()
+    plt.plot([line['vEgo'] for line in seq], label='vEgo')
+    plt.plot([line['speeds'][0] for line in seq], label='speeds[0]')
+    plt.plot([np.interp(FUTURE_TIME, T_IDXS, line['speeds']) for line in seq], label='future speed')
+    plt.legend()
+
+    plt.show()
+    plt.pause(0.05)
+
+  def pred_animation():
+    for seq in data_sequences:
+      aEgos = [seq[t_frame]['aEgo'] for t_frame in T_FRAMES]
+      vEgos = [seq[t_frame]['vEgo'] for t_frame in T_FRAMES]
+      pred = model.predict([[vEgos[0]] + seq[0]['accels']])[0]
+      accel_cmds = [seq[t_frame]['accel_cmd'] for t_frame in T_FRAMES]
+      plt.clf()
+      plt.plot(aEgos, label='aEgo')
+      plt.plot(accel_cmds, label='accel_cmds')
+      plt.plot(pred, label='prediction')
+      plt.plot(seq[0]['accels'], label='accels')
+      plt.legend()
+      plt.show()
+      plt.pause(1 / 100)
+
+  # pred_animation()
+  # raise Exception
+
+
   while 1:
-    show_preds()
+    # show_preds()
+    show_pred_seqs()
     e = input()
     if e == 'exit':
       break
 
-  return model
 
   # data_speeds = np.array([line['v_ego'] for line in data])
   # data_angles = np.array([line['angle_steers'] for line in data])
@@ -369,14 +463,3 @@ def main(lr):
 # plt.plot(x, y, label='v_ego**2')
 # plt.legend()
 # plt.show()
-
-
-if __name__ == '__main__':
-  # r = Route(sys.argv[1])
-  # lr = MultiLogIterator(r.log_paths(), wraparound=False)
-  use_dir = os.path.join(dir_name, 'rlogs')
-  route_files = [os.path.join(use_dir, f) for f in os.listdir(use_dir) if f != 'exclude' and '.ini' not in f]
-  print(route_files)
-  lr = MultiLogIterator(route_files)
-
-  model = main(lr)

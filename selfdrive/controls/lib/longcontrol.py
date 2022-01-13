@@ -14,7 +14,7 @@ ACCEL_MIN_ISO = -3.5  # m/s^2
 ACCEL_MAX_ISO = 2.0  # m/s^2
 
 
-wb = np.load('/data/openpilot/accelnet/models/accelnetv1_weights.npz', allow_pickle=True)
+wb = np.load('/data/openpilot/accelnet/models/accelnetv2_weights.npz', allow_pickle=True)
 w, b = wb['wb']
 
 
@@ -86,7 +86,8 @@ class LongControl():
       # a_target_upper = 2 * (v_target_upper - speeds[0])/CP.longitudinalActuatorDelayUpperBound - long_plan.accels[0]
       a_target_cur = long_plan.accels[0]
       a_target_fut = interp(CP.longitudinalActuatorDelayUpperBound, T_IDXS[:CONTROL_N], long_plan.accels)
-      a_target = accel_predict([a_target_cur, a_target_fut])[0]
+      # a_target = accel_predict([a_target_cur, a_target_fut])[0]
+      a_target = float(accel_predict([CS.vEgo] + list(long_plan.accels))[0])
 
       v_target = speeds[0]
       v_target_future = speeds[-1]
