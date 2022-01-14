@@ -55,14 +55,26 @@ T_FOLLOW = 1.45
 COMFORT_BRAKE = 2.5
 STOP_DISTANCE = 6.0
 
-def get_stopped_equivalence_factor(v_lead):
-  return (v_lead**2) / (2 * COMFORT_BRAKE)
+def get_stopped_equivalence_factor(v_lead, v_ego):
+  # KRKeegan this offset rapidly decreases the following distance when the lead pulls
+  # away, resulting in an early demand for acceleration.  This is helpful because the
+  # MPC often stops ~4m behind the lead.  Meaning the lead has to move ~2m before the
+  # MPC even considers requesting acceleration.
+  # The offset is capped at half the total Stop_Distance, is linearly proportional to
+  # the speed differential between ego and lead, and tapers away to 0 at 10m/s, all
+  # for safety and comfort.
+  v_diff_offset = 0
+  if np.all(v_lead - v_ego > 0):
+    v_diff_offset = ((v_lead - v_ego) * 1.5) * ((10 - v_ego)/10)
+    v_diff_offset = np.minimum(v_diff_offset, STOP_DISTANCE / 2)
+  distance = (v_lead**2) / (2 * COMFORT_BRAKE) + v_diff_offset
+  return distance
 
 def get_safe_obstacle_distance(v_ego, t_follow=T_FOLLOW):
   return (v_ego**2) / (2 * COMFORT_BRAKE) + t_follow * v_ego + STOP_DISTANCE
 
 def desired_follow_distance(v_ego, v_lead, t_follow=T_FOLLOW):
-  return get_safe_obstacle_distance(v_ego, t_follow) - get_stopped_equivalence_factor(v_lead)
+  return get_safe_obstacle_distance(v_ego, t_follow) - get_stopped_equivalence_factor(v_lead, v_ego)
 
 
 def gen_long_model():
@@ -344,8 +356,8 @@ class LongitudinalMpc:
     # To estimate a safe distance from a moving lead, we calculate how much stopping
     # distance that lead needs as a minimum. We can add that to the current distance
     # and then treat that as a stopped car/obstacle at this new distance.
-    lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1])
-    lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1])
+    lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1], self.x_sol[:,1])
+    lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1], self.x_sol[:,1])
 
     # Fake an obstacle for cruise, this ensures smooth acceleration to set speed
     # when the leads are no factor.
