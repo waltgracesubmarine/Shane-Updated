@@ -239,8 +239,8 @@ if __name__ == "__main__":
     # x_train.append([seq[0]['vEgo'], seq[FUTURE_FRAMES]['vEgo']])
     accels = [seq[t_frame + FUTURE_FRAMES]['aEgo'] for t_frame in T_FRAMES]
     speeds = [seq[t_frame + FUTURE_FRAMES]['vEgo'] for t_frame in T_FRAMES]
-    x_train.append([seq[FUTURE_FRAMES]['vEgo']] + accels)
-    accel_cmds = [seq[t_frame]['accel_cmd'] for t_frame in T_FRAMES]
+    x_train.append([seq[0]['vEgo'], seq[0]['aEgo'], speeds[0]] + accels)
+    accel_cmds = [seq[t_frame]['accel_cmd'] for t_frame in T_FRAMES]  # this is offset left by FUTURE_FRAMES
     y_train.append(accel_cmds)
 
   x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, test_size=0.25, random_state=42)
@@ -251,7 +251,7 @@ if __name__ == "__main__":
 
   model = Sequential()
   # model.add(GaussianNoise(0.1, input_shape=(3,)))
-  model.add(Dense(32, input_shape=(len(T_FRAMES)+1,), activation=LeakyReLU()))
+  model.add(Dense(32, input_shape=(len(T_FRAMES)+3,), activation=LeakyReLU()))
   # model.add(Dropout(0.2))
   model.add(Dense(32, activation=LeakyReLU()))
   # model.add(Dense(16, activation=LeakyReLU()))

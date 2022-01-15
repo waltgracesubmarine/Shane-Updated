@@ -14,7 +14,7 @@ ACCEL_MIN_ISO = -3.5  # m/s^2
 ACCEL_MAX_ISO = 2.0  # m/s^2
 
 
-wb = np.load('/data/openpilot/accelnet/models/accelnetv4_weights.npz', allow_pickle=True)
+wb = np.load('/data/openpilot/accelnet/models/accelnetv5_weights.npz', allow_pickle=True)
 w, b = wb['wb']
 
 
@@ -91,7 +91,7 @@ class LongControl():
       # Output is the acceleration requests that will accurately get us to the requested accelerations.
       # Requested accel to accurate accel command is same time stamp, so offsetting output prediction is needed
       # ie. predicted requested accel at idx 0 will get us to accels[0] (in 0.15s)
-      accel_pred = accel_predict([CS.vEgo] + list(long_plan.accels))
+      accel_pred = accel_predict([CS.vEgo, CS.aEgo, speeds[0]] + list(long_plan.accels))
       a_target = float(interp(CP.longitudinalActuatorDelayUpperBound, T_IDXS[:CONTROL_N], accel_pred))
 
       v_target = speeds[0]
