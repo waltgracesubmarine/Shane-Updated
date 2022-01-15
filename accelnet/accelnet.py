@@ -285,8 +285,11 @@ if __name__ == "__main__":
     plt.pause(0.01)
 
   def show_pred_seqs():
-    rand_idx = np.random.randint(len(data_tokenized_test))
-    seq = data_tokenized_test[rand_idx]
+    while True:
+      rand_idx = np.random.randint(len(data_tokenized_test))
+      seq = data_tokenized_test[rand_idx]
+      if seq[-1]['vEgo'] < 2:
+        break
     preds = []
     for idx, line in enumerate(seq):
       if idx + FUTURE_FRAMES >= len(seq):
@@ -304,10 +307,10 @@ if __name__ == "__main__":
     plt.figure(0)
     plt.clf()
     plt.plot([line['accel_cmd'] for line in seq], label='accel_cmd')
+    plt.plot(preds, label='prediction')
     plt.plot([line['aEgo'] for line in seq], label='aEgo')
     plt.plot([line['accels'][0] for line in seq], label='accels[0]')
-    plt.plot([np.interp(FUTURE_TIME, T_IDXS, line['accels']) for line in seq], label='future accel')
-    plt.plot(preds, label='prediction')
+    # plt.plot([np.interp(FUTURE_TIME, T_IDXS, line['accels']) for line in seq], label='future accel')
     plt.legend()
 
     plt.figure(1)
