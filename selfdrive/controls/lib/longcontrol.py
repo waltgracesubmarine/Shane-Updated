@@ -87,7 +87,12 @@ class LongControl():
       a_target_cur = long_plan.accels[0]
       a_target_fut = interp(CP.longitudinalActuatorDelayUpperBound, T_IDXS[:CONTROL_N], long_plan.accels)
       # a_target = accel_predict([a_target_cur, a_target_fut])[0]
-      a_target = float(accel_predict([CS.vEgo] + list(long_plan.accels))[0])
+
+      # Output is the acceleration requests that will accurately get us to the requested accelerations.
+      # Requested accel to accurate accel command is same time stamp, so offsetting output prediction is needed
+      # ie. predicted requested accel at idx 0 will get us to accels[0] (in 0.15s)
+      accel_pred = accel_predict([CS.vEgo] + list(long_plan.accels))
+      a_target = float(interp(CP.longitudinalActuatorDelayUpperBound, T_IDXS[:CONTROL_N], accel_pred))
 
       v_target = speeds[0]
       v_target_future = speeds[-1]

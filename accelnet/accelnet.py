@@ -3,6 +3,7 @@
 # warnings.simplefilter(action='ignore', category=FutureWarning)
 import os
 import sys
+from tensorflow.keras.models import load_model
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LeakyReLU, GaussianNoise, Dropout, BatchNormalization
 from tensorflow.keras.optimizers import Adagrad, Adadelta, Adam
@@ -16,6 +17,9 @@ from cereal import car
 from common.filter_simple import FirstOrderFilter
 from selfdrive.controls.lib.drive_helpers import CONTROL_N
 from selfdrive.modeld.constants import T_IDXS
+
+import matplotlib
+matplotlib.use('Qt5Agg')
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -57,15 +61,18 @@ def split_list(l, n, enforce_len=True):
   return [i for i in output if (len(i) == n and enforce_len) or not enforce_len]
 
 
-def feedforward(v_ego, angle_steers, kf=1.):  # outputs unscaled ~lateral accel, with optional kf param to scale
-  steer_feedforward = angle_steers * v_ego ** 2
-  return steer_feedforward * kf
-
-
-def _fit_kf(x_input, _kf):
-  # Fits a kf gain using speed ** 2 feedforward model
-  v_ego, angle_steers = x_input.copy()
-  return feedforward(v_ego, angle_steers, _kf)
+def get_lrs():
+  rlog_dir = 'rlogs'
+  route_dirs = [f for f in os.listdir(os.path.join(rlog_dir)) if '.ini' not in f and f != 'exclude']
+  lrs = []
+  for route in route_dirs:
+    route_files = []
+    for segment in os.listdir(os.path.join(rlog_dir, route)):
+      if segment == 'exclude' or '.ini' in segment:
+        continue
+      route_files.append(os.path.join(rlog_dir, route, segment))
+    lrs.append(MultiLogIterator(route_files))
+  return lrs
 
 
 def load_processed(file_name):
@@ -76,17 +83,24 @@ def load_processed(file_name):
 def show_pred():
   seq = data_tokenized_test[np.random.randint(len(data_tokenized_test))]
   idx = np.random.randint(len(seq))
-  pred = model.predict([[seq[idx]['vEgo']] + seq[idx]['accels']])
+  _aEgos = [seq[t_frame]['aEgo'] for t_frame in T_FRAMES]
+  _accels = seq[0]['accels']
+  _accel_cmds = [seq[t_frame]['accel_cmd'] for t_frame in T_FRAMES]
+  pred = model.predict([[seq[0]['vEgo']] + _aEgos])
   plt.clf()
-  plt.plot(seq[idx]['accels'], label='accels')
+  plt.plot(_aEgos, label='aEgo')
   plt.plot(pred[0], label='prediction')
+  plt.plot(_accel_cmds, label='accel cmds')
+  # plt.plot(_accels, label='lat_plan.accels')
+  plt.xticks(range(len(T_IDXS)), np.round(T_IDXS, 2))
+  plt.xlabel('seconds')
   plt.legend()
   plt.show()
   plt.pause(1)
   plt.show()
 
 
-def load_and_process_rlogs(lr, file_name):
+def load_and_process_rlogs(lr):
   data = [[]]
 
   log_msgs = {
@@ -142,7 +156,7 @@ def load_and_process_rlogs(lr, file_name):
 
     sample_ok = log_msgs['carState']['vEgo'] is not None and can_updated
     sample_ok = sample_ok and log_msgs['controlsState']['enabled'] and not log_msgs['carState']['gasPressed']
-    sample_ok = sample_ok and filter_updates > jEgo_period
+    sample_ok = sample_ok and filter_updates > jEgo_period and log_msgs['carState']['vEgo'] >= 0.2
 
     # creates uninterupted sections of engaged data
     if sample_ok and abs(msg.logMonoTime - last_time) * 1e-9 < 1 / 20:  # also split if there's a break in time
@@ -162,34 +176,35 @@ def load_and_process_rlogs(lr, file_name):
   del all_msgs
   data = [sec for sec in data if len(sec) > (5 / DT_CTRL)]  # long enough sections
 
-  with open(file_name, 'wb') as f:  # now dump
-    pickle.dump(data, f)
   return data
 
 
 if __name__ == "__main__":
-  # r = Route(sys.argv[1])
-  # lr = MultiLogIterator(r.log_paths(), wraparound=False)
-  use_dir = os.path.join(dir_name, 'rlogs')
-  route_files = [os.path.join(use_dir, f) for f in os.listdir(use_dir) if f != 'exclude' and '.ini' not in f]
-  print(route_files)
-  lr = MultiLogIterator(route_files)
+  # # r = Route(sys.argv[1])
+  # # lr = MultiLogIterator(r.log_paths(), wraparound=False)
+  # use_dir = os.path.join(dir_name, 'rlogs')
+  # route_files = [os.path.join(use_dir, f) for f in os.listdir(use_dir) if f != 'exclude' and '.ini' not in f]
+  # print(route_files)
+  # lr = MultiLogIterator(route_files)
 
-
-  if os.path.exists('processed_data_new'):
+  if os.path.exists('processed_data'):
     print('exists')
-    data = load_processed('processed_data_new')
-    data += load_processed('processed_data_1st')
+    data = load_processed('processed_data')
+    data += load_processed('processed_data')
   else:
-    print('processing')
-    data = load_and_process_rlogs(lr, file_name='processed_data')
+    data = []
+    for lr in get_lrs():  # each logreader is for a full route. sorting by time doesn't work for different routes
+      print('processing {}'.format('--'.join(lr._log_paths[0].split('--')[:-2])))
+      data += load_and_process_rlogs(lr)
+    with open('processed_data', 'wb') as f:  # now dump
+      pickle.dump(data, f)
   print('Max seq. len: {}'.format(max([len(line) for line in data])))
   print('Seq. lens: {}'.format([len(line) for line in data]))
 
   data_tokenized = []
   data_tokenized_test = []
   for seq in data:
-    data_tokenized += tokenize(seq, max(T_FRAMES) + 1)
+    data_tokenized += tokenize(seq, max(T_FRAMES) + 1 + FUTURE_FRAMES)
     data_tokenized_test += tokenize(seq, round(5. / DT_CTRL))
   del data
 
@@ -222,13 +237,13 @@ if __name__ == "__main__":
     # x_train.append([seq[0]['vEgo'], seq[FUTURE_FRAMES]['vEgo'], seq[0]['aEgo'], seq[FUTURE_FRAMES]['aEgo']])
     # x_train.append([seq[0]['vEgo'], seq[FUTURE_FRAMES]['vEgo']])
     # x_train.append([seq[0]['vEgo'], seq[FUTURE_FRAMES]['vEgo']])
-    accels = [seq[t_frame]['aEgo'] for t_frame in T_FRAMES]
-    speeds = [seq[t_frame]['vEgo'] for t_frame in T_FRAMES]
-    x_train.append(accels)
+    accels = [seq[t_frame + FUTURE_FRAMES]['aEgo'] for t_frame in T_FRAMES]
+    speeds = [seq[t_frame + FUTURE_FRAMES]['vEgo'] for t_frame in T_FRAMES]
+    x_train.append([seq[FUTURE_FRAMES]['vEgo']] + accels)
     accel_cmds = [seq[t_frame]['accel_cmd'] for t_frame in T_FRAMES]
     y_train.append(accel_cmds)
 
-  x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, test_size=0.5, random_state=42)
+  x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, test_size=0.25, random_state=42)
 
   x_train = np.array(x_train)
   y_train = np.array(y_train)
@@ -236,22 +251,25 @@ if __name__ == "__main__":
 
   model = Sequential()
   # model.add(GaussianNoise(0.1, input_shape=(3,)))
-  model.add(Dense(32, input_shape=(len(T_FRAMES),), activation=LeakyReLU()))
-  model.add(Dropout(0.05))
+  model.add(Dense(32, input_shape=(len(T_FRAMES)+1,), activation=LeakyReLU()))
+  # model.add(Dropout(0.2))
   model.add(Dense(32, activation=LeakyReLU()))
   # model.add(Dense(16, activation=LeakyReLU()))
-  model.add(Dropout(0.1))
+  # model.add(Dropout(0.1))
   model.add(Dense(len(T_FRAMES), activation='linear'))
 
-  opt = Adam(lr=0.001, amsgrad=True)
+  opt = Adam(lr=0.001*0.8, amsgrad=True)
   # opt = Adagrad(lr=0.001)
   # opt = Adadelta(lr=1.)
 
   model.compile(opt, loss='mse', metrics='mae')
-  try:
-    model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=2000, batch_size=16)
-  except KeyboardInterrupt:
-    pass
+  epochs = [8, 4, 3]
+  batch_sizes = [64, 32, 16]
+  for epoch, batch_size in zip(epochs, batch_sizes):
+    try:
+      model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=epoch, batch_size=batch_size)
+    except KeyboardInterrupt:
+      pass
 
   def show_random_preds(num=20):
     rand_idxs = np.random.randint(len(x_test), size=num)
@@ -278,7 +296,7 @@ if __name__ == "__main__":
       # preds.append(model.predict([[seq[idx]['accels'][0], seq[idx + FUTURE_FRAMES]['accels'][2]]])[0])
       # preds.append(model.predict([[seq[idx]['vEgo'], seq[idx]['speeds'][2], seq[idx]['aEgo'], seq[idx]['accels'][2]]])[0])
       # preds.append(model.predict([[seq[idx]['vEgo'], fut_speed]])[0])
-      pred_accels = model.predict([seq[idx]['accels']])[0]
+      pred_accels = model.predict([[seq[idx]['vEgo']] + seq[idx]['accels']])[0]
       # preds.append(np.interp(FUTURE_TIME, T_IDXS, pred_accels))
       preds.append(pred_accels[0])
       # preds.append(model.predict([[seq[idx]['vEgo'], seq[idx]['speeds'][2]]])[0])
@@ -309,16 +327,17 @@ if __name__ == "__main__":
       pred = model.predict([[vEgos[0]] + seq[0]['accels']])[0]
       accel_cmds = [seq[t_frame]['accel_cmd'] for t_frame in T_FRAMES]
       plt.clf()
-      plt.plot(aEgos, label='aEgo')
       plt.plot(accel_cmds, label='accel_cmds')
       plt.plot(pred, label='prediction')
+      plt.plot(aEgos, label='aEgo')
       plt.plot(seq[0]['accels'], label='accels')
       plt.legend()
       plt.show()
       plt.pause(1 / 100)
 
   # pred_animation()
-  # raise Exception
+  show_pred()
+  raise Exception
 
 
   while 1:
