@@ -57,7 +57,7 @@ def model_ff(x, _c1, _c2, _c3):
   for desired_angle, v_ego in zip(desired_angles, v_egos):
     upper_band = 0.1 * (_c1 * v_ego ** 2 +_c3 * v_ego + _c2)
     sign = -1 if desired_angle < 0 else 1
-    ff_band_split_angle = np.interp(v_ego * CV.MS_TO_MPH, [5, 15, 20, 35, 40, 45, 55, 70, 75, 80], [0, 1.44, 2.44, 5.9, 7, 8.5, 10, 13.6, 14.7, 15.8])
+    ff_band_split_angle = max(0.4712479121927941 * v_ego - 1.053, 0.)
     ff_lower = desired_angle * lower_band
     if abs(desired_angle) < ff_band_split_angle:
       yld.append(ff_lower)
