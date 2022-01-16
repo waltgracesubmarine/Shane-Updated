@@ -118,12 +118,8 @@ def load_and_process_rlogs(lr):
       'speeds': None,
     }
   }
-  jEgo = 0.
-  jEgo_period = 50  # frames/100
   last_time = 0
   can_updated = False
-  accel_filter = FirstOrderFilter(0, jEgo_period * DT_CTRL, DT_CTRL)
-  filter_updates = 0.
 
   can_signals = [
     ("ACCEL_CMD", "ACC_CONTROL", 0),
@@ -141,12 +137,6 @@ def load_and_process_rlogs(lr):
     if msg.which() != 'sendcan':
       continue
 
-    if log_msgs['carState']['aEgo'] is not None:
-      accel_filter.update(log_msgs['carState']['aEgo'])
-      filter_updates += 1
-      if filter_updates > jEgo_period:
-        jEgo = (log_msgs['carState']['aEgo'] - accel_filter.x) * ((1 / DT_CTRL) / jEgo_period)
-
     cp_updated = cp.update_string(msg.as_builder().to_bytes())
     for u in cp_updated:
       if u == 0x343:  # ACC_CONTROL
@@ -156,11 +146,11 @@ def load_and_process_rlogs(lr):
 
     sample_ok = log_msgs['carState']['vEgo'] is not None and can_updated
     sample_ok = sample_ok and log_msgs['controlsState']['enabled'] and not log_msgs['carState']['gasPressed']
-    sample_ok = sample_ok and filter_updates > jEgo_period and log_msgs['carState']['vEgo'] >= 0.2
+    sample_ok = sample_ok and log_msgs['carState']['vEgo'] >= 0.2
 
     # creates uninterupted sections of engaged data
     if sample_ok and abs(msg.logMonoTime - last_time) * 1e-9 < 1 / 20:  # also split if there's a break in time
-      to_append = {'accel_cmd': accel_cmd, 'jEgo': jEgo, 'time': msg.logMonoTime * 1e-9}
+      to_append = {'accel_cmd': accel_cmd, 'time': msg.logMonoTime * 1e-9}
       for log_signals in log_msgs.values():
         to_append = {**to_append, **log_signals}
       for i in to_append:
@@ -169,8 +159,6 @@ def load_and_process_rlogs(lr):
       data[-1].append(to_append)
     elif len(data[-1]):  # if last list has items in it, append new empty section
       data.append([])
-      accel_filter.x = 0.
-      filter_updates = 0
     last_time = msg.logMonoTime
 
   del all_msgs
@@ -222,7 +210,6 @@ if __name__ == "__main__":
   if PLOT := False:
     r = np.random.randint(25000)
     plt.plot([i['aEgo'] for i in data_sequences[r]], label='aEgo')
-    # plt.plot([i['jEgo'] for i in data_sequences[r]], label='jEgo')
     plt.plot([i['accel_cmd'] for i in data_sequences[r]], label='acc_command')
     # plt.plot([i['jerks'][2] for i in data_sequences[r]], label='jerks')
     plt.plot([i['accels'][0] for i in data_sequences[r]], label='accels')
