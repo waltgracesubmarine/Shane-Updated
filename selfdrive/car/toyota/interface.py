@@ -15,6 +15,22 @@ LatParams = namedtuple('LatParams', ['use_steering_model', 'use_lqr', 'prius_use
 
 class CarInterface(CarInterfaceBase):
   @staticmethod
+  def get_steer_feedforward_toyota(desired_angle, v_ego):
+    lower_band = 0.1 * 0.4
+    upper_band = 0.1 * (-0.00013868 * v_ego ** 2 + 0.00905046 * v_ego + 0.0362945)
+    sign = -1 if desired_angle < 0 else 1
+    ff_band_split_angle = max(0.4712479121927941 * v_ego - 1.053, 0.)
+    if abs(desired_angle) < ff_band_split_angle:
+      return desired_angle * lower_band
+    else:
+      ff_offset = (lower_band - upper_band) * ff_band_split_angle
+      ff_upper = desired_angle * upper_band
+      return ff_upper + sign * ff_offset
+
+  def get_steer_feedforward_function(self):
+    return self.get_steer_feedforward_toyota
+
+  @staticmethod
   def get_pid_accel_limits(CP, current_speed, cruise_speed):
     return CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX
 
