@@ -230,7 +230,7 @@ if __name__ == "__main__":
     accel_cmds = [seq[t_frame]['accel_cmd'] for t_frame in T_FRAMES]  # this is offset left by FUTURE_FRAMES
     y_train.append(accel_cmds)
 
-  x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, test_size=0.25, random_state=42)
+  x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, test_size=0.5, random_state=42)
 
   x_train = np.array(x_train)
   y_train = np.array(y_train)
@@ -238,9 +238,9 @@ if __name__ == "__main__":
 
   model = Sequential()
   # model.add(GaussianNoise(0.1, input_shape=(3,)))
-  model.add(Dense(256, input_shape=(len(T_FRAMES)+3,), activation=LeakyReLU()))
+  model.add(Dense(64, input_shape=(len(T_FRAMES)+3,), activation=LeakyReLU()))
   # model.add(Dropout(0.05))
-  # model.add(Dense(36, activation=LeakyReLU()))
+  model.add(Dense(64, activation=LeakyReLU()))
   # model.add(Dropout(0.05))
   # model.add(Dense(16, activation=LeakyReLU()))
   # model.add(Dropout(0.1))
@@ -251,7 +251,7 @@ if __name__ == "__main__":
   # opt = Adadelta(lr=1.)
 
   model.compile(opt, loss='mse', metrics='mae')
-  epochs = [12, 8, 4, 3]
+  epochs = [2, 6, 8, 2]
   batch_sizes = [256, 64, 32, 16]
   for epoch, batch_size in zip(epochs, batch_sizes):
     try:

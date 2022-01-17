@@ -14,7 +14,7 @@ ACCEL_MIN_ISO = -3.5  # m/s^2
 ACCEL_MAX_ISO = 2.0  # m/s^2
 
 
-wb = np.load('/data/openpilot/accelnet/models/accelnetv5_weights.npz', allow_pickle=True)
+wb = np.load('/data/openpilot/accelnet/models/accelnetv6_weights.npz', allow_pickle=True)
 w, b = wb['wb']
 
 
