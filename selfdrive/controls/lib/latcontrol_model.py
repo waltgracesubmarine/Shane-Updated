@@ -59,7 +59,7 @@ class LatControlModel:
       pos_limit = steers_max
       neg_limit = -steers_max
 
-      rate_des = VM.get_steer_from_curvature(-desired_curvature_rate, CS.vEgo, 0)
+      rate_des = math.degrees(VM.get_steer_from_curvature(-desired_curvature_rate, CS.vEgo, 0))
 
       # TODO: Can be sluggish when model is given rates, the issue is probably with the training data,
       # specifically the disturbances/perturbations fed into the model to recover from large errors
