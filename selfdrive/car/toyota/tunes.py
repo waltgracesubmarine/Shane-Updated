@@ -110,7 +110,7 @@ def set_lat_tune(tune, params, name):
       tune.model.name = "corolla_model_v5"
     elif name == LatTunes.STEER_MODEL_CAMRY:
       tune.model.name = "camryh_tss2"
-      tune.model.useRates = True
+      tune.model.useRates = False  # True
     else:
       raise NotImplementedError('This steering model does not exist')
 
@@ -174,7 +174,7 @@ def set_lat_tune(tune, params, name):
   if params.use_steering_model:
     tune.init('model')
     tune.model.name = 'camryh_tss2' if params.TSS2 else 'corolla_model_v5'  # use closest available
-    tune.model.useRates = bool(params.TSS2)
+    tune.model.useRates = False  # bool(params.TSS2)
     tune.model.multiplier = 1.
     # use kf from PID to calculate torque multiplier
     # TODO: feed this into the model so it can extrapolate accurately
