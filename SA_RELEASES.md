@@ -1,5 +1,7 @@
 Stock Additions 0.8.13
 ===
+## - 2022-01-17
+ * Fix TSS2 torque model input: model was trained with degrees, however the rate input was radians
 ## - 2022-01-03
  * Revert "follow longitudinal plan earlier" change as it had some minor bugs. Re-do in progress
 ## - 2022-01-01
