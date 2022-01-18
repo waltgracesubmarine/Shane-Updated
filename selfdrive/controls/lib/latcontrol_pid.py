@@ -48,7 +48,7 @@ class LatControlPID():
       else:
         # offset does not contribute to resistive torque
         steer_feedforward = self.get_steer_feedforward(angle_steers_des_no_offset, CS.vEgo) * self.op_params.get('pid_ff_angle_mult')
-        steer_feedforward += rate_des * self.op_params.get('pid_ff_rate_mult') * 0.1
+        steer_feedforward += rate_des * self.op_params.get('pid_ff_rate_mult')
 
       deadzone = 0.0
 
