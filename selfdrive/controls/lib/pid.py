@@ -111,9 +111,6 @@ class PIDController:
 
 
 class LatPIDController(PIDController):
-  def __init__(self):
-    super().__init__()
-
   @property
   def k_p(self):
     return self.op_params.get('pid_p')
