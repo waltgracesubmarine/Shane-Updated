@@ -146,7 +146,7 @@ def load_and_process_rlogs(lr):
 
     sample_ok = log_msgs['carState']['vEgo'] is not None and can_updated
     sample_ok = sample_ok and log_msgs['controlsState']['enabled'] and not log_msgs['carState']['gasPressed']
-    sample_ok = sample_ok and log_msgs['carState']['vEgo'] >= 0.2
+    # sample_ok = sample_ok and log_msgs['carState']['vEgo'] >= 0.
 
     # creates uninterupted sections of engaged data
     if sample_ok and abs(msg.logMonoTime - last_time) * 1e-9 < 1 / 20:  # also split if there's a break in time
@@ -224,6 +224,9 @@ if __name__ == "__main__":
     # x_train.append([seq[0]['vEgo'], seq[FUTURE_FRAMES]['vEgo'], seq[0]['aEgo'], seq[FUTURE_FRAMES]['aEgo']])
     # x_train.append([seq[0]['vEgo'], seq[FUTURE_FRAMES]['vEgo']])
     # x_train.append([seq[0]['vEgo'], seq[FUTURE_FRAMES]['vEgo']])
+    keep_seq = 0.25 if any([line['vEgo'] < 0.2 for line in seq]) else 1.0
+    if np.random.uniform(0, 1) > keep_seq:
+      continue
     accels = [seq[t_frame + FUTURE_FRAMES]['aEgo'] for t_frame in T_FRAMES]
     speeds = [seq[t_frame + FUTURE_FRAMES]['vEgo'] for t_frame in T_FRAMES]
     x_train.append([seq[0]['vEgo'], seq[0]['aEgo'], speeds[0]] + accels)
@@ -238,11 +241,11 @@ if __name__ == "__main__":
 
   model = Sequential()
   # model.add(GaussianNoise(0.1, input_shape=(3,)))
-  model.add(Dense(64, input_shape=(len(T_FRAMES)+3,), activation=LeakyReLU()))
+  model.add(Dense(32, input_shape=(len(T_FRAMES)+3,), activation=LeakyReLU()))
   # model.add(Dropout(0.05))
-  model.add(Dense(64, activation=LeakyReLU()))
+  model.add(Dense(32, activation=LeakyReLU()))
   # model.add(Dropout(0.05))
-  # model.add(Dense(16, activation=LeakyReLU()))
+  model.add(Dense(16, activation=LeakyReLU()))
   # model.add(Dropout(0.1))
   model.add(Dense(len(T_FRAMES), activation='linear'))
 
@@ -255,7 +258,8 @@ if __name__ == "__main__":
   batch_sizes = [256, 64, 32, 16]
   for epoch, batch_size in zip(epochs, batch_sizes):
     try:
-      model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=epoch, batch_size=batch_size)
+      # model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=epoch, batch_size=batch_size)
+      model.fit(x_train, y_train, epochs=epoch, batch_size=batch_size)
     except KeyboardInterrupt:
       pass
 

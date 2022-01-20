@@ -14,7 +14,7 @@ ACCEL_MIN_ISO = -3.5  # m/s^2
 ACCEL_MAX_ISO = 2.0  # m/s^2
 
 
-wb = np.load('/data/openpilot/accelnet/models/accelnetv6_weights.npz', allow_pickle=True)
+wb = np.load('/data/openpilot/accelnet/models/accelnetv7_weights.npz', allow_pickle=True)
 w, b = wb['wb']
 
 
@@ -25,7 +25,9 @@ def accel_predict(x):
   l1 = np.dot(l0, w[1]) + b[1]
   l1 = np.where(l1 > 0, l1, l1 * 0.3)
   l2 = np.dot(l1, w[2]) + b[2]
-  return l2
+  l2 = np.where(l2 > 0, l2, l2 * 0.3)
+  l3 = np.dot(l2, w[3]) + b[3]
+  return l3
 
 
 def long_control_state_trans(CP, active, long_control_state, v_ego, v_target_future,
