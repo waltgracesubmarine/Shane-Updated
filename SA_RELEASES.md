@@ -1,5 +1,7 @@
 Stock Additions 0.8.13
 ===
+## - 2022-01-20
+ * Sentry Mode (beta): records video and plays alert when car is bumped
 ## - 2022-01-17
  * Fix TSS2 torque model input: model was trained with degrees, however the rate input was radians
 ## - 2022-01-03
