@@ -31,10 +31,11 @@ Sound::Sound(QObject *parent) : sm({"carState", "controlsState", "deviceState"})
 };
 
 void Sound::update() {
-  const bool started_prev = sm["deviceState"].getDeviceState().getStarted();
+  const bool started_sentry = sm["deviceState"].getDeviceState().getStartedSentry();
+  const bool started_prev = (sm["deviceState"].getDeviceState().getStarted() || started_sentry);
   sm.update(0);
 
-  const bool started = sm["deviceState"].getDeviceState().getStarted();
+  const bool started = sm["deviceState"].getDeviceState().getStarted() || sm["deviceState"].getDeviceState().getStartedSentry();
   if (started && !started_prev) {
     started_frame = sm.frame;
   }
@@ -57,7 +58,7 @@ void Sound::update() {
     }
   }
 
-  setAlert(Alert::get(sm, started_frame));
+  setAlert(Alert::get(sm, started_frame, started_sentry));
 }
 
 void Sound::setAlert(const Alert &alert) {

@@ -145,9 +145,9 @@ def manager_thread() -> None:
     if sm['deviceState'].freeSpacePercent < 5:
       not_run.append("loggerd")
 
-    started = sm['deviceState'].started
+    started = sm['deviceState'].started or sm['deviceState'].startedSentry
     driverview = params.get_bool("IsDriverViewEnabled")
-    ensure_running(managed_processes.values(), started, driverview, not_run)
+    ensure_running(managed_processes.values(), started, driverview, sm['deviceState'].startedSentry, not_run)
 
     # trigger an update after going offroad
     if started_prev and not started and 'updated' in managed_processes:

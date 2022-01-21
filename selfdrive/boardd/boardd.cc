@@ -452,6 +452,8 @@ void panda_state_thread(PubMaster *pm, std::vector<Panda *> pandas, bool spoofin
 
     for (const auto &panda : pandas) {
       panda->send_heartbeat(engaged);
+      // TODO do something cool with led
+//      panda->set_red_led(sm["deviceState"].getDeviceState().getStartedSentry());  // spams red led
     }
     util::sleep_for(500);
   }

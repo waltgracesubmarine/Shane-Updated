@@ -38,18 +38,22 @@ struct Alert {
     return text1 == a2.text1 && text2 == a2.text2 && type == a2.type && sound == a2.sound;
   }
 
-  static Alert get(const SubMaster &sm, uint64_t started_frame) {
+  static Alert get(const SubMaster &sm, uint64_t started_frame, bool started_sentry) {
     const cereal::ControlsState::Reader &cs = sm["controlsState"].getControlsState();
     if (sm.updated("controlsState")) {
       return {cs.getAlertText1().cStr(), cs.getAlertText2().cStr(),
               cs.getAlertType().cStr(), cs.getAlertSize(),
               cs.getAlertSound()};
-    } else if ((sm.frame - started_frame) > 5 * UI_FREQ) {
+    } else if ((sm.frame - started_frame) > 5 * UI_FREQ || started_sentry) {
       const int CONTROLS_TIMEOUT = 5;
       const int controls_missing = (nanos_since_boot() - sm.rcv_time("controlsState")) / 1e9;
 
       // Handle controls timeout
-      if (sm.rcv_frame("controlsState") < started_frame) {
+      if (started_sentry) {
+        return {"RECORDING 360° VIDEO", "Unlock car to dis-arm",
+                "controlsUnresponsive", cereal::ControlsState::AlertSize::FULL,
+                AudibleAlert::WARNING_IMMEDIATE};
+      } else if (sm.rcv_frame("controlsState") < started_frame) {
         // car is started, but controlsState hasn't been seen at all
         return {"openpilot Unavailable", "Waiting for controls to start",
                 "controlsWaiting", cereal::ControlsState::AlertSize::MID,
@@ -105,7 +109,7 @@ typedef struct UIScene {
   QPointF lead_vertices[2];
 
   float light_sensor, accel_sensor, gyro_sensor;
-  bool started, ignition, is_metric, longitudinal_control, end_to_end;
+  bool sentry_armed, started_sentry, started, ignition, is_metric, longitudinal_control, end_to_end;
   uint64_t started_frame;
 
   // SA button statuses

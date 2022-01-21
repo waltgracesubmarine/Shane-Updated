@@ -14,6 +14,7 @@
 #include "selfdrive/ui/qt/request_repeater.h"
 #include "selfdrive/ui/qt/util.h"
 #include "selfdrive/ui/qt/qt_window.h"
+#include "selfdrive/ui/qt/widgets/controls.h"
 
 using qrcodegen::QrCode;
 
@@ -161,9 +162,41 @@ PrimeUserWidget::PrimeUserWidget(QWidget* parent) : QWidget(parent) {
   thirdLayout->setMargin(0);
   thirdWidget->setContentsMargins(60, 50, 60, 50);
 
-  QLabel* thirdLabel = new QLabel("Happy New Year! \U0001f389");
-  thirdLabel->setStyleSheet("font-size: 41px; font-family: Inter SemiBold;");
-  thirdLayout->addWidget(thirdLabel, 0, Qt::AlignVCenter);
+  ToggleControl *sentryToggle = new ToggleControl("Sentry Mode", "", "", Params().getBool("SentryMode"));
+  QObject::connect(sentryToggle, &ToggleControl::toggleFlipped, [=](bool enabling) {
+    if (enabling && ConfirmationDialog::confirm("Sentry Mode (beta) records video and plays an alert when " \
+                                                "movement is detected. Currently only Toyota is supported and " \
+                                                "the device may draw more power when enabled. Are you sure?", this)) {
+      Params().putBool("SentryMode", true);
+    } else {
+      Params().putBool("SentryMode", false);
+      if (enabling) {  // declined
+        sentryToggle->toggle.togglePosition();
+      }
+    }
+  });
+
+  // Update toggle label with armed status
+  QTimer *sentryArmedTimer = new QTimer(this);
+  QObject::connect(sentryArmedTimer, &QTimer::timeout, this, [=]() {
+    if (uiState()->scene.sentry_armed) {
+      sentryToggle->setTitle("Sentry Armed");
+    } else {
+      sentryToggle->setTitle("Sentry Mode");
+    }
+  });
+  sentryArmedTimer->start(5 * 1000);
+
+  sentryToggle->setStyleSheet(R"(
+    QPushButton {
+      background-color: none;
+      font-size: 30px;
+      font-family: Inter SemiBold;
+      font-weight: 200;
+      border-radius: 10px;
+    }
+  )");
+  thirdLayout->addWidget(sentryToggle, 0, Qt::AlignVCenter);
 
   mainLayout->addWidget(thirdWidget);
 
@@ -330,7 +363,8 @@ SetupWidget::SetupWidget(QWidget* parent) : QFrame(parent) {
 
     QObject::connect(repeater, &RequestRepeater::requestDone, this, &SetupWidget::replyFinished);
   }
-  hide(); // Only show when first request comes back
+  // Only show when first request comes back if not PC
+  if (!Hardware::PC()) hide();
 }
 
 void SetupWidget::replyFinished(const QString &response, bool success) {
