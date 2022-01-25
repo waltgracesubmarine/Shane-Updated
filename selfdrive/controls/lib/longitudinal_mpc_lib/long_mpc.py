@@ -254,14 +254,17 @@ class LongitudinalMpc:
     # 1.1 TR fails at 3+ m/s/s test
     # 1.2-1.8 TR succeeds at all tests with no FCW
 
-    # TRs = [1.2, 1.8, 2.7]
-    x_ego_obstacle_cost_multiplier = 1  # interp(self.desired_TR, TRs, [3., 1.0, 0.1])
-    j_ego_cost_multiplier = 1  # interp(self.desired_TR, TRs, [0.5, 1.0, 1.0])
-    d_zone_cost_multiplier = 1  # interp(self.desired_TR, TRs, [4., 1.0, 1.0])
+    TRs = [1.2, 1.6, 2.7]
+    x_ego_obstacle_cost_multiplier = interp(self.desired_TR, TRs, [3., 1.0, 0.1])
+    accel_cost_multiplier = interp(self.desired_TR, TRs, [0.75, 1.0, 1.25])
+    d_zone_cost_multiplier = interp(self.desired_TR, TRs, [4., 1.0, 1.0])
 
-    W = np.asfortranarray(np.diag([X_EGO_OBSTACLE_COST * x_ego_obstacle_cost_multiplier, X_EGO_COST, V_EGO_COST, A_EGO_COST, A_CHANGE_COST, J_EGO_COST * j_ego_cost_multiplier]))
+    W = np.asfortranarray(np.diag([X_EGO_OBSTACLE_COST * x_ego_obstacle_cost_multiplier,
+                                   X_EGO_COST, V_EGO_COST, A_EGO_COST,
+                                   A_CHANGE_COST * accel_cost_multiplier,
+                                   J_EGO_COST * accel_cost_multiplier]))
     for i in range(N):
-      W[4,4] = A_CHANGE_COST * np.interp(T_IDXS[i], [0.0, 1.0, 2.0], [1.0, 1.0, 0.0])
+      W[4,4] = A_CHANGE_COST * np.interp(T_IDXS[i], [0.0, 1.0, 2.0], [1.0, 1.0, 0.0]) * accel_cost_multiplier
       self.solver.cost_set(i, 'W', W)
     # Setting the slice without the copy make the array not contiguous,
     # causing issues with the C interface.
