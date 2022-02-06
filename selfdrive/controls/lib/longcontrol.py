@@ -65,6 +65,16 @@ class LongControl():
     # Interp control trajectory
     # TODO estimate car specific lag, use .15s for now
     speeds = long_plan.speeds
+    v_target_future = 0.
+    if len(speeds) == CONTROL_N:
+      v_target_future = speeds[-1]
+
+    # Update state machine
+    output_accel = self.last_output_accel
+    self.long_control_state = long_control_state_trans(CP, active, self.long_control_state, CS.vEgo,
+                                                       v_target_future, CS.brakePressed,
+                                                       CS.cruiseState.standstill)
+
     if len(speeds) == CONTROL_N:
       if self.long_control_state == LongCtrlState.pid:
         self.active_frames = max(self.active_frames - 1, 0)
@@ -82,10 +92,8 @@ class LongControl():
       # a_target = min(a_target_lower, a_target_upper)
 
       v_target = speeds[0]
-      v_target_future = speeds[-1]
     else:
       v_target = 0.0
-      v_target_future = 0.0
       a_target = 0.0
 
     # TODO: This check is not complete and needs to be enforced by MPC
@@ -93,12 +101,6 @@ class LongControl():
 
     self.pid.neg_limit = accel_limits[0]
     self.pid.pos_limit = accel_limits[1]
-
-    # Update state machine
-    output_accel = self.last_output_accel
-    self.long_control_state = long_control_state_trans(CP, active, self.long_control_state, CS.vEgo,
-                                                       v_target_future, CS.brakePressed,
-                                                       CS.cruiseState.standstill)
 
     if self.long_control_state == LongCtrlState.off or CS.gasPressed:
       self.reset(CS.vEgo)
