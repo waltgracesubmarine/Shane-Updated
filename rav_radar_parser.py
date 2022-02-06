@@ -71,40 +71,6 @@ for msg in tqdm(lr):
         states[closest_state].append(frame)
         continue
 
-
-        # diffs = []
-        # already_added_idxs = []
-        # for f in frame:
-        #   diffs = []
-        #   for s in states[-1]:
-        #     diffs.append(abs(s - f))
-        #   x.append(diffs)
-        #
-        #
-        #
-        # closest_matches = sorted(frame, key= lambda x: states[-1].index(sorted(states[-1], key=lambda i: abs(i - x))[0]))
-        # states.append(closest_matches)
-        # continue
-        # # for idx, val in  enumerate(closest_matches):
-        # #   states.append()
-        # # for val in frame:
-
-
-        track_idx = frame[0]
-        index_list.append(track_idx)
-        idx_to_frame[track_idx].append(frame[1:])
-        for sig_name, val in zip(signals[1:], frame[1:]):
-          idx_to_vals[track_idx][sig_name[0]].append(val)
-      # byte_0 += (cp.updated["ALT_RADAR"]["INDEX"])
-      #
-      # byte_1 += (cp.updated["ALT_RADAR"]["NEW_SIGNAL_1"])
-      # byte_2 += (cp.updated["ALT_RADAR"]["NEW_SIGNAL_2"])
-      # byte_3 += (cp.updated["ALT_RADAR"]["NEW_SIGNAL_3"])
-      # byte_4 += (cp.updated["ALT_RADAR"]["NEW_SIGNAL_4"])
-      # byte_5 += (cp.updated["ALT_RADAR"]["NEW_SIGNAL_5"])
-      # byte_6 += (cp.updated["ALT_RADAR"]["NEW_SIGNAL_6"])
-      # byte_7 += (cp.updated["ALT_RADAR"]["NEW_SIGNAL_7"])
-
 mismatches = defaultdict(lambda: defaultdict(int))
 state_idx = 7
 test_frame = states[state_idx][-1]
@@ -119,21 +85,24 @@ for test_y in range(8):
       if bits[test_x] != test_bits[test_x]:
         mismatches[test_y][test_x] += 1
 
-print(mismatches)
-mismatches_by_count = {}
-print('Mismatches:')
-for msg in mismatches:
-  for byt_idx, byt in enumerate(mismatches):
-    for bit_idx, bit_mismatches in enumerate(byt):
-      # if bit_mismatches < 1000 and total_msgs[msg] > 1000:
-      perc_mismatched = 0  # round(bit_mismatches / total_msgs[msg] * 100, 2)
-      if perc_mismatched < 50:
-        mismatches_by_count[f'bit_mismatches={bit_mismatches} of {0} ({perc_mismatched}%), {byt_idx=}, {bit_idx=}'] = perc_mismatched
-        # print(f'{hex(msg)=}, bit_mismatches={bit_mismatches} of {total_msgs[msg]}, {byt_idx=}, {bit_idx=}')
+for byt in range(8):
+  if byt in mismatches:
+    print(mismatches[byt].values())
 
-mismatches_sorted = sorted(mismatches_by_count, key=lambda msg: mismatches_by_count[msg], reverse=True)
-for msg in mismatches_sorted:
-  print(msg)
+# mismatches_by_count = {}
+# print('Mismatches:')
+# for msg in mismatches:
+#   for byt_idx, byt in enumerate(mismatches):
+#     for bit_idx, bit_mismatches in enumerate(byt):
+#       # if bit_mismatches < 1000 and total_msgs[msg] > 1000:
+#       perc_mismatched = 0  # round(bit_mismatches / total_msgs[msg] * 100, 2)
+#       if perc_mismatched < 50:
+#         mismatches_by_count[f'bit_mismatches={bit_mismatches} of {0} ({perc_mismatched}%), {byt_idx=}, {bit_idx=}'] = perc_mismatched
+#         # print(f'{hex(msg)=}, bit_mismatches={bit_mismatches} of {total_msgs[msg]}, {byt_idx=}, {bit_idx=}')
+#
+# mismatches_sorted = sorted(mismatches_by_count, key=lambda msg: mismatches_by_count[msg], reverse=True)
+# for msg in mismatches_sorted:
+#   print(msg)
 
 
 
