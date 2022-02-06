@@ -52,11 +52,13 @@ class LongControl():
                              derivative_period=0.5)
     self.v_pid = 0.0
     self.last_output_accel = 0.0
+    self.active_frames = 100
 
   def reset(self, v_pid):
     """Reset PID controller and change setpoint"""
     self.pid.reset()
     self.v_pid = v_pid
+    self.active_frames = 100
 
   def update(self, active, CS, CP, long_plan, accel_limits, extras):
     """Update longitudinal control. This updates the state machine and runs a PID loop"""
@@ -64,12 +66,19 @@ class LongControl():
     # TODO estimate car specific lag, use .15s for now
     speeds = long_plan.speeds
     if len(speeds) == CONTROL_N:
-      v_target_lower = interp(CP.longitudinalActuatorDelayLowerBound, T_IDXS[:CONTROL_N], speeds)
-      a_target_lower = 2 * (v_target_lower - speeds[0])/CP.longitudinalActuatorDelayLowerBound - long_plan.accels[0]
+      if self.long_control_state == LongCtrlState.off or CS.gasPressed:
+        self.active_frames = 100
+      elif self.long_control_state == LongCtrlState.pid:
+        self.active_frames = max(self.active_frames - 1, 0)
 
-      v_target_upper = interp(CP.longitudinalActuatorDelayUpperBound, T_IDXS[:CONTROL_N], speeds)
-      a_target_upper = 2 * (v_target_upper - speeds[0])/CP.longitudinalActuatorDelayUpperBound - long_plan.accels[0]
-      a_target = min(a_target_lower, a_target_upper)
+      actuator_delay = interp(self.active_frames, [100, 50, 0], [1.0, 1.0, CP.longitudinalActuatorDelayLowerBound])
+
+      v_target = interp(actuator_delay, T_IDXS[:CONTROL_N], speeds)
+      a_target = 2 * (v_target - speeds[0])/actuator_delay - long_plan.accels[0]
+
+      # v_target_upper = interp(actuator_delay, T_IDXS[:CONTROL_N], speeds)
+      # a_target_upper = 2 * (v_target_upper - speeds[0])/actuator_delay - long_plan.accels[0]
+      # a_target = min(a_target_lower, a_target_upper)
 
       v_target = speeds[0]
       v_target_future = speeds[-1]
