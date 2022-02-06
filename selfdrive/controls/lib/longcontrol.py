@@ -66,10 +66,11 @@ class LongControl():
     # TODO estimate car specific lag, use .15s for now
     speeds = long_plan.speeds
     if len(speeds) == CONTROL_N:
-      if self.long_control_state == LongCtrlState.off or CS.gasPressed:
-        self.active_frames = 100
-      elif self.long_control_state == LongCtrlState.pid:
+      if self.long_control_state == LongCtrlState.pid:
         self.active_frames = max(self.active_frames - 1, 0)
+      else:
+        # reset when gas pressed, not active, in other longctrlstates, etc.
+        self.active_frames = 100
 
       actuator_delay = interp(self.active_frames, [100, 50, 0], [1.0, 1.0, CP.longitudinalActuatorDelayLowerBound])
 
