@@ -64,8 +64,8 @@ for msg in tqdm(lr):
 
         frame_diffs = []
         for idx in range(len(states)):
-          # filter out probable checksum
-          frame_diffs.append(sum(np.abs(np.array(states[idx][-1][:-1]) - np.array(frame[:-1]))))
+          # [1:-1] filters out probable checksum
+          frame_diffs.append(sum(np.abs(np.array(states[idx][-1][1:-1]) - np.array(frame[1:-1]))))
 
         closest_state = frame_diffs.index(min(frame_diffs))
         states[closest_state].append(frame)
@@ -104,6 +104,39 @@ for msg in tqdm(lr):
       # byte_5 += (cp.updated["ALT_RADAR"]["NEW_SIGNAL_5"])
       # byte_6 += (cp.updated["ALT_RADAR"]["NEW_SIGNAL_6"])
       # byte_7 += (cp.updated["ALT_RADAR"]["NEW_SIGNAL_7"])
+
+mismatches = defaultdict(lambda: defaultdict(int))
+state_idx = 7
+test_frame = states[state_idx][-1]
+
+for test_y in range(8):
+  test_bits = list(map(int, bin(int(test_frame[test_y]))[2:].zfill(8)))
+  for test_x in range(8):
+
+    for frame in states[state_idx]:
+      byt = frame[test_y]
+      bits = list(map(int, bin(int(byt))[2:].zfill(8)))
+      if bits[test_x] != test_bits[test_x]:
+        mismatches[test_y][test_x] += 1
+
+print(mismatches)
+mismatches_by_count = {}
+print('Mismatches:')
+for msg in mismatches:
+  for byt_idx, byt in enumerate(mismatches):
+    for bit_idx, bit_mismatches in enumerate(byt):
+      # if bit_mismatches < 1000 and total_msgs[msg] > 1000:
+      perc_mismatched = 0  # round(bit_mismatches / total_msgs[msg] * 100, 2)
+      if perc_mismatched < 50:
+        mismatches_by_count[f'bit_mismatches={bit_mismatches} of {0} ({perc_mismatched}%), {byt_idx=}, {bit_idx=}'] = perc_mismatched
+        # print(f'{hex(msg)=}, bit_mismatches={bit_mismatches} of {total_msgs[msg]}, {byt_idx=}, {bit_idx=}')
+
+mismatches_sorted = sorted(mismatches_by_count, key=lambda msg: mismatches_by_count[msg], reverse=True)
+for msg in mismatches_sorted:
+  print(msg)
+
+
+
 
 plt.clf()
 plt.plot(index_list)
