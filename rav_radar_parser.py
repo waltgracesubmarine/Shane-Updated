@@ -10,6 +10,22 @@ from tools.lib.logreader import MultiLogIterator, LogReader
 from collections import defaultdict
 import numpy as np
 
+# BO_ 128 ALT_RADAR: 8 XXX
+#  SG_ INDEX : 7|8@0+ (1,0) [0|15] "" XXX
+#  SG_ NEW_SIGNAL_1 : 15|8@0+ (1,0) [0|255] "" XXX
+#  SG_ NEW_SIGNAL_2 : 23|8@0+ (1,0) [0|255] "" XXX
+#  SG_ NEW_SIGNAL_3 : 31|8@1- (1,0) [0|255] "" XXX
+#  SG_ NEW_SIGNAL_4 : 39|8@0+ (1,0) [0|255] "" XXX
+#  SG_ NEW_SIGNAL_5 : 47|8@1- (1,0) [0|255] "" XXX
+#  SG_ NEW_SIGNAL_6 : 55|8@0- (1,0) [0|255] "" XXX
+#  SG_ NEW_SIGNAL_7 : 63|8@0- (1,0) [0|255] "" XXX
+
+
+def get_bits(__byt):
+  # Returns decimal data as bits displayed in cabana
+  return tuple(map(int, bin(int(__byt))[2:].zfill(8)))
+
+
 signals = [
   ("INDEX", "ALT_RADAR"),
   ("NEW_SIGNAL_1", "ALT_RADAR"),
@@ -19,6 +35,7 @@ signals = [
   ("NEW_SIGNAL_5", "ALT_RADAR"),
   ("NEW_SIGNAL_6", "ALT_RADAR"),
   ("NEW_SIGNAL_7", "ALT_RADAR"),
+  # ("TRACK_IDX1", "ALT_RADAR"),
 ]
 
 # byte 0: lateral distance?
@@ -48,7 +65,7 @@ idx_to_frame = defaultdict(list)  # idx_to_frame[track_idx][byte_idx] = (byte1, 
 idx_to_vals = defaultdict(lambda: defaultdict(list))  # idx_to_vals[track_idx][sig_name] = list of sigs
 
 states = defaultdict(list)
-new_states = defaultdict(list)
+# new_states = defaultdict(list)
 
 for msg in tqdm(lr):
   if msg.which() == "can":
@@ -56,9 +73,13 @@ for msg in tqdm(lr):
     if len(cp.updated["ALT_RADAR"]["INDEX"]):
       for frame in zip(*[cp.updated["ALT_RADAR"][sig[0]] for sig in signals]):
         # print(frame[0])
-        # new_states[frame[0]].append(frame)
-        # continue
-        if len(states) < 100:
+        idx_bits = list(map(int, bin(int(frame[0]))[2:].zfill(8)))[4:8]
+        idx_dat = idx_bits[0] * 2**3 + idx_bits[1] * 2**2 + idx_bits[2] * 2**1 + idx_bits[3] * 2**0
+        states[idx_dat].append(frame)
+        # print(frame)
+        continue
+        assert type(frame[0]) in [float, int]
+        if len(states) < 18*2:
           states[len(states)].append(list(frame))
           continue
 
@@ -71,15 +92,25 @@ for msg in tqdm(lr):
         states[closest_state].append(frame)
         continue
 
+plt.clf()
+byt = 1
+state = 12
+plt.title('state={}'.format(state))
+plt.plot([i[byt] for i in states[state][0]], label='byte={}'.format(byt))
+plt.legend()
+plt.show()
+
+raise Exception
+
 mismatches = defaultdict(lambda: defaultdict(int))
-state_idx = 7
-test_frame = states[state_idx][-1]
+state_idx = 0
+test_frame = states[state_idx][1::6][-1]
 
 for test_y in range(8):
   test_bits = list(map(int, bin(int(test_frame[test_y]))[2:].zfill(8)))
   for test_x in range(8):
 
-    for frame in states[state_idx]:
+    for frame in states[state_idx][1::6]:
       byt = frame[test_y]
       bits = list(map(int, bin(int(byt))[2:].zfill(8)))
       if bits[test_x] != test_bits[test_x]:
@@ -88,6 +119,13 @@ for test_y in range(8):
 for byt in range(8):
   if byt in mismatches:
     print(mismatches[byt].values())
+
+plot_bit = (6, 0)  # byte, bit idx
+bits_to_plot = []
+for frame in states[state_idx]:
+  bits = list(map(int, bin(int(frame[plot_bit[0]]))[2:].zfill(8)))
+  bits_to_plot.append(bits[plot_bit[1]])
+plt.plot(bits_to_plot)
 
 # mismatches_by_count = {}
 # print('Mismatches:')
