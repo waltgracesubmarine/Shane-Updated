@@ -37,7 +37,7 @@ class CarInterface(CarInterfaceBase):
 
     op_params = opParams()
     lat_params = LatParams(
-      use_steering_model := op_params.get('use_steering_model'),
+      use_steering_model := True,
       not use_steering_model and op_params.get('use_lqr'),
       use_steering_model or op_params.get('prius_use_pid'),  # want to get kf from prius if steering model
       not use_steering_model and op_params.get('corollaTSS2_use_indi'),
