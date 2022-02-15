@@ -10,12 +10,49 @@ from common.realtime import DT_CTRL
 class LatControlModel:
   def __init__(self, CP):
     # Model generated using Konverter: https://github.com/sshane/Konverter
-    model_weights_file = f'{BASEDIR}/models/steering/{CP.lateralTuning.model.name}_weights.npz'
+    # model_weights_file = f'{BASEDIR}/models/steering/{CP.lateralTuning.model.name}_weights.npz'
+    model_weights_file = f'{BASEDIR}/models/steering/toyota_big_data_v3_weights.npz'
     self.w, self.b = np.load(model_weights_file, allow_pickle=True)['wb']
+    # these are in a specific order
+    self.platforms = ['TOYOTA RAV4 HYBRID 2019',
+                      'TOYOTA C-HR 2018',
+                      'LEXUS RX 2020',
+                      'TOYOTA AVALON HYBRID 2019',
+                      'TOYOTA SIENNA 2018',
+                      'TOYOTA MIRAI 2021',
+                      'TOYOTA PRIUS TSS2 2021',
+                      'TOYOTA C-HR HYBRID 2018',
+                      'TOYOTA CAMRY HYBRID 2018',
+                      'TOYOTA CAMRY 2021',
+                      'LEXUS ES HYBRID 2019',
+                      'TOYOTA PRIUS 2017',
+                      'TOYOTA COROLLA HYBRID TSS2 2019',
+                      'TOYOTA CAMRY HYBRID 2021',
+                      'TOYOTA AVALON 2019',
+                      'TOYOTA AVALON 2016',
+                      'TOYOTA HIGHLANDER HYBRID 2018',
+                      'TOYOTA HIGHLANDER HYBRID 2020',
+                      'TOYOTA COROLLA 2017',
+                      'TOYOTA RAV4 2019',
+                      'LEXUS ES 2019',
+                      'TOYOTA HIGHLANDER 2017',
+                      'TOYOTA RAV4 HYBRID 2017',
+                      'LEXUS RX 2016',
+                      'TOYOTA CAMRY 2018',
+                      'LEXUS RX HYBRID 2020',
+                      'LEXUS NX HYBRID 2018',
+                      'TOYOTA COROLLA TSS2 2019',
+                      'TOYOTA RAV4 2017',
+                      'LEXUS NX 2018',
+                      'LEXUS RX HYBRID 2017',
+                      'LEXUS NX 2020',
+                      'LEXUS IS 2018',
+                      'TOYOTA HIGHLANDER 2020']
 
-    self.use_rates = CP.lateralTuning.model.useRates
+    self.use_rates = True  # CP.lateralTuning.model.useRates
     self.sat_count_rate = 1.0 * DT_CTRL
     self.sat_limit = CP.steerLimitTimer
+    self.one_hot_platform = self.get_one_hot(self.CP.carFingerprint)
 
     self.reset()
 
@@ -43,6 +80,13 @@ class LatControlModel:
     l2 = np.dot(l1, self.w[2]) + self.b[2]
     return l2
 
+  def get_one_hot(self, fp):
+    if fp not in self.platforms:
+      fp = 'TOYOTA COROLLA TSS2 2019'
+    one_hot_platform = [1 if fp == platform else 0 for platform in self.platforms]
+    assert sum(one_hot_platform) == 1
+    return one_hot_platform
+
   def update(self, active, CS, CP, VM, params, last_actuators, desired_curvature, desired_curvature_rate):
     model_log = log.ControlsState.LateralModelState.new_message()
     model_log.steeringAngleDeg = float(CS.steeringAngleDeg)
@@ -66,16 +110,18 @@ class LatControlModel:
       # Basically, figure out a better way to train the model to recover without random samples and using a PF controller as the output
       rate_des = rate_des if self.use_rates else 0
       rate = CS.steeringRateDeg if self.use_rates else 0
-      model_input = [angle_steers_des, CS.steeringAngleDeg, rate_des, rate, CS.vEgo]
+      model_input = [angle_steers_des, CS.steeringAngleDeg, rate_des, rate, CS.vEgo, CS.aEgo]
+      model_input += self.one_hot_platform
 
       output_steer = self.predict(model_input)[0]
       output_steer = clip(output_steer, neg_limit, pos_limit)
       output_steer = float(output_steer * CP.lateralTuning.model.multiplier)
 
-      if output_steer < 0:  # model doesn't like right curves
-        _90_degree_bp = interp(CS.vEgo, [17.8816, 31.2928], [1., 1.1])  # 40 to 70 mph, 90 degree brakepoint
-        multiplier = interp(abs(CS.steeringAngleDeg), [0, 90.], [1.27, _90_degree_bp])
-        output_steer = float(output_steer * multiplier)
+      # TODO: we don't know this yet
+      # if output_steer < 0:  # model doesn't like right curves
+      #   _90_degree_bp = interp(CS.vEgo, [17.8816, 31.2928], [1., 1.1])  # 40 to 70 mph, 90 degree brakepoint
+      #   multiplier = interp(abs(CS.steeringAngleDeg), [0, 90.], [1.27, _90_degree_bp])
+      #   output_steer = float(output_steer * multiplier)
 
       model_log.active = True
       model_log.output = output_steer
