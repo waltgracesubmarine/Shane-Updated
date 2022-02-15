@@ -49,10 +49,10 @@ class LatControlModel:
                       'LEXUS IS 2018',
                       'TOYOTA HIGHLANDER 2020']
 
-    self.use_rates = True  # CP.lateralTuning.model.useRates
+    self.use_rates = False  # CP.lateralTuning.model.useRates
     self.sat_count_rate = 1.0 * DT_CTRL
     self.sat_limit = CP.steerLimitTimer
-    self.one_hot_platform = self.get_one_hot(self.CP.carFingerprint)
+    self.one_hot_platform = self.get_one_hot(CP.carFingerprint)
 
     self.reset()
 
