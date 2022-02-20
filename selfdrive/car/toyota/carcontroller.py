@@ -21,6 +21,7 @@ class CarController():
     self.packer = CANPacker(dbc_name)
     self.gas = 0
     self.accel = 0
+    self.last_apply_steer_req = False
 
   def update(self, enabled, active, CS, frame, actuators, pcm_cancel_cmd, hud_alert,
              left_line, right_line, lead, left_lane_depart, right_lane_depart):
@@ -84,7 +85,9 @@ class CarController():
 
     # LTA mode. Set ret.steerControlType = car.CarParams.SteerControlType.angle and whitelist 0x191 in the panda
     can_sends.append(create_steer_command(self.packer, 0, 0, frame))
-    can_sends.append(create_lta_steer_command(self.packer, actuators.steeringAngleDeg, CS.out.steeringAngleDeg, CS.out.steeringTorque, apply_steer_req, frame))
+    can_sends.append(create_lta_steer_command(self.packer, actuators.steeringAngleDeg, CS.out.steeringAngleDeg, CS.out.steeringTorque, apply_steer_req, self.last_apply_steer_req, frame))
+
+    self.last_apply_steer_req = apply_steer_req
 
     # we can spam can to cancel the system even if we are using lat only control
     if (frame % 3 == 0 and CS.CP.openpilotLongitudinalControl) or pcm_cancel_cmd:

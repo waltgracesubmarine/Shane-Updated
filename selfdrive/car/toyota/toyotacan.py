@@ -12,7 +12,7 @@ def create_steer_command(packer, steer, steer_req, raw_cnt):
   return packer.make_can_msg("STEERING_LKA", 0, values)
 
 
-def create_lta_steer_command(packer, apply_steer, steer_angle, driver_torque, steer_req, raw_cnt):
+def create_lta_steer_command(packer, apply_steer, steer_angle, driver_torque, steer_req, last_steer_req, raw_cnt):
   """Creates a CAN message for the Toyota LTA Steer Command."""
 
   percentage = interp(abs(driver_torque), [30, 100], [100, 0])
@@ -27,7 +27,7 @@ def create_lta_steer_command(packer, apply_steer, steer_angle, driver_torque, st
     "STEER_ANGLE_CMD": apply_steer,  # seems to just be desired angle cmd
     "STEER_REQUEST": steer_req,  # stock system turns off steering after ~20 frames of override, else torque winds up
     "STEER_REQUEST_2": steer_req,  # duplicate
-    "BIT": 0,  # 1 when STEER_REQUEST changes state (usually)
+    "BIT": steer_req != last_steer_req,  # 1 when STEER_REQUEST changes state (usually)
   }
   return packer.make_can_msg("STEERING_LTA", 0, values)
 
