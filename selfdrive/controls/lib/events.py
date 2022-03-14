@@ -63,10 +63,7 @@ class Events:
     self.events = self.static_events.copy()
 
   def any(self, event_type: str) -> bool:
-    for e in self.events:
-      if event_type in EVENTS.get(e, {}).keys():
-        return True
-    return False
+    return any(event_type in EVENTS.get(e, {}) for e in self.events)
 
   def create_alerts(self, event_types: List[str], callback_args=None):
     if callback_args is None:
@@ -96,7 +93,7 @@ class Events:
     for event_name in self.events:
       event = car.CarEvent.new_message()
       event.name = event_name
-      for event_type in EVENTS.get(event_name, {}).keys():
+      for event_type in EVENTS.get(event_name, {}):
         setattr(event, event_type, True)
       ret.append(event)
     return ret
@@ -239,7 +236,7 @@ def calibration_incomplete_alert(CP: car.CarParams, sm: messaging.SubMaster, met
 
 
 def no_gps_alert(CP: car.CarParams, sm: messaging.SubMaster, metric: bool, soft_disable_time: int) -> Alert:
-  gps_integrated = sm['peripheralState'].pandaType in [log.PandaState.PandaType.uno, log.PandaState.PandaType.dos]
+  gps_integrated = sm['peripheralState'].pandaType in (log.PandaState.PandaType.uno, log.PandaState.PandaType.dos)
   return Alert(
     "Poor GPS reception",
     "If sky is visible, contact support" if gps_integrated else "Check GPS antenna placement",
@@ -266,8 +263,6 @@ EVENTS: Dict[int, Dict[str, Union[Alert, AlertCallbackType]]] = {
   # ********** events with no alerts **********
 
   EventName.stockFcw: {},
-
-  EventName.lkasDisabled: {},
 
   # ********** events only containing alerts displayed in all states **********
 
@@ -377,14 +372,6 @@ EVENTS: Dict[int, Dict[str, Union[Alert, AlertCallbackType]]] = {
 
   EventName.cruiseMismatch: {
     #ET.PERMANENT: ImmediateDisableAlert("openpilot failed to cancel cruise"),
-  },
-
-  # Some features or cars are marked as community features. If openpilot
-  # detects the use of a community feature it switches to dashcam mode
-  # until these features are allowed using a toggle in settings.
-  EventName.communityFeatureDisallowed: {
-    ET.PERMANENT: NormalPermanentAlert("openpilot Unavailable",
-                                       "Enable Community Features in Settings"),
   },
 
   # openpilot doesn't recognize the car. This switches openpilot into a
@@ -892,6 +879,11 @@ EVENTS: Dict[int, Dict[str, Union[Alert, AlertCallbackType]]] = {
   EventName.lowSpeedLockout: {
     ET.PERMANENT: NormalPermanentAlert("Cruise Fault: Restart the car to engage"),
     ET.NO_ENTRY: NoEntryAlert("Cruise Fault: Restart the Car"),
+  },
+
+  EventName.lkasDisabled: {
+    ET.PERMANENT: NormalPermanentAlert("LKAS Disabled: Enable LKAS to engage"),
+    ET.NO_ENTRY: NoEntryAlert("LKAS Disabled"),
   },
 
 }

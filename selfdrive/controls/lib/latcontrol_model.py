@@ -8,7 +8,7 @@ from common.realtime import DT_CTRL
 
 
 class LatControlModel:
-  def __init__(self, CP):
+  def __init__(self, CP, CI):
     # Model generated using Konverter: https://github.com/sshane/Konverter
     model_weights_file = f'{BASEDIR}/models/steering/{CP.lateralTuning.model.name}_weights.npz'
     self.w, self.b = np.load(model_weights_file, allow_pickle=True)['wb']

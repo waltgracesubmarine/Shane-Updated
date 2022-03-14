@@ -56,11 +56,23 @@ def get_origin(default: Optional[str] = None) -> Optional[str]:
 
 
 @cache
+def get_normalized_origin(default: Optional[str] = None) -> Optional[str]:
+  return get_origin()\
+          .replace("git@", "", 1)\
+          .replace(".git", "", 1)\
+          .replace("https://", "", 1)\
+          .replace(":", "/", 1)
+
+
+@cache
 def get_version() -> str:
   with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "common", "version.h")) as _versionf:
     version = _versionf.read().split('"')[1]
   return version
 
+@cache
+def get_short_version() -> str:
+  return get_version().split('-')[0]
 
 @cache
 def is_prebuilt() -> bool:
@@ -69,6 +81,8 @@ def is_prebuilt() -> bool:
 
 @cache
 def is_comma_remote() -> bool:
+  # note to fork maintainers, this is used for release metrics. please do not
+  # touch this to get rid of the orange startup alert. there's better ways to do that
   origin = get_origin()
   if origin is None:
     return False
@@ -113,11 +127,6 @@ def is_dirty(fork=False) -> bool:
         pass
 
       dirty = (subprocess.call(["git", "diff-index", "--quiet", branch, "--"]) != 0)
-
-    correct_remote = is_fork_remote() if fork else is_comma_remote()
-    dirty = dirty or (not correct_remote)
-    dirty = dirty or ('master' in branch)
-
   except subprocess.CalledProcessError:
     cloudlog.exception("git subprocess failed while checking dirty")
     dirty = True
@@ -134,7 +143,9 @@ if __name__ == "__main__":
 
   print(f"Dirty: {is_dirty()}")
   print(f"Version: {get_version()}")
+  print(f"Short version: {get_short_version()}")
   print(f"Origin: {get_origin()}")
+  print(f"Normalized origin: {get_normalized_origin()}")
   print(f"Branch: {get_branch()}")
   print(f"Short branch: {get_short_branch()}")
   print(f"Prebuilt: {is_prebuilt()}")
