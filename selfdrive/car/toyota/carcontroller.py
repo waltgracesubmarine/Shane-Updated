@@ -101,6 +101,7 @@ class CarController:
     if predicted_steering_fault and not self.predicted_steering_fault_prev:
       apply_steer = 0
       apply_steer_req = 0
+      self.frames_above_rate_threshold = 0
     self.predicted_steering_fault_prev = predicted_steering_fault
     can_sends.append(create_steer_command(self.packer, apply_steer, apply_steer_req, self.frame))
     if self.frame % 2 == 0 and self.CP.carFingerprint in TSS2_CAR:
