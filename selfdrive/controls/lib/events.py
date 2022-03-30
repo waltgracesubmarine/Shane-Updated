@@ -44,36 +44,40 @@ EVENT_NAME = {v: k for k, v in EventName.schema.enumerants.items()}
 
 class Events:
   def __init__(self):
-    self.events: List[int] = []
-    self.static_events: List[int] = []
+    self.events: Dict[int, List[str]] = {}  # {EventName: [EventType]}
+    self.static_events: List[int] = {}
     self.events_prev = dict.fromkeys(EVENTS.keys(), 0)
 
   @property
   def names(self) -> List[int]:
-    return self.events
+    return list(self.events.keys())
 
   def __len__(self) -> int:
     return len(self.events)
 
-  def add(self, event_name: int, static: bool=False) -> None:
+  def add(self, event_name: int, event_type: Optional[str] = None, static: bool = False) -> None:
+    if event_type is None:
+      event_types = set(EVENTS.get(event_name, {}))
+    else:
+      event_types = (event_type,)
+
     if static:
-      self.static_events.append(event_name)
-    self.events.append(event_name)
+      self.static_events[event_name] = event_types
+    self.events[event_name] = event_types
 
   def clear(self) -> None:
     self.events_prev = {k: (v + 1 if k in self.events else 0) for k, v in self.events_prev.items()}
     self.events = self.static_events.copy()
 
   def any(self, event_type: str) -> bool:
-    return any(event_type in EVENTS.get(e, {}) for e in self.events)
+    return any(event_type in self.events[e] for e in self.events)
 
   def create_alerts(self, event_types: List[str], callback_args=None):
     if callback_args is None:
       callback_args = []
 
     ret = []
-    for e in self.events:
-      types = EVENTS[e].keys()
+    for e, types in self.events.items():
       for et in event_types:
         if et in types:
           alert = EVENTS[e][et]
@@ -88,14 +92,14 @@ class Events:
 
   def add_from_msg(self, events):
     for e in events:
-      self.events.append(e.name.raw)
+      self.add(e.name.raw)
 
   def to_msg(self):
     ret = []
-    for event_name in self.events:
+    for event_name, event_types in self.events.items():
       event = car.CarEvent.new_message()
       event.name = event_name
-      for event_type in EVENTS.get(event_name, {}):
+      for event_type in event_types:
         setattr(event, event_type, True)
       ret.append(event)
     return ret
