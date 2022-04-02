@@ -10,11 +10,11 @@ from common.numpy_fast import clip
 from common.realtime import sec_since_boot, config_realtime_process, Priority, Ratekeeper, DT_CTRL
 from common.profiler import Profiler
 from common.params import Params, put_nonblocking
-from common.travis_checker import gh_actions
 import cereal.messaging as messaging
-import selfdrive.crash as crash
+# from common.travis_checker import gh_actions
+# import selfdrive.crash as crash
+# from selfdrive.version import is_fork_remote
 from selfdrive.config import Conversions as CV
-from selfdrive.version import is_fork_remote
 from selfdrive.swaglog import cloudlog
 from selfdrive.boardd.boardd import can_list_to_can_capnp
 from selfdrive.car.car_helpers import get_car, get_startup_event, get_one_can
@@ -62,15 +62,15 @@ SafetyModel = car.CarParams.SafetyModel
 IGNORED_SAFETY_MODES = [SafetyModel.silent, SafetyModel.noOutput]
 CSID_MAP = {"0": EventName.roadCameraError, "1": EventName.wideRoadCameraError, "2": EventName.driverCameraError}
 
-def log_fingerprint(candidate, timeout=15):
-  if not gh_actions and is_fork_remote:
-    try:
-      requests.get('https://sentry.io', timeout=timeout)
-      crash.init()
-      crash.capture_message("fingerprinted {}".format(candidate), level='info')
-      return
-    except:
-      pass
+# def log_fingerprint(candidate, timeout=15):
+#   if not gh_actions and is_fork_remote:
+#     try:
+#       requests.get('https://sentry.io', timeout=timeout)
+#       crash.init()
+#       crash.capture_message("fingerprinted {}".format(candidate), level='info')
+#       return
+#     except:
+#       pass
 
 
 class Controls:
@@ -120,7 +120,7 @@ class Controls:
     get_one_can(self.can_sock)
 
     self.CI, self.CP, candidate = get_car(self.can_sock, self.pm.sock['sendcan'])
-    threading.Thread(target=log_fingerprint, args=[candidate]).start()
+    # threading.Thread(target=log_fingerprint, args=[candidate]).start()
 
     # read params
     self.is_metric = params.get_bool("IsMetric")
