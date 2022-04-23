@@ -59,6 +59,7 @@ class LongControl():
                              k_f=CP.longitudinalTuning.kf,
                              k_d=(CP.longitudinalTuning.kdBP, CP.longitudinalTuning.kdV),
                              rate=1 / DT_CTRL,
+                             # TODO: add support for this kind of derivative back
                              derivative_period=0.5)
     self.v_pid = 0.0
     self.last_output_accel = 0.0
