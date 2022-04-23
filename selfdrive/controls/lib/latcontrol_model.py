@@ -1,13 +1,14 @@
 import math
 import numpy as np
 from common.basedir import BASEDIR
-from selfdrive.controls.lib.drive_helpers import get_steer_max
 from cereal import log
 from common.numpy_fast import clip, interp
 from common.realtime import DT_CTRL
+from selfdrive.controls.lib.latcontrol import LatControl
 
 
-class LatControlModel:
+# TODO: retrain a new model on acceleration
+class LatControlModel(LatControl):
   def __init__(self, CP, CI):
     # Model generated using Konverter: https://github.com/sshane/Konverter
     model_weights_file = f'{BASEDIR}/models/steering/{CP.lateralTuning.model.name}_weights.npz'
@@ -20,19 +21,7 @@ class LatControlModel:
     self.reset()
 
   def reset(self):
-    self.sat_count = 0.0
-
-  def _check_saturation(self, control, check_saturation, limit):
-    saturated = abs(control) == limit
-
-    if saturated and check_saturation:
-      self.sat_count += self.sat_count_rate
-    else:
-      self.sat_count -= self.sat_count_rate
-
-    self.sat_count = clip(self.sat_count, 0.0, 1.0)
-
-    return self.sat_count > self.sat_limit
+    super().reset()
 
   def predict(self, x):
     x = np.array(x, dtype=np.float32)
@@ -55,10 +44,6 @@ class LatControlModel:
       output_steer = 0.0
       model_log.active = False
     else:
-      steers_max = get_steer_max(CP, CS.vEgo)
-      pos_limit = steers_max
-      neg_limit = -steers_max
-
       rate_des = math.degrees(VM.get_steer_from_curvature(-desired_curvature_rate, CS.vEgo, 0))
 
       # TODO: Can be sluggish when model is given rates, the issue is probably with the training data,
@@ -69,7 +54,7 @@ class LatControlModel:
       model_input = [angle_steers_des, CS.steeringAngleDeg, rate_des, rate, CS.vEgo]
 
       output_steer = self.predict(model_input)[0]
-      output_steer = clip(output_steer, neg_limit, pos_limit)
+      output_steer = clip(output_steer, -self.steer_max, self.steer_max)
       output_steer = float(output_steer * CP.lateralTuning.model.multiplier)
 
       if output_steer < 0:  # model doesn't like right curves
