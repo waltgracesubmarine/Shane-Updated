@@ -10,7 +10,7 @@ from common.op_params import opParams
 from collections import namedtuple
 
 EventName = car.CarEvent.EventName
-LatParams = namedtuple('LatParams', ['use_steering_model', 'use_lqr', 'prius_use_pid', 'corollaTSS2_use_indi', 'rav4TSS2_use_indi', 'hasZss', 'TSS2'])
+LatParams = namedtuple('LatParams', ['use_steering_model', 'prius_use_pid', 'corollaTSS2_use_indi', 'rav4TSS2_use_indi', 'hasZss', 'TSS2'])
 
 
 class CarInterface(CarInterfaceBase):
@@ -38,7 +38,6 @@ class CarInterface(CarInterfaceBase):
     op_params = opParams()
     lat_params = LatParams(
       use_steering_model := op_params.get('use_steering_model'),
-      not use_steering_model and op_params.get('use_lqr'),
       use_steering_model or op_params.get('prius_use_pid'),  # want to get kf from prius if steering model
       not use_steering_model and op_params.get('corollaTSS2_use_indi'),
       not use_steering_model and op_params.get('rav4TSS2_use_indi'),
