@@ -7,6 +7,12 @@
 
 #include "selfdrive/ui/qt/widgets/input.h"
 
+enum PrimeType {
+  NONE = 0,
+  MAGENTA,
+  LITE,
+};
+
 // pairing QR code
 class PairingQRWidget : public QWidget {
   Q_OBJECT
@@ -37,7 +43,7 @@ class PrimeUserWidget : public QWidget {
   Q_OBJECT
 public:
   explicit PrimeUserWidget(QWidget* parent = 0);
-  void setPrime(bool hasPrime);
+  void setPrimeStyles(int prime_type);
 
 private:
   QVBoxLayout* mainLayout;
@@ -56,7 +62,7 @@ class PrimeAdWidget : public QFrame {
 public:
   explicit PrimeAdWidget(QWidget* parent = 0);
 signals:
-  void showPrimeWidget(bool hasPrime);
+  void showPrimeWidget();
 };
 
 // container widget
@@ -74,5 +80,5 @@ private:
 
 private slots:
   void replyFinished(const QString &response, bool success);
-  void showPrimeWidget(bool hasPrime);
+  void showPrimeWidget();
 };

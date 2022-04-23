@@ -208,10 +208,10 @@ PrimeUserWidget::PrimeUserWidget(QWidget* parent) : QWidget(parent) {
   }
 }
 
-void PrimeUserWidget::setPrime(bool hasPrime) {
-  subscribed->setText(hasPrime ? "✓ SUBSCRIBED" : "✕ NOT SUBSCRIBED");
-  subscribed->setStyleSheet(QString("font-size: 41px; font-weight: bold; color: %1;").arg(hasPrime ? "#86FF4E" : "#ff4e4e"));
-  commaPrime->setText(hasPrime ? "comma prime" : "got prime?");
+void PrimeUserWidget::setPrimeStyles(int prime_type) {
+  subscribed->setText(prime_type ? "✓ SUBSCRIBED" : "✕ NOT SUBSCRIBED");
+  subscribed->setStyleSheet(QString("font-size: 41px; font-weight: bold; color: %1;").arg(prime_type ? "#86FF4E" : "#ff4e4e"));
+  commaPrime->setText(prime_type ? "comma prime" : "got prime?");
 }
 
 void PrimeUserWidget::replyFinished(const QString &response) {
@@ -271,7 +271,7 @@ PrimeAdWidget::PrimeAdWidget(QWidget* parent) : QFrame(parent) {
   )");
   QObject::connect(dismiss, &QPushButton::clicked, this, [=]() {
     Params().putBool("PrimeAdDismissed", true);
-    emit showPrimeWidget(false);  // dismiss with no prime
+    emit showPrimeWidget();  // dismiss with no prime
   });
   main_layout->addSpacing(20);
   main_layout->addWidget(dismiss);
@@ -378,27 +378,27 @@ void SetupWidget::replyFinished(const QString &response, bool success) {
   }
 
   QJsonObject json = doc.object();
+  int prime_type = json["prime_type"].toInt();
+
+  if (uiState()->prime_type != prime_type) {
+    uiState()->prime_type = prime_type;
+    Params().put("PrimeType", std::to_string(prime_type));
+  }
+
   if (!json["is_paired"].toBool()) {
     mainLayout->setCurrentIndex(0);
   } else {
     popup->reject();
 
-    bool prime = json["prime"].toBool();
-
-    if (uiState()->has_prime != prime) {
-      uiState()->has_prime = prime;
-      Params().putBool("HasPrime", prime);
-    }
-
-    if (prime || Params().getBool("PrimeAdDismissed")) {
-      showPrimeWidget(json["prime"].toBool());
+    if (prime_type || Params().getBool("PrimeAdDismissed")) {
+      showPrimeWidget();
     } else {
       mainLayout->setCurrentWidget(primeAd);
     }
   }
 }
 
-void SetupWidget::showPrimeWidget(bool hasPrime) {
-  primeUser->setPrime(hasPrime);
+void SetupWidget::showPrimeWidget() {
+  primeUser->setPrimeStyles(uiState()->prime_type);
   mainLayout->setCurrentWidget(primeUser);
 }

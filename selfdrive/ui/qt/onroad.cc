@@ -21,7 +21,7 @@ OnroadWindow::OnroadWindow(QWidget *parent) : QWidget(parent) {
 
   QStackedLayout *road_view_layout = new QStackedLayout;
   road_view_layout->setStackingMode(QStackedLayout::StackAll);
-  nvg = new NvgWindow(VISION_STREAM_RGB_BACK, this);
+  nvg = new NvgWindow(VISION_STREAM_ROAD, this);
   road_view_layout->addWidget(nvg);
   hud = new OnroadHud(this);
   road_view_layout->addWidget(hud);
@@ -86,13 +86,17 @@ void OnroadWindow::mousePressEvent(QMouseEvent* e) {
 void OnroadWindow::offroadTransition(bool offroad) {
 #ifdef ENABLE_MAPS
   if (!offroad) {
-    if (map == nullptr && (uiState()->has_prime || !MAPBOX_TOKEN.isEmpty())) {
+    if (map == nullptr && (uiState()->prime_type || !MAPBOX_TOKEN.isEmpty())) {
       MapWindow * m = new MapWindow(get_mapbox_settings());
-      m->setFixedWidth(topWidget(this)->width() / 2);
-      m->offroadTransition(offroad);
-      QObject::connect(uiState(), &UIState::offroadTransition, m, &MapWindow::offroadTransition);
-      split->addWidget(m, 0, Qt::AlignRight);
       map = m;
+
+      QObject::connect(uiState(), &UIState::offroadTransition, m, &MapWindow::offroadTransition);
+
+      m->setFixedWidth(topWidget(this)->width() / 2);
+      split->addWidget(m, 0, Qt::AlignRight);
+
+      // Make map visible after adding to split
+      m->offroadTransition(offroad);
     }
   }
 #endif
@@ -101,7 +105,7 @@ void OnroadWindow::offroadTransition(bool offroad) {
 
   // update stream type
   bool wide_cam = Hardware::TICI() && Params().getBool("EnableWideCamera");
-  nvg->setStreamType(wide_cam ? VISION_STREAM_RGB_WIDE : VISION_STREAM_RGB_BACK);
+  nvg->setStreamType(wide_cam ? VISION_STREAM_WIDE_ROAD : VISION_STREAM_ROAD);
 }
 
 void OnroadWindow::paintEvent(QPaintEvent *event) {
@@ -286,7 +290,7 @@ void OnroadHud::updateState(const UIState &s) {
     maxspeed *= KM_TO_MILE;
   }
   QString maxspeed_str = cruise_set ? QString::number(std::nearbyint(maxspeed)) : "N/A";
-  float cur_speed = std::max(0.0, sm["carState"].getCarState().getVEgo() * (s.scene.is_metric ? MS_TO_KPH : MS_TO_MPH));
+  float cur_speed = sm["carState"].getCarState().getVEgo() * (s.scene.is_metric ? MS_TO_KPH : MS_TO_MPH);
 
   setProperty("is_cruise_set", cruise_set);
   setProperty("speed", QString::number(std::nearbyint(cur_speed)));
@@ -322,7 +326,7 @@ void OnroadHud::paintEvent(QPaintEvent *event) {
   configFont(p, "Open Sans", 48, "Regular");
   drawText(p, rc.center().x(), 118, "MAX", is_cruise_set ? 200 : 100);
   if (is_cruise_set) {
-    configFont(p, "Open Sans", 88, is_cruise_set ? "Bold" : "SemiBold");
+    configFont(p, "Open Sans", 88, "Bold");
     drawText(p, rc.center().x(), 212, maxSpeed, 255);
   } else {
     configFont(p, "Open Sans", 80, "SemiBold");
@@ -367,6 +371,11 @@ void OnroadHud::drawIcon(QPainter &p, int x, int y, QPixmap &img, QBrush bg, flo
 }
 
 // NvgWindow
+
+NvgWindow::NvgWindow(VisionStreamType type, QWidget* parent) : fps_filter(UI_FREQ, 3, 1. / UI_FREQ), CameraViewWidget("camerad", type, true, parent) {
+
+}
+
 void NvgWindow::initializeGL() {
   CameraViewWidget::initializeGL();
   qInfo() << "OpenGL version:" << QString((const char*)glGetString(GL_VERSION));
@@ -399,45 +408,50 @@ void NvgWindow::updateFrameMat(int w, int h) {
       .translate(-intrinsic_matrix.v[2], -intrinsic_matrix.v[5]);
 }
 
-void NvgWindow::drawLaneLines(QPainter &painter, UIState *s) {
-  UIScene &scene = s->scene;
-  if (!scene.end_to_end) {
-    // lanelines
-    for (int i = 0; i < std::size(scene.lane_line_vertices); ++i) {
-      if (i == 1 || i == 2) {
-        // TODO: can we just use the projected vertices somehow?
-        const cereal::ModelDataV2::XYZTData::Reader &line = (*s->sm)["modelV2"].getModelV2().getLaneLines()[i];
-        const float default_pos = 1.4;  // when lane poly isn't available
-        const float lane_pos = line.getY().size() > 0 ? std::abs(line.getY()[5]) : default_pos;  // get redder when line is closer to car
-        float hue = 332.5 * lane_pos - 332.5;  // equivalent to {1.4, 1.0}: {133, 0} (green to red)
-        hue = std::fmin(133, fmax(0, hue)) / 360.;  // clip and normalize
-        painter.setBrush(QColor::fromHslF(hue, 0.73, 0.64, scene.lane_line_probs[i]));
-      } else {
-        painter.setBrush(QColor::fromRgbF(1.0, 1.0, 1.0, scene.lane_line_probs[i]));
-      }
-      painter.drawPolygon(scene.lane_line_vertices[i].v, scene.lane_line_vertices[i].cnt);
+void NvgWindow::drawLaneLines(QPainter &painter, const UIState *s) {
+  const UIScene &scene = s->scene;
+  // lanelines
+  for (int i = 0; i < std::size(scene.lane_line_vertices); ++i) {
+    if (i == 1 || i == 2) {
+      const cereal::ModelDataV2::XYZTData::Reader &line = (*s->sm)["modelV2"].getModelV2().getLaneLines()[i];
+      const float default_pos = 1.4;  // when lane poly isn't available
+      const float lane_pos = line.getY().size() > 0 ? std::abs(line.getY()[5]) : default_pos;  // get redder when line is closer to car
+      float hue = 332.5 * lane_pos - 332.5;  // equivalent to {1.4, 1.0}: {133, 0} (green to red)
+      hue = std::fmin(133, fmax(0, hue)) / 360.;  // clip and normalize
+      painter.setBrush(QColor::fromHslF(hue, 0.73, 0.64, scene.lane_line_probs[i]));
+    } else {
+      painter.setBrush(QColor::fromRgbF(1.0, 1.0, 1.0, scene.lane_line_probs[i]));
     }
-    // road edges
-    for (int i = 0; i < std::size(scene.road_edge_vertices); ++i) {
-      painter.setBrush(QColor::fromRgbF(1.0, 0, 0, std::clamp<float>(1.0 - scene.road_edge_stds[i], 0.0, 1.0)));
-      painter.drawPolygon(scene.road_edge_vertices[i].v, scene.road_edge_vertices[i].cnt);
-    }
+    painter.drawPolygon(scene.lane_line_vertices[i].v, scene.lane_line_vertices[i].cnt);
+  }
+
+  // road edges
+  for (int i = 0; i < std::size(scene.road_edge_vertices); ++i) {
+    painter.setBrush(QColor::fromRgbF(1.0, 0, 0, std::clamp<float>(1.0 - scene.road_edge_stds[i], 0.0, 1.0)));
+    painter.drawPolygon(scene.road_edge_vertices[i].v, scene.road_edge_vertices[i].cnt);
   }
 
   // paint path
   QLinearGradient bg(0, height(), 0, height() / 4);
-  if ((*s->sm)["controlsState"].getControlsState().getEnabled()) {
-    const cereal::ModelDataV2::XYZTData::Reader &pos = (*s->sm)["modelV2"].getModelV2().getPosition();
-    const float lat_pos = pos.getY().size() > 0 ? std::abs(pos.getY()[14] - pos.getY()[0]) : 0;  // 14 is 1.91406 (subtract initial pos to not consider offset)
-    float hue = lat_pos * -39.46 + 148;  // interp from {0, 4.5} -> {148, 0}
-    hue = (hue - 360. * floor(hue / 360.)) / 360.;  // scale and wrap around
-    bg.setColorAt(0, QColor::fromHslF(hue, .94, .51, 1.));
-    bg.setColorAt(1, QColor::fromHslF(hue, .73, .49, 100./255.));
-  } else {
-    bg.setColorAt(0, scene.end_to_end ? redColor() : QColor(255, 255, 255));
-    bg.setColorAt(1, scene.end_to_end ? redColor(0) : QColor(255, 255, 255, 0));
-  }
+  if (scene.end_to_end) {
+    const auto &orientation = (*s->sm)["modelV2"].getModelV2().getOrientation();
+    float orientation_future = 0;
+    if (orientation.getZ().size() > 16) {
+      orientation_future = std::abs(orientation.getZ()[16]);  // 2.5 seconds
+    }
+    // TODO: more colors!
+    // straight: 112, in turns: 70
+    float curve_hue = fmax(70, 112 - (orientation_future * 420));
+    // FIXME: painter.drawPolygon can be slow if hue is not rounded
+    curve_hue = int(curve_hue * 100 + 0.5) / 100;
 
+    bg.setColorAt(0.0, QColor::fromHslF(148 / 360., 0.94, 0.51, 0.4));
+    bg.setColorAt(0.75 / 1.5, QColor::fromHslF(curve_hue / 360., 1.0, 0.68, 0.35));
+    bg.setColorAt(1.0, QColor::fromHslF(curve_hue / 360., 1.0, 0.68, 0.0));
+  } else {
+    bg.setColorAt(0, whiteColor());
+    bg.setColorAt(1, whiteColor(0));
+  }
   painter.setBrush(bg);
   painter.drawPolygon(scene.track_vertices.v, scene.track_vertices.cnt);
 }
@@ -504,9 +518,9 @@ void NvgWindow::paintGL() {
 
   double cur_draw_t = millis_since_boot();
   double dt = cur_draw_t - prev_draw_t;
-  if (dt > 66) {
-    // warn on sub 15fps
-    LOGW("slow frame time: %.2f", dt);
+  double fps = fps_filter.update(1. / dt * 1000);
+  if (fps < 15) {
+    LOGW("slow frame rate: %.2f fps", fps);
   }
   prev_draw_t = cur_draw_t;
 }

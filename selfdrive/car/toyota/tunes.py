@@ -25,8 +25,9 @@ class LatTunes(Enum):
   PID_L = 13
   PID_M = 14
   PID_N = 15
-  STEER_MODEL_COROLLA = 16
-  STEER_MODEL_CAMRY = 17
+  TORQUE = 16
+  STEER_MODEL_COROLLA = 17
+  STEER_MODEL_CAMRY = 18
 
 
 ###### LONG ######
@@ -52,20 +53,14 @@ def set_long_tune(tune, name):
 
 
 ###### LAT ######
-def set_lat_tune(tune, params, name):
-  # LQR takes precedence, steering model uses kf value if available, so that's at end
-  if params.use_lqr:
-    tune.init('lqr')
-
-    tune.lqr.scale = 1500.0
-    tune.lqr.ki = 0.05
-
-    tune.lqr.a = [0., 1., -0.22619643, 1.21822268]
-    tune.lqr.b = [-1.92006585e-04, 3.95603032e-05]
-    tune.lqr.c = [1., 0.]
-    tune.lqr.k = [-110.73572306, 451.22718255]
-    tune.lqr.l = [0.3233671, 0.3185757]
-    tune.lqr.dcGain = 0.002237852961363602
+def set_lat_tune(tune, params, name, MAX_LAT_ACCEL=2.5, FRICTION=.1):
+  if name == LatTunes.TORQUE:
+    tune.init('torque')
+    tune.torque.useSteeringAngle = True
+    tune.torque.kp = 2.0 / MAX_LAT_ACCEL
+    tune.torque.kf = 1.0 / MAX_LAT_ACCEL
+    tune.torque.ki = 0.5 / MAX_LAT_ACCEL
+    tune.torque.friction = FRICTION
 
   elif name == LatTunes.INDI_PRIUS:
     if params.prius_use_pid:
@@ -79,27 +74,6 @@ def set_lat_tune(tune, params, name):
       tune.indi.outerLoopGainV = [3.0]
       tune.indi.timeConstantV = [0.1] if params.hasZss else [1.0]
       tune.indi.actuatorEffectivenessV = [1.0]
-
-    tune.init('indi')
-    tune.indi.innerLoopGainBP = [0.]
-    tune.indi.innerLoopGainV = [4.0]
-    tune.indi.outerLoopGainBP = [0.]
-    tune.indi.outerLoopGainV = [3.0]
-    tune.indi.timeConstantBP = [0.]
-    tune.indi.timeConstantV = [1.0]
-    tune.indi.actuatorEffectivenessBP = [0.]
-    tune.indi.actuatorEffectivenessV = [1.0]
-
-  elif name == LatTunes.LQR_RAV4:
-    tune.init('lqr')
-    tune.lqr.scale = 1500.0
-    tune.lqr.ki = 0.05
-    tune.lqr.a = [0., 1., -0.22619643, 1.21822268]
-    tune.lqr.b = [-1.92006585e-04, 3.95603032e-05]
-    tune.lqr.c = [1., 0.]
-    tune.lqr.k = [-110.73572306, 451.22718255]
-    tune.lqr.l = [0.3233671, 0.3185757]
-    tune.lqr.dcGain = 0.002237852961363602
 
   elif 'STEER_MODEL' in str(name):
     tune.init('model')
