@@ -3,7 +3,7 @@ from cereal import messaging
 from common.numpy_fast import interp
 from common.op_params import opParams
 from common.realtime import sec_since_boot
-from selfdrive.config import Conversions as CV
+from common.conversions import Conversions as CV
 from cereal.messaging import SubMaster, PubMaster
 
 

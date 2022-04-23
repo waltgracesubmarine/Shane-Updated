@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from selfdrive.config import Conversions as CV
+from common.conversions import Conversions as CV
 
 x_vel_relaxed = [0.0, 1.8627, 3.7253, 5.588, 7.4507, 9.3133, 11.5598, 13.645, 22.352, 31.2928, 33.528, 35.7632, 40.2336]
 y_dist_relaxed = [1.385, 1.394, 1.406, 1.421, 1.444, 1.474, 1.521, 1.544, 1.568, 1.588, 1.599, 1.613, 1.634]

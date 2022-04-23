@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from selfdrive.config import Conversions as CV
+from common.conversions import Conversions as CV
 
 x = [0.0, 1.8627, 3.7253, 5.588, 7.4507, 9.3133, 11.5598, 13.645, 22.352, 31.2928, 33.528, 35.7632, 40.2336]  # velocities
 x_traffic = [0.0, 1.892, 3.7432, 5.8632, 8.0727, 10.7301, 14.343, 17.6275, 22.4049, 28.6752, 34.8858, 40.35]

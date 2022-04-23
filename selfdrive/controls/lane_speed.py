@@ -1,6 +1,6 @@
 from common.op_params import opParams
 from common.realtime import set_core_affinity
-from selfdrive.config import Conversions as CV
+from common.conversions import Conversions as CV
 from selfdrive.modeld.constants import T_IDXS
 from selfdrive.controls.lib.drive_helpers import LAT_MPC_N
 from common.numpy_fast import interp
