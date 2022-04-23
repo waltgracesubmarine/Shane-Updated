@@ -73,7 +73,7 @@ class Lane:
 
 class LaneSpeed:
   def __init__(self):
-    set_core_affinity(1)  # use up to 1 core?
+    # set_core_affinity([1])  # shared with one of loggerd's cores
     self.op_params = opParams()
 
     self.fastest_lane = 'none'  # always will be either left, right, or none as a string, never middle or NoneType
