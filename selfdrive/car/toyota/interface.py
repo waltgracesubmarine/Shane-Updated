@@ -178,7 +178,7 @@ class CarInterface(CarInterfaceBase):
         ret.lateralTuning.indi.actuatorEffectivenessV = [9, 12, 15]
         ret.steerActuatorDelay = 0.42 - 0.2
       else:
-        set_lat_tune(ret.lateralTuning, set_lat_tune, LatTunes.TORQUE, MAX_LAT_ACCEL=3.0, FRICTION=0.08)
+        set_lat_tune(ret.lateralTuning, lat_params, LatTunes.TORQUE, MAX_LAT_ACCEL=3.0, FRICTION=0.08)
 
     elif candidate in (CAR.LEXUS_ES_TSS2, CAR.LEXUS_ESH_TSS2, CAR.LEXUS_ESH):
       stop_and_go = True
