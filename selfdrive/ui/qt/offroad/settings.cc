@@ -58,6 +58,12 @@ TogglesPanel::TogglesPanel(SettingsWindow *parent) : ListWidget(parent) {
       "../assets/offroad/icon_monitoring.png",
     },
     {
+      "RemoveHyundai90DegreeLockout",
+      "\U0001F94F Remove Hyundai 90° Lockout (Experimental) \U0001F94F",
+      "On Hyundai, cuts torque just before a fault would occur to bypass the 90° steering angle limit",
+      "../assets/offroad/icon_openpilot_mirrored.png",
+    },
+    {
       "EndToEndToggle",
       "\U0001f96c Disable use of lanelines (Alpha) \U0001f96c",
       "In this mode openpilot will ignore lanelines and just drive how it thinks a human would.",
