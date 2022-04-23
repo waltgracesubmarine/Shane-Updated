@@ -7,9 +7,13 @@ from selfdrive.car.toyota.toyotacan import create_steer_command, create_ui_comma
 from selfdrive.car.toyota.values import CAR, STATIC_DSU_MSGS, NO_STOP_TIMER_CAR, TSS2_CAR, \
                                         MIN_ACC_SPEED, PEDAL_TRANSITION, CarControllerParams
 from opendbc.can.packer import CANPacker
+
 from common.op_params import opParams
 
 VisualAlert = car.CarControl.HUDControl.VisualAlert
+
+STEER_FAULT_MAX_RATE = 100
+STEER_FAULT_MAX_FRAMES = 18
 
 
 class CarController:
@@ -23,6 +27,8 @@ class CarController:
     self.standstill_req = False
     self.steer_rate_limited = False
     self.standstill_hack = opParams().get('standstill_hack')
+
+    self.rate_limit_counter = 0
 
     self.packer = CANPacker(dbc_name)
     self.gas = 0
@@ -56,12 +62,21 @@ class CarController:
     apply_steer = apply_toyota_steer_torque_limits(new_steer, self.last_steer, CS.out.steeringTorqueEps, self.torque_rate_limits)
     self.steer_rate_limited = new_steer != apply_steer
 
-    # Cut steering while we're in a known fault state (2s)
-    if not CC.latActive or CS.steer_state in (9, 25) or abs(CS.out.steeringRateDeg) > 100:
+    # EPS_STATUS->LKA_STATE either goes to 21 or 25 on rising edge of a steering fault and
+    # the value seems to describe how many frames the steering rate was above 100 deg/s, so
+    # cut torque with some margin for the lower state
+    if CC.latActive and abs(CS.out.steeringRateDeg) >= STEER_FAULT_MAX_RATE:
+      self.rate_limit_counter += 1
+    else:
+      # TODO: unclear if it resets its internal state at another value
+      self.rate_limit_counter = 0
+
+    apply_steer_req = 1
+    if not CC.latActive:
       apply_steer = 0
       apply_steer_req = 0
-    else:
-      apply_steer_req = 1
+    elif self.rate_limit_counter > STEER_FAULT_MAX_FRAMES:
+      apply_steer_req = 0
 
     # TODO: probably can delete this. CS.pcm_acc_status uses a different signal
     # than CS.cruiseState.enabled. confirm they're not meaningfully different
