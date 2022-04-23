@@ -9,11 +9,11 @@ WEBCAM = os.getenv("USE_WEBCAM") is not None
 procs = [
   DaemonProcess("manage_athenad", "selfdrive.athena.manage_athenad", "AthenadPid"),
   # due to qualcomm kernel bugs SIGKILLing camerad sometimes causes page table corruption
-  NativeProcess("camerad", "selfdrive/camerad", ["./camerad"], unkillable=True, driverview=True, sentry=True),
+  NativeProcess("camerad", "selfdrive/camerad", ["./camerad"], unkillable=True, driverview=True, sentry_mode=True),
   NativeProcess("clocksd", "selfdrive/clocksd", ["./clocksd"]),
   NativeProcess("dmonitoringmodeld", "selfdrive/modeld", ["./dmonitoringmodeld"], enabled=(not PC or WEBCAM), driverview=True),
   NativeProcess("logcatd", "selfdrive/logcatd", ["./logcatd"]),
-  NativeProcess("loggerd", "selfdrive/loggerd", ["./loggerd"], sentry=True),
+  NativeProcess("loggerd", "selfdrive/loggerd", ["./loggerd"], sentry_mode=True),
   NativeProcess("modeld", "selfdrive/modeld", ["./modeld"]),
   NativeProcess("navd", "selfdrive/ui/navd", ["./navd"], offroad=True),
   NativeProcess("proclogd", "selfdrive/proclogd", ["./proclogd"]),
@@ -51,6 +51,6 @@ procs = [
 ]
 
 if opParams().get('update_behavior').lower().strip() != 'off' and not os.path.exists('/data/no_ota_updates'):
-  procs.append(PythonProcess("updated", "selfdrive.updated", enabled=not PC, persistent=True))
+  procs.append(PythonProcess("updated", "selfdrive.updated", enabled=not PC, onroad=False, offroad=True))
 
 managed_processes = {p.name: p for p in procs}
