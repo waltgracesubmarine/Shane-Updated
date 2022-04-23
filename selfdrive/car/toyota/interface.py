@@ -102,7 +102,10 @@ class CarInterface(CarInterfaceBase):
       tire_stiffness_factor = 0.7933
       ret.mass = 3400. * CV.LB_TO_KG + STD_CARGO_KG  # mean between normal and hybrid
       # set_lat_tune(ret.lateralTuning, lat_params, LatTunes.STEER_MODEL_CAMRY)
-      set_lat_tune(ret.lateralTuning, lat_params, LatTunes.PID_H)
+      if candidate in (CAR.CAMRY_TSS2, CAR.CAMRYH_TSS2):
+        set_lat_tune(ret.lateralTuning, lat_params, LatTunes.TORQUE, MAX_LAT_ACCEL=2.5, FRICTION=0.05, kif=(1.5, 0.15, 1.0))
+      else:
+        set_lat_tune(ret.lateralTuning, lat_params, LatTunes.PID_H)
 
     elif candidate in (CAR.HIGHLANDER_TSS2, CAR.HIGHLANDERH_TSS2):
       stop_and_go = True

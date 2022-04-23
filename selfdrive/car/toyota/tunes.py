@@ -53,13 +53,13 @@ def set_long_tune(tune, name):
 
 
 ###### LAT ######
-def set_lat_tune(tune, params, name, MAX_LAT_ACCEL=2.5, FRICTION=.1):
+def set_lat_tune(tune, params, name, MAX_LAT_ACCEL=2.5, FRICTION=.1, kif=(2.0, 0.5, 1.0)):
   if name == LatTunes.TORQUE:
     tune.init('torque')
     tune.torque.useSteeringAngle = True
-    tune.torque.kp = 2.0 / MAX_LAT_ACCEL
-    tune.torque.kf = 1.0 / MAX_LAT_ACCEL
-    tune.torque.ki = 0.5 / MAX_LAT_ACCEL
+    tune.torque.kp = kif[0] / MAX_LAT_ACCEL
+    tune.torque.ki = kif[1] / MAX_LAT_ACCEL
+    tune.torque.kf = kif[2] / MAX_LAT_ACCEL
     tune.torque.friction = FRICTION
 
   elif name == LatTunes.INDI_PRIUS:
