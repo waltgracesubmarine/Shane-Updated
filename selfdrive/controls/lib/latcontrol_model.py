@@ -32,7 +32,7 @@ class LatControlModel(LatControl):
     l2 = np.dot(l1, self.w[2]) + self.b[2]
     return l2
 
-  def update(self, active, CS, CP, VM, params, last_actuators, desired_curvature, desired_curvature_rate):
+  def update(self, active, CS, CP, VM, params, last_actuators, desired_curvature, desired_curvature_rate, llk):
     model_log = log.ControlsState.LateralModelState.new_message()
     model_log.steeringAngleDeg = float(CS.steeringAngleDeg)
     model_log.useRates = self.use_rates
