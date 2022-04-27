@@ -2,6 +2,10 @@
 import sentry_sdk
 from enum import Enum
 from sentry_sdk.integrations.threading import ThreadingIntegration
+import os
+from datetime import datetime
+import shutil
+import traceback
 
 from common.params import Params
 from selfdrive.athena.registration import is_registered_device
@@ -11,6 +15,8 @@ from selfdrive.version import get_branch, get_commit, get_origin, get_version, \
                               is_fork_remote, is_dirty, is_tested_branch
 
 from common.op_params import opParams
+
+CRASHES_DIR = '/data/community/crashes'
 
 
 class SentryProject(Enum):
@@ -31,6 +37,7 @@ def report_tombstone(fn: str, message: str, contents: str) -> None:
 
 
 def capture_exception(*args, **kwargs) -> None:
+  save_exception(traceback.format_exc())
   cloudlog.error("crash", exc_info=kwargs.get('exc_info', 1))
 
   try:
@@ -44,11 +51,22 @@ def set_tag(key: str, value: str) -> None:
   sentry_sdk.set_tag(key, value)
 
 
+def save_exception(exc_text):
+  log_file = '{}/{}'.format(CRASHES_DIR, datetime.now().strftime('%Y-%m-%d--%H:%M.log'))
+  with open(log_file, 'w') as f:
+    f.write(exc_text)
+  shutil.copyfile(log_file, '{}/latest.log'.format(CRASHES_DIR))
+  print('Logged current crash to {} and {}'.format(log_file, '{}/latest.log'.format(CRASHES_DIR)))
+
+
 def init(project: SentryProject) -> None:
   fork_remote = is_fork_remote() and "sshane" in get_origin(default="")
   # only report crashes to fork maintainer's sentry repo, skip native project
   if not fork_remote or not is_registered_device() or PC or project == SentryProject.SELFDRIVE_NATIVE:
     return
+
+  if not os.path.exists(CRASHES_DIR):
+    os.makedirs(CRASHES_DIR)
 
   env = "release" if is_tested_branch() else "master"
   dongle_id = Params().get("DongleId", encoding='utf-8')
