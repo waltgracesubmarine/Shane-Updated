@@ -108,7 +108,6 @@ class opParams:
       'steer_ratio': Param(None, NONE_OR_NUMBER, '(Can be: None, or a float) If you enter None, openpilot will use the learned sR.\n'
                                                  'If you use a float/int, openpilot will use that steer ratio instead', live=True),
       'upload_onroad': Param(True, bool, 'By default, openpilot uploads small qlogs while driving. Set to False to wait until we go offroad', static=True),
-      'disengage_on_gas': Param(False, bool, 'Whether you want openpilot to disengage on gas input or not'),
       'update_behavior': Param('alert', str, 'Can be: (\'off\', \'alert\', \'auto\') without quotes\n'
                                              'off will never update, alert shows an alert on-screen\n'
                                              'auto will reboot the device when an update is seen', static=True),
@@ -137,7 +136,7 @@ class opParams:
       'lane_speed_alerts': Param('silent', str, static=True, hidden=True),
     }
 
-    self._to_delete = ['use_lqr']  # a list of unused params you want to delete from users' params file
+    self._to_delete = ['use_lqr', 'disengage_on_gas']  # a list of unused params you want to delete from users' params file
     self._to_reset = []  # a list of params you want reset to their default values
     self._run_init()  # restores, reads, and updates params
 
