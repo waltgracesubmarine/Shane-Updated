@@ -8,12 +8,14 @@ from selfdrive.athena.registration import is_registered_device
 from selfdrive.hardware import HARDWARE, PC
 from selfdrive.swaglog import cloudlog
 from selfdrive.version import get_branch, get_commit, get_origin, get_version, \
-                              is_comma_remote, is_dirty, is_tested_branch
+                              is_fork_remote, is_dirty, is_tested_branch
+
+from common.op_params import opParams
 
 
 class SentryProject(Enum):
   # python project
-  SELFDRIVE = "https://6f3c7076c1e14b2aa10f5dde6dda0cc4@o33823.ingest.sentry.io/77924"
+  SELFDRIVE = "https://fde85a30a43a4a1b9d873c9b140143ac@o237581.ingest.sentry.io/6365324"
   # native project
   SELFDRIVE_NATIVE = "https://3e4b586ed21a4479ad5d85083b639bc6@o33823.ingest.sentry.io/157615"
 
@@ -43,9 +45,9 @@ def set_tag(key: str, value: str) -> None:
 
 
 def init(project: SentryProject) -> None:
-  # forks like to mess with this, so double check
-  comma_remote = is_comma_remote() and "commaai" in get_origin(default="")
-  if not comma_remote or not is_registered_device() or PC:
+  fork_remote = is_fork_remote() and "sshane" in get_origin(default="")
+  # only report crashes to fork maintainer's sentry repo, skip native project
+  if not fork_remote or not is_registered_device() or PC or project == SentryProject.SELFDRIVE_NATIVE:
     return
 
   env = "release" if is_tested_branch() else "master"
@@ -70,6 +72,7 @@ def init(project: SentryProject) -> None:
   sentry_sdk.set_tag("branch", get_branch())
   sentry_sdk.set_tag("commit", get_commit())
   sentry_sdk.set_tag("device", HARDWARE.get_device_type())
+  sentry_sdk.set_tag("username", opParams().get('username'))
 
   if project == SentryProject.SELFDRIVE:
     sentry_sdk.Hub.current.start_session()
