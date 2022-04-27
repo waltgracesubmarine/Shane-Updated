@@ -21,7 +21,7 @@ Want to request a feature or create a bug report? [Open an issue here!](https://
 * [**Customize this fork**](#Customize-this-fork-opEdit) - easily edit fork parameters with support for live tuning
 * [**Automatic updates**](#Automatic-updates)
 * [**ZSS Support**](#ZSS-support) - takes advantage of your high-precision Zorrobyte Steering Sensor
-* [**~~Offline crash logging~~ (removed temporarily)**](#Offline-crash-logging) - check out `/data/community/crashes`
+* [**Offline crash logging**](#Offline-crash-logging) - check out `/data/community/crashes`
 
 ### Visual Changes (LINKS WIP)
 * [**Colored lane lines**]() - based on distance from car
@@ -161,7 +161,7 @@ If you have a Prius with a ZSS ([Zorrobyte](https://github.com/zorrobyte) Steer 
 If you have a ZSS but not a Prius, let me know and I can add support for your car.
 
 ---
-### Offline crash logging(removed temporarily)
+### Offline crash logging
 If you experience a crash or exception while driving with this fork, and you're not on internet for the error to be uploaded to Sentry, you should be able to check out the directory `/data/community/crashes` to see any and all logs of exceptions caught in openpilot. Simply view the logs with `ls -lah` and then `cat` the file you wish to view by date. This does not catch all errors, for example scons compilation errors or some Python syntax errors will not be caught, `tmux a` is usually best to view these (if openpilot didn't start).
 
 ❗***Quickly view the latest crash:*** `cat /data/community/crashes/latest.log`
