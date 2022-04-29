@@ -68,6 +68,6 @@ class LatControlModel(LatControl):
       model_log.output = output_steer
 
       check_saturation = (CS.vEgo > 10) and not CS.steeringRateLimited and not CS.steeringPressed
-      model_log.saturated = pself._check_saturation(self.steer_max - abs(output_steer) < 1e-3, CS)
+      model_log.saturated = self._check_saturation(self.steer_max - abs(output_steer) < 1e-3, CS)
 
     return output_steer, angle_steers_des, model_log
