@@ -55,7 +55,6 @@ class LatControlModel(LatControl):
       model_input = [angle_steers_des, CS.steeringAngleDeg, rate_des, rate, CS.vEgo]
 
       output_steer = self.predict(model_input)[0]
-      output_steer = clip(output_steer, -self.steer_max, self.steer_max)
       output_steer = float(output_steer * CP.lateralTuning.model.multiplier)
 
       if output_steer < 0:  # model doesn't like right curves
@@ -63,10 +62,12 @@ class LatControlModel(LatControl):
         multiplier = interp(abs(CS.steeringAngleDeg), [0, 90.], [1.27, _90_degree_bp])
         output_steer = float(output_steer * multiplier)
 
+      output_steer = clip(output_steer, -self.steer_max, self.steer_max)
+
       model_log.active = True
       model_log.output = output_steer
 
       check_saturation = (CS.vEgo > 10) and not CS.steeringRateLimited and not CS.steeringPressed
-      model_log.saturated = self._check_saturation(output_steer, check_saturation, self.steer_max)
+      model_log.saturated = pself._check_saturation(self.steer_max - abs(output_steer) < 1e-3, CS)
 
     return output_steer, angle_steers_des, model_log
