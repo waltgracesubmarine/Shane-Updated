@@ -10,6 +10,7 @@ from selfdrive.controls.lib.latcontrol import LatControl
 # TODO: retrain a new model on acceleration
 class LatControlModel(LatControl):
   def __init__(self, CP, CI):
+    super().__init__(CP, CI)
     # Model generated using Konverter: https://github.com/sshane/Konverter
     model_weights_file = f'{BASEDIR}/models/steering/{CP.lateralTuning.model.name}_weights.npz'
     self.w, self.b = np.load(model_weights_file, allow_pickle=True)['wb']
