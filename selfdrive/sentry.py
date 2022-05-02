@@ -52,11 +52,14 @@ def set_tag(key: str, value: str) -> None:
 
 
 def save_exception(exc_text):
-  log_file = '{}/{}'.format(CRASHES_DIR, datetime.now().strftime('%Y-%m-%d--%H:%M.log'))
-  with open(log_file, 'w') as f:
-    f.write(exc_text)
-  shutil.copyfile(log_file, '{}/latest.log'.format(CRASHES_DIR))
-  print('Logged current crash to {} and {}'.format(log_file, '{}/latest.log'.format(CRASHES_DIR)))
+  try:
+    log_file = '{}/{}'.format(CRASHES_DIR, datetime.now().strftime('%Y-%m-%d--%H:%M.log'))
+    with open(log_file, 'w') as f:
+      f.write(exc_text)
+    shutil.copyfile(log_file, '{}/latest.log'.format(CRASHES_DIR))
+    print('Logged current crash to {} and {}'.format(log_file, '{}/latest.log'.format(CRASHES_DIR)))
+  except:
+    pass
 
 
 def init(project: SentryProject) -> None:
@@ -66,7 +69,7 @@ def init(project: SentryProject) -> None:
     return
 
   if not os.path.exists(CRASHES_DIR):
-    os.makedirs(CRASHES_DIR)
+    os.makedirs(CRASHES_DIR, exist_ok=True)
 
   env = "release" if is_tested_branch() else "master"
   dongle_id = Params().get("DongleId", encoding='utf-8')
