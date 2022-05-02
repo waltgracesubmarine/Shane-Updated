@@ -36,9 +36,6 @@ class LatControlPID(LatControl):
       pid_log.active = False
       self.pid.reset()
     else:
-      self.pid.pos_limit = self.steer_max
-      self.pid.neg_limit = -self.steer_max
-
       if self.new_kf_tuned:
         steer_feedforward = angle_steers_des_no_offset  # offset does not contribute to resistive torque
         _c1, _c2, _c3 = 0.35189607550172824, 7.506201251644202, 69.226826411091
