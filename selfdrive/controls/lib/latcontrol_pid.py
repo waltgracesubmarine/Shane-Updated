@@ -36,7 +36,6 @@ class LatControlPID(LatControl):
       pid_log.active = False
       self.pid.reset()
     else:
-<<<<<<< HEAD
       self.pid.pos_limit = self.steer_max
       self.pid.neg_limit = -self.steer_max
 
@@ -47,10 +46,6 @@ class LatControlPID(LatControl):
       else:
         # offset does not contribute to resistive torque
         steer_feedforward = self.get_steer_feedforward(angle_steers_des_no_offset, CS.vEgo)
-=======
-      # offset does not contribute to resistive torque
-      steer_feedforward = self.get_steer_feedforward(angle_steers_des_no_offset, CS.vEgo)
->>>>>>> upstream/master
 
       output_steer = self.pid.update(error, override=CS.steeringPressed,
                                      feedforward=steer_feedforward, speed=CS.vEgo)
