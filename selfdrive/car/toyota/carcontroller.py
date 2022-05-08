@@ -54,7 +54,19 @@ class CarController:
     apply_steer = apply_toyota_steer_torque_limits(new_steer, self.last_steer, CS.out.steeringTorqueEps, self.torque_rate_limits)
     self.steer_rate_limited = new_steer != apply_steer
 
-    if not CC.latActive:
+    # After the wheel reaches 100 deg/s for ~20 frames we need to cut torque to avoid a fault, however
+    # faults do not seem to occur if the rate is past another threshold higher than 100 deg/s
+    # and it may depend on whether the wheel is moving away from or toward center
+    stop_steer_fault = False
+    if abs(CS.out.steeringRateDeg) >= 100:
+      if CS.out.steeringAngleDeg * CS.out.steeringRateDeg < 0:
+        # wheel moving toward center
+        stop_steer_fault = abs(CS.out.steeringRateDeg) < 400  # above 425, less than 908
+      else:
+        # moving away from center
+        stop_steer_fault = abs(CS.out.steeringRateDeg) <= 180  # above 150, less than 175
+
+    if not CC.latActive or stop_steer_fault:
       apply_steer = 0
       apply_steer_req = 0
     else:
