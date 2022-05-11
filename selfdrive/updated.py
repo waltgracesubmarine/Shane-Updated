@@ -391,9 +391,9 @@ def main() -> None:
   auto_reboot = AutoReboot()
   params = Params()
 
-  if params.get_bool("DisableUpdates"):
-    cloudlog.warning("updates are disabled by the DisableUpdates param")
-    exit(0)
+  # if params.get_bool("DisableUpdates"):
+  #   cloudlog.warning("updates are disabled by the DisableUpdates param")
+  #   exit(0)
 
   ov_lock_fd = open(LOCK_FILE, 'w')
   try:
