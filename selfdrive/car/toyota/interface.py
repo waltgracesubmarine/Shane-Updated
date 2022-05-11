@@ -106,7 +106,7 @@ class CarInterface(CarInterfaceBase):
       ret.mass = 3400. * CV.LB_TO_KG + STD_CARGO_KG  # mean between normal and hybrid
       # set_lat_tune(ret.lateralTuning, LatTunes.STEER_MODEL_CAMRY, lat_params)
       if candidate in (CAR.CAMRY_TSS2, CAR.CAMRYH_TSS2):
-        set_lat_tune(ret.lateralTuning, LatTunes.TORQUE, lat_params, MAX_LAT_ACCEL=2.5, FRICTION=0.05, kif=(1.5, 0.15, 1.0))
+        set_lat_tune(ret.lateralTuning, LatTunes.TORQUE, lat_params, MAX_LAT_ACCEL=2.4, FRICTION=0.05, kif=(1.5, 0.15, 1.0))
       else:
         set_lat_tune(ret.lateralTuning, LatTunes.PID_H, lat_params)
 
