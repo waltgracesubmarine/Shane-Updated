@@ -59,7 +59,7 @@ procs = [
 
   # Stock Additions daemons
   PythonProcess("lanespeedd", "selfdrive.controls.lane_speed"),
-  PythonProcess("sentryd", "selfdrive.sentryd", offroad=True),
+  PythonProcess("sentryd", "selfdrive.sentryd", onroad=False, offroad=True),
 ]
 
 if opParams().get('update_behavior').lower().strip() != 'off' and not os.path.exists('/data/no_ota_updates'):
