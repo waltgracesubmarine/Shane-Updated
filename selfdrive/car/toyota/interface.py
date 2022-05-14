@@ -11,7 +11,7 @@ from common.op_params import opParams
 from collections import namedtuple
 
 EventName = car.CarEvent.EventName
-LatParams = namedtuple('LatParams', ['use_steering_model', 'prius_use_pid', 'corollaTSS2_use_indi', 'rav4TSS2_use_indi', 'hasZss', 'TSS2'])
+LatParams = namedtuple('LatParams', ['use_steering_model', 'prius_use_pid', 'rav4TSS2_use_indi', 'hasZss', 'TSS2'])
 
 
 class CarInterface(CarInterfaceBase):
@@ -43,7 +43,6 @@ class CarInterface(CarInterfaceBase):
     lat_params = LatParams(
       use_steering_model := op_params.get('use_steering_model'),
       use_steering_model or op_params.get('prius_use_pid'),  # want to get kf from prius if steering model
-      not use_steering_model and op_params.get('corollaTSS2_use_indi'),
       not use_steering_model and op_params.get('rav4TSS2_use_indi'),
       ret.hasZss,
       candidate in TSS2_CAR,
@@ -79,7 +78,7 @@ class CarInterface(CarInterfaceBase):
       ret.steerRatio = 17.43
       tire_stiffness_factor = 0.444  # not optimized yet
       ret.mass = 2860. * CV.LB_TO_KG + STD_CARGO_KG  # mean between normal and hybrid
-      set_lat_tune(ret.lateralTuning, LatTunes.STEER_MODEL_COROLLA, lat_params)
+      set_lat_tune(ret.lateralTuning, LatTunes.TORQUE, MAX_LAT_ACCEL=2.8, FRICTION=0.024)
 
     elif candidate in (CAR.LEXUS_RX, CAR.LEXUS_RXH, CAR.LEXUS_RX_TSS2, CAR.LEXUS_RXH_TSS2):
       stop_and_go = True
@@ -170,19 +169,7 @@ class CarInterface(CarInterfaceBase):
       tire_stiffness_factor = 0.444  # not optimized yet
       ret.mass = 3060. * CV.LB_TO_KG + STD_CARGO_KG
 
-      if lat_params.corollaTSS2_use_indi:  # birdman6450#7399's Corolla 2020 TSS2 Tune
-        ret.lateralTuning.init('indi')
-        ret.lateralTuning.indi.innerLoopGainBP = [18, 22, 26]
-        ret.lateralTuning.indi.innerLoopGainV = [9, 12, 15]
-        ret.lateralTuning.indi.outerLoopGainBP = [18, 22, 26]
-        ret.lateralTuning.indi.outerLoopGainV = [8, 11, 14.99]
-        ret.lateralTuning.indi.timeConstantBP = [18, 22, 26]
-        ret.lateralTuning.indi.timeConstantV = [1, 3, 4.5]
-        ret.lateralTuning.indi.actuatorEffectivenessBP = [18, 22, 26]
-        ret.lateralTuning.indi.actuatorEffectivenessV = [9, 12, 15]
-        ret.steerActuatorDelay = 0.42 - 0.2
-      else:
-        set_lat_tune(ret.lateralTuning, LatTunes.TORQUE, lat_params, MAX_LAT_ACCEL=2.0, FRICTION=0.07)
+      set_lat_tune(ret.lateralTuning, LatTunes.TORQUE, lat_params, MAX_LAT_ACCEL=2.0, FRICTION=0.07)
 
     elif candidate in (CAR.LEXUS_ES_TSS2, CAR.LEXUS_ESH_TSS2, CAR.LEXUS_ESH):
       stop_and_go = True
@@ -287,7 +274,7 @@ class CarInterface(CarInterfaceBase):
       ret.vEgoStopping = 0.2  # car is near 0.1 to 0.2 when car starts requesting stopping accel
       ret.vEgoStarting = 0.2  # needs to be > or == vEgoStopping
       ret.stopAccel = -2.0  # Toyota requests -0.4 when stopped
-      ret.stoppingDecelRate = 0.8  # reach stopping target smoothly - seems to take 0.5 seconds to go from 0 to -0.4
+      ret.stoppingDecelRate = 0.3  # reach stopping target smoothly
     else:
       set_long_tune(ret.longitudinalTuning, LongTunes.TSS)
 
