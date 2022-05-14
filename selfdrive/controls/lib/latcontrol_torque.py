@@ -78,7 +78,7 @@ class LatControlTorque(LatControl):
 
       pid_log.active = True
       pid_log.error = error
-      pid_log.error_rate = error_rate
+      pid_log.errorRate = error_rate
       pid_log.p = self.pid.p
       pid_log.i = self.pid.i
       pid_log.d = self.pid.d

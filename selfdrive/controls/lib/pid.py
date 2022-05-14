@@ -16,6 +16,7 @@ class PIDController():
       self._k_i = [[0], [self._k_i]]
     if isinstance(self._k_d, Number):
       self._k_d = [[0], [self._k_d]]
+    self.k_d = 0.
 
     self.pos_limit = pos_limit
     self.neg_limit = neg_limit
