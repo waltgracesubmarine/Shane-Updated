@@ -6,12 +6,12 @@ from common.numpy_fast import interp
 from common.realtime import DT_MDL
 from selfdrive.hardware import TICI
 from selfdrive.swaglog import cloudlog
-from common.op_params import opParams
+# from common.op_params import opParams
 
 
 TRAJECTORY_SIZE = 33
 # camera offset is meters from center car to camera
-# model path is in the frame of the camera. Empirically 
+# model path is in the frame of the camera. Empirically
 # the model knows the difference between TICI and EON
 # so a path offset is not needed
 PATH_OFFSET = 0.00
@@ -30,8 +30,7 @@ class LanePlanner:
     self.lane_width_estimate = FirstOrderFilter(3.7, 9.95, DT_MDL)
     self.lane_width_certainty = FirstOrderFilter(1.0, 0.95, DT_MDL)
     self.lane_width = 3.7
-    self.op_params = opParams()
-    # self.camera_offset = self.op_params.get('camera_offset')
+    # self.op_params = opParams()
 
     self.lll_prob = 0.
     self.rll_prob = 0.
@@ -44,13 +43,12 @@ class LanePlanner:
     self.r_lane_change_prob = 0.
 
     self.camera_offset = -CAMERA_OFFSET if wide_camera else CAMERA_OFFSET
-    self.path_offset = 0  # self.camera_offset - MODEL_PATH_OFFSET
+    self.path_offset = -PATH_OFFSET if wide_camera else PATH_OFFSET
 
   def parse_model(self, md):
     lane_lines = md.laneLines
     if len(lane_lines) == 4 and len(lane_lines[0].t) == TRAJECTORY_SIZE:
-      self.camera_offset = clip(self.op_params.get('camera_offset'), -0.5, 0.5)  # update camera offset
-      #self.path_offset = self.camera_offset - MODEL_PATH_OFFSET
+      # self.camera_offset = clip(self.op_params.get('camera_offset'), -0.5, 0.5)  # update camera offset
 
       self.ll_t = (np.array(lane_lines[1].t) + np.array(lane_lines[2].t))/2
       # left and right ll x is the same
