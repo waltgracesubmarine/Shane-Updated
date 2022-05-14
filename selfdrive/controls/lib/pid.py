@@ -48,13 +48,20 @@ class PIDController():
     self.d = 0.0
     self.f = 0.0
     self.control = 0
+    self.errors = []
 
   def update(self, error, error_rate=0.0, speed=0.0, override=False, feedforward=0., freeze_integrator=False):
     self.speed = speed
 
     self.p = float(error) * self.k_p
     self.f = feedforward * self.k_f
-    self.d = error_rate * self.k_d
+
+    self.d = 0
+    _d_period = 20
+    if len(self.errors) >= _d_period:  # makes sure we have enough history for period
+      self.d = (error - self.errors[
+        -_d_period]) / _d_period  # get deriv in terms of 100hz (tune scale doesn't change)
+      self.d *= self.k_d
 
     if override:
       self.i -= self.i_unwind_rate * float(np.sign(self.i))
@@ -70,6 +77,10 @@ class PIDController():
         self.i = i
 
     control = self.p + self.i + self.d + self.f
+
+    self.errors.append(float(error))
+    while len(self.errors) > _d_period:
+      self.errors.pop(0)
 
     self.control = clip(control, self.neg_limit, self.pos_limit)
     return self.control
