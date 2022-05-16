@@ -107,7 +107,7 @@ class SentryMode:
     return self.sentry_enabled and (car_inactive_long_enough or car_locked_with_fob)
 
   def update_sentry_tripped(self, now_ts):
-    movement = any([abs(a_filter.x) > .01 for a_filter in self.accel_filters])
+    movement = any([abs(a_filter.x) > .005 for a_filter in self.accel_filters])
     if movement:
       self.movement_ts = float(now_ts)
 
