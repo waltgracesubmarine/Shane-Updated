@@ -10,6 +10,11 @@
 #include "selfdrive/camerad/cameras/camera_common.h"
 #include "selfdrive/ui/ui.h"
 
+struct FramePair {
+  uint32_t frame_id;
+  VisionBuf* frame;
+  bool valid = false;
+};
 const int FRAME_BUFFER_SIZE = 5;
 static_assert(FRAME_BUFFER_SIZE <= YUV_BUFFER_COUNT);
 
@@ -22,9 +27,21 @@ public:
   ~CameraViewWidget();
   void setStreamType(VisionStreamType type) { stream_type = type; }
   void setBackgroundColor(const QColor &color) { bg = color; }
-  void setFrameId(int frame_id) {
+  void setFrameId(uint32_t frame_id) {
     draw_frame_id_updated = frame_id != draw_frame_id;
     draw_frame_id = frame_id;
+//    uint32_t frame_jump = std::abs((int)frame_id - (int)prev_frame_id);
+    if (frame_id == prev_frame_id ) {
+//      draw_frame_id += 1;
+      frame_offset += 1;
+    } else if (std::abs((int)frame_id - (int)_latest_frame_id) < FRAME_BUFFER_SIZE) {
+      frame_offset = std::max((int)frame_offset - std::abs((int)frame_id - (int)prev_frame_id), 0);
+      frame_offset = std::min((int)frame_offset, FRAME_BUFFER_SIZE);
+    }
+//    if (frame_jump > FRAME_BUFFER_SIZE) {
+//      frame_offset = 0;
+//    }
+    prev_frame_id = frame_id;
   }
 
 signals:
@@ -57,8 +74,12 @@ protected:
 
   std::deque<std::pair<uint32_t, VisionBuf*>> frames;
   uint32_t draw_frame_id = 0;
+  uint32_t prev_frame_id = 0;
+  uint32_t _latest_frame_id = 0;
+  uint32_t prev_drawn_frame_id = 0;
+  uint32_t frame_offset = 0;
   bool draw_frame_id_updated = false;
-  int frame_idx = FRAME_BUFFER_SIZE - 1;
+  FramePair frame_array[FRAME_BUFFER_SIZE];
 
 protected slots:
   void vipcConnected(VisionIpcClient *vipc_client);
