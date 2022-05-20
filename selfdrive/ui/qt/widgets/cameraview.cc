@@ -8,7 +8,6 @@
 
 #include <QOpenGLBuffer>
 #include <QOffscreenSurface>
-#include <iostream>
 
 namespace {
 
@@ -164,7 +163,7 @@ void CameraViewWidget::initializeGL() {
 }
 
 void CameraViewWidget::showEvent(QShowEvent *event) {
-  for (int i = 0; i < FRAME_BUFFER_SIZE; i++) frame_array[i].valid = false;
+  for (int i = 0; i < FRAME_BUFFER_SIZE; i++) frames[i].valid = false;
   if (!vipc_thread) {
     vipc_thread = new QThread();
     connect(vipc_thread, &QThread::started, [=]() { vipcThread(); });
@@ -180,6 +179,18 @@ void CameraViewWidget::hideEvent(QHideEvent *event) {
     vipc_thread->wait();
     vipc_thread = nullptr;
   }
+}
+
+void CameraViewWidget::setFrameId(uint32_t frame_id) {
+  // if frame_id isn't being updated, we need to increment an offset to keep drawing new camera frames
+  if (frame_id == draw_frame_id) {
+    frame_offset += 1;
+  } else if (std::abs((int)frame_id - (int)_latest_frame_id) < FRAME_BUFFER_SIZE) {
+    // after a period of static requested frame ids, we need to make sure we don't
+    frame_offset = std::max((int)frame_offset - std::abs((int)frame_id - (int)draw_frame_id), 0);
+    frame_offset = std::min((int)frame_offset, FRAME_BUFFER_SIZE);
+  }
+  draw_frame_id = frame_id;
 }
 
 void CameraViewWidget::updateFrameMat(int w, int h) {
@@ -215,24 +226,9 @@ void CameraViewWidget::paintGL() {
   glClearColor(bg.redF(), bg.greenF(), bg.blueF(), bg.alphaF());
   glClear(GL_STENCIL_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
-  int temp_draw_frame_id = draw_frame_id + frame_offset;
-  if (!frame_array[temp_draw_frame_id % FRAME_BUFFER_SIZE].valid) return;
-
-  qDebug() << "Draw frame id: " << frame_array[temp_draw_frame_id % FRAME_BUFFER_SIZE].frame_id << "idx:" << frame_offset;
-  qDebug() << "Correct frame:" << (prev_frame_id == frame_array[temp_draw_frame_id % FRAME_BUFFER_SIZE].frame_id);
-
-  VisionBuf *frame = frame_array[temp_draw_frame_id % FRAME_BUFFER_SIZE].frame;
-
-  std::cout << "[";
-  for (int i = 0; i < FRAME_BUFFER_SIZE; i++) {
-//    if (frame_array[i].valid) {
-    std::cout << frame_array[i].frame_id << ",";
-//    }
-  }
-  std::cout << "]\n\n";
-
-//  assert(frame_array[temp_draw_frame_id % FRAME_BUFFER_SIZE].frame_id >= prev_drawn_frame_id);
-  prev_drawn_frame_id = frame_array[temp_draw_frame_id % FRAME_BUFFER_SIZE].frame_id;
+  int frame_idx = draw_frame_id + frame_offset;
+  if (!frames[frame_idx % FRAME_BUFFER_SIZE].valid) return;
+  VisionBuf *frame = frames[frame_idx % FRAME_BUFFER_SIZE].frame;
 
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
   glViewport(0, 0, width(), height());
@@ -262,7 +258,7 @@ void CameraViewWidget::paintGL() {
 
 void CameraViewWidget::vipcConnected(VisionIpcClient *vipc_client) {
   makeCurrent();
-  for (int i = 0; i < FRAME_BUFFER_SIZE; i++) frame_array[i].valid = false;
+  for (int i = 0; i < FRAME_BUFFER_SIZE; i++) frames[i].valid = false;
   stream_width = vipc_client->buffers[0].width;
   stream_height = vipc_client->buffers[0].height;
 
@@ -282,11 +278,7 @@ void CameraViewWidget::vipcConnected(VisionIpcClient *vipc_client) {
 }
 
 void CameraViewWidget::vipcFrameReceived(VisionBuf *buf, uint32_t frame_id) {
-//  frames.push_back(std::make_pair(frame_id, buf));
-//  while (frames.size() > FRAME_BUFFER_SIZE) {
-//    frames.pop_front();
-//  }
-  frame_array[frame_id % FRAME_BUFFER_SIZE] = FramePair{frame_id, buf, true};
+  frames[frame_id % FRAME_BUFFER_SIZE] = FramePair{frame_id, buf, true};
   _latest_frame_id = frame_id;
   update();
 }
