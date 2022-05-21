@@ -117,11 +117,11 @@ static void update_model(UIState *s, const cereal::ModelDataV2::Reader &model) {
   update_line_data(s, model_position, scene.end_to_end ? 0.9 : 0.5, 1.22, &scene.track_vertices, max_idx, false);
 }
 
-static void update_sockets(UIState *s, int draw_dt) {
+static void update_sockets(UIState *s, double draw_dt) {
   // ensures UI stays responsive when modelV2 is not alive
-  int timeout = 50;  // s->sm->alive("modelV2") ? 1000 / UI_FREQ : 0;
+  double timeout = s->sm->alive("modelV2") ? 1000 / UI_FREQ : 0;
   double t = millis_since_boot();
-  s->sm->update(timeout - draw_dt);
+  s->sm->update(std::clamp(timeout - draw_dt, 0., timeout));
   double e = millis_since_boot() - t;
   qDebug() << "sm->update():" << e << "ms";
 }

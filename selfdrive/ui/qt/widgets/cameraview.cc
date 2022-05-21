@@ -230,6 +230,7 @@ void CameraViewWidget::paintGL() {
     wrong_frame = std::max(wrong_frame - 1, 0);
   }
 
+///*
   if (draw_frame_id <= prev_model_frame_id) {
     QFile file("/data/ui_poll_data");
     assert(file.open(QIODevice::WriteOnly | QIODevice::Append));
@@ -254,6 +255,7 @@ void CameraViewWidget::paintGL() {
     file.write(msg.toStdString().c_str(), msg.size());
     file.close();
   }
+//*/
 
 //  // warm up of 1 second for all asserts
 //  assert((draw_frame_id > prev_model_frame_id) || (cam_frame_id < (10 * 20)));  // never should draw duplicate model frames
