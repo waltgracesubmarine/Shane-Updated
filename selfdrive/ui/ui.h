@@ -127,6 +127,7 @@ public:
   int fb_w = 0, fb_h = 0;
 
   std::unique_ptr<SubMaster> sm;
+  double draw_dt;
 
   UIStatus status;
   UIScene scene = {};

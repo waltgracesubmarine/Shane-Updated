@@ -373,6 +373,7 @@ void NvgWindow::drawLead(QPainter &painter, const cereal::ModelDataV2::LeadDataV
 }
 
 void NvgWindow::paintGL() {
+  double start_draw_t = millis_since_boot();
   UIState *s = uiState();
   CameraViewWidget::setFrameId((*s->sm)["modelV2"].getModelV2().getFrameId());
   CameraViewWidget::paintGL();
@@ -401,9 +402,10 @@ void NvgWindow::paintGL() {
   double cur_draw_t = millis_since_boot();
   double dt = cur_draw_t - prev_draw_t;
   double fps = fps_filter.update(1. / dt * 1000);
-  if (fps < 15) {
-    LOGW("slow frame rate: %.2f fps", fps);
-  }
+//  if (fps < 15) {
+  LOGW("slow frame rate: %.2f fps", fps);
+//  }
+  s->draw_dt = millis_since_boot() - start_draw_t;
   prev_draw_t = cur_draw_t;
 }
 

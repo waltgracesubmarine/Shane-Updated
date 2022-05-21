@@ -117,13 +117,13 @@ static void update_model(UIState *s, const cereal::ModelDataV2::Reader &model) {
   update_line_data(s, model_position, scene.end_to_end ? 0.9 : 0.5, 1.22, &scene.track_vertices, max_idx, false);
 }
 
-static void update_sockets(UIState *s) {
+static void update_sockets(UIState *s, int draw_dt) {
   // ensures UI stays responsive when modelV2 is not alive
-  int timeout = s->sm->alive("modelV2") ? 1000 / UI_FREQ : 0;
-//  double t = millis_since_boot();
-  s->sm->update(timeout);
-//  double e = millis_since_boot() - t;
-//  qDebug() << "sm->update():" << e << "ms";
+  int timeout = 50;  // s->sm->alive("modelV2") ? 1000 / UI_FREQ : 0;
+  double t = millis_since_boot();
+  s->sm->update(timeout - draw_dt);
+  double e = millis_since_boot() - t;
+  qDebug() << "sm->update():" << e << "ms";
 }
 
 static void update_state(UIState *s) {
@@ -245,26 +245,28 @@ UIState::UIState(QObject *parent) : QObject(parent) {
   wide_camera = Hardware::TICI() ? params.getBool("EnableWideCamera") : false;
   prime_type = std::atoi(params.get("PrimeType").c_str());
 
-//  QTimer::singleShot(0, this, &UIState::update);
+  QTimer::singleShot(0, this, &UIState::update);
   // update timer
-  QTimer *timer = new QTimer(this);
-  QObject::connect(timer, &QTimer::timeout, this, &UIState::update);
-  timer->start(1000 / UI_FREQ);
+//  QTimer *timer = new QTimer(this);
+//  QObject::connect(timer, &QTimer::timeout, this, &UIState::update);
+//  timer->start(1000 / UI_FREQ);
 }
 
 void UIState::update() {
-//  double next_frame_time = millis_since_boot() + 50;
-  update_sockets(this);
+  double next_frame_time = millis_since_boot() + 50;
+  update_sockets(this, draw_dt);
   update_state(this);
   updateStatus();
+  qDebug() << "draw dt:" << draw_dt;
 
   if (sm->frame % UI_FREQ == 0) {
     watchdog_kick();
   }
   emit uiUpdate(*this);
-//  double remaining = next_frame_time - millis_since_boot();
-//  qDebug() << "Remaining:" << remaining;
-//  QTimer::singleShot(std::clamp((int)remaining, 0, 50), this, &UIState::update);
+  double remaining = next_frame_time - millis_since_boot();
+  qDebug() << "Remaining:" << (remaining - draw_dt);
+  QTimer::singleShot(0, this, &UIState::update);
+//  QTimer::singleShot(std::clamp(remaining, 0., 50.), this, &UIState::update);
 }
 
 Device::Device(QObject *parent) : brightness_filter(BACKLIGHT_OFFROAD, BACKLIGHT_TS, BACKLIGHT_DT), QObject(parent) {
