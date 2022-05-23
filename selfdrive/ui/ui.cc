@@ -245,11 +245,11 @@ UIState::UIState(QObject *parent) : QObject(parent) {
   wide_camera = Hardware::TICI() ? params.getBool("EnableWideCamera") : false;
   prime_type = std::atoi(params.get("PrimeType").c_str());
 
-  QTimer::singleShot(0, this, &UIState::update);
+//  QTimer::singleShot(0, this, &UIState::update);
   // update timer
-//  QTimer *timer = new QTimer(this);
-//  QObject::connect(timer, &QTimer::timeout, this, &UIState::update);
-//  timer->start(1000 / UI_FREQ);
+  QTimer *timer = new QTimer(this);
+  QObject::connect(timer, &QTimer::timeout, this, &UIState::update);
+  timer->start(1000 / UI_FREQ);
 }
 
 void UIState::update() {
@@ -266,7 +266,7 @@ void UIState::update() {
   double remaining = next_frame_time - millis_since_boot();
   qDebug() << "Remaining:" << (remaining - draw_dt);
 //  QTimer::singleShot(0, this, &UIState::update);
-  QTimer::singleShot(std::clamp(remaining, 0., 50.), this, &UIState::update);
+//  QTimer::singleShot(std::clamp(remaining, 0., 50.), this, &UIState::update);
 }
 
 Device::Device(QObject *parent) : brightness_filter(BACKLIGHT_OFFROAD, BACKLIGHT_TS, BACKLIGHT_DT), QObject(parent) {
