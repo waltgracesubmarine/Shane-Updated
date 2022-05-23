@@ -117,9 +117,10 @@ static void update_model(UIState *s, const cereal::ModelDataV2::Reader &model) {
   update_line_data(s, model_position, scene.end_to_end ? 0.9 : 0.5, 1.22, &scene.track_vertices, max_idx, false);
 }
 
-static void update_sockets(UIState *s, double draw_dt) {
+static void update_sockets(UIState *s, double draw_dt, double dt) {
   // ensures UI stays responsive when modelV2 is not alive
-  double timeout = s->sm->alive("modelV2") ? 1000 / UI_FREQ : 0;
+  qDebug() << "dt:" << dt;
+  double timeout = s->sm->alive("modelV2") ? dt : 0;
   double t = millis_since_boot();
   s->sm->update(std::clamp(timeout - draw_dt, 0., timeout));
   double e = millis_since_boot() - t;
@@ -253,8 +254,9 @@ UIState::UIState(QObject *parent) : QObject(parent) {
 }
 
 void UIState::update() {
+  double dt = millis_since_boot() - prev_update_t;
   double next_frame_time = millis_since_boot() + 50;
-  update_sockets(this, draw_dt);
+  update_sockets(this, draw_dt, dt);
   update_state(this);
   updateStatus();
   qDebug() << "draw dt:" << draw_dt;
@@ -263,6 +265,7 @@ void UIState::update() {
     watchdog_kick();
   }
   emit uiUpdate(*this);
+  prev_update_t = millis_since_boot();
   double remaining = next_frame_time - millis_since_boot();
   qDebug() << "Remaining:" << (remaining - draw_dt);
 //  QTimer::singleShot(0, this, &UIState::update);

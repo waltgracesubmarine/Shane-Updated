@@ -128,6 +128,7 @@ public:
 
   std::unique_ptr<SubMaster> sm;
   double draw_dt;
+  double prev_update_t;
 
   UIStatus status;
   UIScene scene = {};
