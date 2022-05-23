@@ -120,9 +120,9 @@ static void update_model(UIState *s, const cereal::ModelDataV2::Reader &model) {
 static void update_sockets(UIState *s, double draw_dt, double dt) {
   // ensures UI stays responsive when modelV2 is not alive
   qDebug() << "dt:" << dt;
-  double timeout = s->sm->alive("modelV2") ? dt : 0;
+  double timeout = s->sm->alive("modelV2") ? 1000 / UI_FREQ : 0;
   double t = millis_since_boot();
-  s->sm->update(std::clamp(timeout - draw_dt, 0., timeout));
+  s->sm->update(std::clamp(timeout - dt - draw_dt, 0., timeout));
   double e = millis_since_boot() - t;
   qDebug() << "sm->update():" << e << "ms";
 }
