@@ -265,7 +265,7 @@ void UIState::update() {
   emit uiUpdate(*this);
   double remaining = next_frame_time - millis_since_boot();
   qDebug() << "Remaining:" << (remaining - draw_dt);
-  QTimer::singleShot(0, this, &UIState::update);
+//  QTimer::singleShot(0, this, &UIState::update);
   QTimer::singleShot(std::clamp(remaining, 0., 50.), this, &UIState::update);
 }
 
