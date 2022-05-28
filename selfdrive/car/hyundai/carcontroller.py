@@ -104,21 +104,21 @@ class CarController:
             self.last_button_frame = self.frame
 
       if self.frame % 2 == 0 and self.CP.openpilotLongitudinalControl:
+        # Here, accel acts as our raw desired acceleration, with accel_value ramping toward it
         accel = actuators.accel
-        jerk = 0
+        accel_value = accel
 
         if CC.longActive:
-          jerk = clip(2.0 * (accel - CS.out.aEgo), -12.7, 12.7)
-          if accel < 0:
-            accel = interp(accel - CS.out.aEgo, [-1.0, -0.5], [2 * accel, accel])
+          accel_value -= (accel - CS.out.aEgo) / 2
 
         accel = clip(accel, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX)
+        accel_value = clip(accel_value, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX)
 
         lead_visible = False
         stopping = actuators.longControlState == LongCtrlState.stopping
         set_speed_in_units = hud_control.setSpeed * (CV.MS_TO_MPH if CS.clu11["CF_Clu_SPEED_UNIT"] == 1 else CV.MS_TO_KPH)
-        can_sends.extend(hyundaican.create_acc_commands(self.packer, CC.enabled, accel, jerk, int(self.frame / 2), lead_visible,
-                                             set_speed_in_units, stopping, CS.out.gasPressed))
+        can_sends.extend(hyundaican.create_acc_commands(self.packer, CC.enabled, accel, accel_value, int(self.frame / 2), lead_visible,
+                                                        set_speed_in_units, stopping, CS.out.gasPressed))
         self.accel = accel
 
       # 20 Hz LFA MFA message
