@@ -116,7 +116,7 @@ class CarController:
         self.cut_steer_frames += 1
 
       can_sends.append(hyundaican.create_lkas11(self.packer, self.frame, self.car_fingerprint, apply_steer, CC.latActive,
-                                     CS.lkas11, sys_warning, sys_state, CC.enabled,
+                                     cut_steer_temp, CS.lkas11, sys_warning, sys_state, CC.enabled,
                                      hud_control.leftLaneVisible, hud_control.rightLaneVisible,
                                      left_lane_warning, right_lane_warning))
 
