@@ -96,7 +96,7 @@ class Plant():
     sm = {'radarState': radar.radarState,
           'carState': car_state.carState,
           'controlsState': control.controlsState,
-          'modelLongButton': model_long_button}
+          'modelLongButton': model_long_button.modelLongButton}
     self.planner.update(sm)
     self.speed = self.planner.v_desired_filter.x
     self.acceleration = self.planner.a_desired
