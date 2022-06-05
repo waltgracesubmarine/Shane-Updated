@@ -15,7 +15,7 @@ import pyopencl.array as cl_array
 
 import cereal.messaging as messaging
 from cereal import log
-from cereal.visionipc.visionipc_pyx import VisionIpcServer, VisionStreamType  # pylint: disable=no-name-in-module, import-error
+from cereal.visionipc import VisionIpcServer, VisionStreamType
 from common.basedir import BASEDIR
 from common.numpy_fast import clip
 from common.params import Params
@@ -36,6 +36,7 @@ def parse_args(add_args=None):
   parser = argparse.ArgumentParser(description='Bridge between CARLA and openpilot.')
   parser.add_argument('--joystick', action='store_true')
   parser.add_argument('--high_quality', action='store_true')
+  parser.add_argument('--dual_camera', action='store_true')
   parser.add_argument('--town', type=str, default='Town04_Opt')
   parser.add_argument('--spawn_point', dest='num_selected_spawn_point', type=int, default=16)
 
@@ -70,11 +71,7 @@ class Camerad:
     self.frame_wide_id = 0
     self.vipc_server = VisionIpcServer("camerad")
 
-    # TODO: remove RGB buffers once the last RGB vipc subscriber is removed
-    self.vipc_server.create_buffers(VisionStreamType.VISION_STREAM_RGB_ROAD, 4, True, W, H)
     self.vipc_server.create_buffers(VisionStreamType.VISION_STREAM_ROAD, 5, False, W, H)
-
-    self.vipc_server.create_buffers(VisionStreamType.VISION_STREAM_RGB_WIDE_ROAD, 4, True, W, H)
     self.vipc_server.create_buffers(VisionStreamType.VISION_STREAM_WIDE_ROAD, 5, False, W, H)
     self.vipc_server.start_listener()
 
@@ -92,16 +89,14 @@ class Camerad:
     self.Hdiv4 = H // 4 if (H % 4 == 0) else (H + (4 - H % 4)) // 4
 
   def cam_callback_road(self, image):
-    self._cam_callback(image, self.frame_road_id, 'roadCameraState',
-                       VisionStreamType.VISION_STREAM_RGB_ROAD, VisionStreamType.VISION_STREAM_ROAD)
+    self._cam_callback(image, self.frame_road_id, 'roadCameraState', VisionStreamType.VISION_STREAM_ROAD)
     self.frame_road_id += 1
 
   def cam_callback_wide_road(self, image):
-    self._cam_callback(image, self.frame_wide_id, 'wideRoadCameraState',
-                       VisionStreamType.VISION_STREAM_RGB_WIDE_ROAD, VisionStreamType.VISION_STREAM_WIDE_ROAD)
+    self._cam_callback(image, self.frame_wide_id, 'wideRoadCameraState', VisionStreamType.VISION_STREAM_WIDE_ROAD)
     self.frame_wide_id += 1
 
-  def _cam_callback(self, image, frame_id, pub_type, rgb_type, yuv_type):
+  def _cam_callback(self, image, frame_id, pub_type, yuv_type):
     img = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
     img = np.reshape(img, (H, W, 4))
     img = img[:, :, [0, 1, 2]].copy()
@@ -114,13 +109,11 @@ class Camerad:
     yuv = np.resize(yuv_cl.get(), rgb.size // 2)
     eof = int(frame_id * 0.05 * 1e9)
 
-    # TODO: remove RGB send once the last RGB vipc subscriber is removed
-    self.vipc_server.send(rgb_type, img.tobytes(), frame_id, eof, eof)
     self.vipc_server.send(yuv_type, yuv.data.tobytes(), frame_id, eof, eof)
 
     dat = messaging.new_message(pub_type)
     msg = {
-      "frameId": image.frame,
+      "frameId": frame_id,
       "transform": [1.0, 0.0, 0.0,
                     0.0, 1.0, 0.0,
                     0.0, 0.0, 1.0]
@@ -247,6 +240,7 @@ class CarlaBridge:
     msg.liveCalibration.validBlocks = 20
     msg.liveCalibration.rpyCalib = [0.0, 0.0, 0.0]
     Params().put("CalibrationParams", msg.to_bytes())
+    Params().put_bool("WideCameraOnly", not arguments.dual_camera)
 
     self._args = arguments
     self._carla_objects = []
@@ -341,10 +335,13 @@ class CarlaBridge:
       return camera
 
     self._camerad = Camerad()
-    road_camera = create_camera(fov=40, callback=self._camerad.cam_callback_road)
-    road_wide_camera = create_camera(fov=120, callback=self._camerad.cam_callback_wide_road)  # fov bigger than 120 shows unwanted artifacts
 
-    self._carla_objects.extend([road_camera, road_wide_camera])
+    if self._args.dual_camera:
+      road_camera = create_camera(fov=40, callback=self._camerad.cam_callback_road)
+      self._carla_objects.append(road_camera)
+
+    road_wide_camera = create_camera(fov=120, callback=self._camerad.cam_callback_wide_road)  # fov bigger than 120 shows unwanted artifacts
+    self._carla_objects.append(road_wide_camera)
 
     vehicle_state = VehicleState()
 
@@ -512,6 +509,7 @@ class CarlaBridge:
   def close(self):
     self.started = False
     self._exit_event.set()
+
     for s in self._carla_objects:
       try:
         s.destroy()
@@ -530,17 +528,23 @@ if __name__ == "__main__":
   q: Any = Queue()
   args = parse_args()
 
-  carla_bridge = CarlaBridge(args)
-  p = carla_bridge.run(q)
+  try:
+    carla_bridge = CarlaBridge(args)
+    p = carla_bridge.run(q)
 
-  if args.joystick:
-    # start input poll for joystick
-    from tools.sim.lib.manual_ctrl import wheel_poll_thread
+    if args.joystick:
+      # start input poll for joystick
+      from tools.sim.lib.manual_ctrl import wheel_poll_thread
 
-    wheel_poll_thread(q)
-  else:
-    # start input poll for keyboard
-    from tools.sim.lib.keyboard_ctrl import keyboard_poll_thread
+      wheel_poll_thread(q)
+    else:
+      # start input poll for keyboard
+      from tools.sim.lib.keyboard_ctrl import keyboard_poll_thread
 
-    keyboard_poll_thread(q)
-  p.join()
+      keyboard_poll_thread(q)
+    p.join()
+
+  finally:
+    # Try cleaning up the wide camera param
+    # in case users want to use replay after
+    Params().delete("WideCameraOnly")

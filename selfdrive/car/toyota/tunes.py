@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
 from enum import Enum
-
+from selfdrive.controls.lib.latcontrol_torque import set_torque_tune
 
 class LongTunes(Enum):
   PEDAL = 0
@@ -52,28 +52,9 @@ def set_long_tune(tune, name):
     raise NotImplementedError('This longitudinal tune does not exist')
 
 
-###### LAT ######
-def set_lat_tune(tune, name, params, MAX_LAT_ACCEL=2.5, FRICTION=.1, kif=(1.0, 0.1, 1.0)):
+def set_lat_tune(tune, name, params, MAX_LAT_ACCEL=2.5, FRICTION=0.01, use_steering_angle=True):
   if name == LatTunes.TORQUE:
-    tune.init('torque')
-    tune.torque.useSteeringAngle = True
-    tune.torque.kp = kif[0] / MAX_LAT_ACCEL
-    tune.torque.kf = kif[2] / MAX_LAT_ACCEL
-    tune.torque.ki = kif[1] / MAX_LAT_ACCEL
-    tune.torque.friction = FRICTION
-
-  elif name == LatTunes.INDI_PRIUS:
-    if params.prius_use_pid:
-      tune.pid.kpV, tune.pid.kiV = [[0.07], [0.04]]
-      tune.pid.kdV = [0.]
-      tune.pid.kf = 0.00009531750004645412
-      tune.pid.newKfTuned = True
-    else:
-      tune.init('indi')
-      tune.indi.innerLoopGainV = [4.0]
-      tune.indi.outerLoopGainV = [3.0]
-      tune.indi.timeConstantV = [0.1] if params.hasZss else [1.0]
-      tune.indi.actuatorEffectivenessV = [1.0]
+    set_torque_tune(tune, MAX_LAT_ACCEL, FRICTION)
 
   elif 'STEER_MODEL' in str(name):
     tune.init('model')

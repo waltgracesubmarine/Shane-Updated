@@ -121,8 +121,6 @@ class opParams:
       # 'dynamic_camera_offset_time': Param(3.5, NUMBER, 'How long to keep away from oncoming traffic in seconds after losing lead'),
       'disable_charging': Param(30, NUMBER, 'How many hours until charging is disabled while idle', static=True),
       'hide_model_long': Param(False, bool, 'Enable this to hide the Model Long button on the screen', static=True),
-      'prius_use_pid': Param(False, bool, 'This enables the PID lateral controller with new a experimental derivative tune\n'
-                                          'False: stock INDI, True: TSS2-tuned PID', static=True),
       'use_steering_model': Param(False, bool, 'Enable this to use an experimental ML-based lateral controller trained on the TSSP Corolla\n'
                                                'This overrides all other tuning parameters\n'
                                                'Warning: the model may behave unexpectedly at any time, so always pay attention', static=True),
@@ -135,7 +133,7 @@ class opParams:
       'lane_speed_alerts': Param('silent', str, static=True, hidden=True),
     }
 
-    self._to_delete = ['use_lqr', 'disengage_on_gas', 'corollaTSS2_use_indi']  # a list of unused params you want to delete from users' params file
+    self._to_delete = ['use_lqr', 'disengage_on_gas', 'corollaTSS2_use_indi', 'prius_use_pid']  # a list of unused params you want to delete from users' params file
     self._to_reset = []  # a list of params you want reset to their default values
     self._run_init()  # restores, reads, and updates params
 

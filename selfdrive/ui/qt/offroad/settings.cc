@@ -12,8 +12,8 @@
 #include "selfdrive/ui/qt/maps/map_settings.h"
 #endif
 
-#include "selfdrive/common/params.h"
-#include "selfdrive/common/util.h"
+#include "common/params.h"
+#include "common/util.h"
 #include "selfdrive/hardware/hw.h"
 #include "selfdrive/ui/qt/widgets/controls.h"
 #include "selfdrive/ui/qt/widgets/input.h"
@@ -64,12 +64,6 @@ TogglesPanel::TogglesPanel(SettingsWindow *parent) : ListWidget(parent) {
       "../assets/offroad/icon_openpilot_mirrored.png",
     },
     {
-      "EndToEndToggle",
-      "\U0001f96c Disable use of lanelines (Alpha) \U0001f96c",
-      "In this mode openpilot will ignore lanelines and just drive how it thinks a human would.",
-      "../assets/offroad/icon_road.png",
-    },
-    {
       "DisengageOnAccelerator",
       "Disengage On Accelerator Pedal",
       "When enabled, pressing the accelerator pedal will disengage openpilot.",
@@ -101,9 +95,6 @@ TogglesPanel::TogglesPanel(SettingsWindow *parent) : ListWidget(parent) {
     auto toggle = new ParamControl(param, title, desc, icon, this);
     bool locked = params.getBool((param + "Lock").toStdString());
     toggle->setEnabled(!locked);
-    if (!locked) {
-      connect(uiState(), &UIState::offroadTransition, toggle, &ParamControl::setEnabled);
-    }
     addItem(toggle);
   }
 }
@@ -168,7 +159,7 @@ DevicePanel::DevicePanel(SettingsWindow *parent) : ListWidget(parent) {
   power_layout->addWidget(poweroff_btn);
   QObject::connect(poweroff_btn, &QPushButton::clicked, this, &DevicePanel::poweroff);
 
-  if (Hardware::TICI()) {
+  if (!Hardware::PC()) {
     connect(uiState(), &UIState::offroadTransition, poweroff_btn, &QPushButton::setVisible);
   }
 

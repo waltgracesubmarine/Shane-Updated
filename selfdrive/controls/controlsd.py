@@ -30,7 +30,7 @@ from selfdrive.controls.lib.events import Events, ET
 from selfdrive.controls.lib.alertmanager import AlertManager, set_offroad_alert
 from selfdrive.controls.lib.vehicle_model import VehicleModel
 from selfdrive.locationd.calibrationd import Calibration
-from selfdrive.hardware import HARDWARE, TICI
+from selfdrive.hardware import HARDWARE
 from selfdrive.manager.process_config import managed_processes
 from selfdrive.controls.lib.dynamic_follow.df_manager import dfManager
 from common.op_params import opParams
@@ -86,17 +86,14 @@ class Controls:
       self.pm = messaging.PubMaster(['sendcan', 'controlsState', 'carState',
                                      'carControl', 'carEvents', 'carParams'])
 
-    self.camera_packets = ["roadCameraState", "driverCameraState"]
-    if TICI:
-      self.camera_packets.append("wideRoadCameraState")
+    self.camera_packets = ["roadCameraState", "driverCameraState", "wideRoadCameraState"]
 
     self.can_sock = can_sock
     if can_sock is None:
       can_timeout = None if os.environ.get('NO_CAN_TIMEOUT', False) else 20
       self.can_sock = messaging.sub_sock('can', timeout=can_timeout)
 
-    if TICI:
-      self.log_sock = messaging.sub_sock('androidLog')
+    self.log_sock = messaging.sub_sock('androidLog')
 
     if CI is None:
       # wait for one pandaState and one CAN packet
@@ -319,6 +316,7 @@ class Controls:
 
     # Handle HW and system malfunctions
     # Order is very intentional here. Be careful when modifying this.
+    # All events here should at least have NO_ENTRY and SOFT_DISABLE.
     num_events = len(self.events)
 
     not_running = {p.name for p in self.sm['managerState'].processes if not p.running and p.shouldBeRunning}
@@ -385,17 +383,16 @@ class Controls:
     if planner_fcw or model_fcw:
       self.events.add(EventName.fcw)
 
-    if TICI:
-      for m in messaging.drain_sock(self.log_sock, wait_for_one=False):
-        try:
-          msg = m.androidLog.message
-          if any(err in msg for err in ("ERROR_CRC", "ERROR_ECC", "ERROR_STREAM_UNDERFLOW", "APPLY FAILED")):
-            csid = msg.split("CSID:")[-1].split(" ")[0]
-            evt = CSID_MAP.get(csid, None)
-            if evt is not None:
-              self.events.add(evt)
-        except UnicodeDecodeError:
-          pass
+    for m in messaging.drain_sock(self.log_sock, wait_for_one=False):
+      try:
+        msg = m.androidLog.message
+        if any(err in msg for err in ("ERROR_CRC", "ERROR_ECC", "ERROR_STREAM_UNDERFLOW", "APPLY FAILED")):
+          csid = msg.split("CSID:")[-1].split(" ")[0]
+          evt = CSID_MAP.get(csid, None)
+          if evt is not None:
+            self.events.add(evt)
+      except UnicodeDecodeError:
+        pass
 
     # TODO: fix simulator
     if not SIMULATION:
@@ -520,7 +517,8 @@ class Controls:
 
     # if stock cruise is completely disabled, then we can use our own set speed logic
     if not self.CP.pcmCruise:
-      self.v_cruise_kph = update_v_cruise(self.v_cruise_kph, CS.buttonEvents, self.button_timers, self.enabled, self.is_metric)
+      self.v_cruise_kph = update_v_cruise(self.v_cruise_kph, CS.vEgo, CS.gasPressed, CS.buttonEvents,
+                                          self.button_timers, self.enabled, self.is_metric)
     else:
       if CS.cruiseState.available:
         self.v_cruise_kph = CS.cruiseState.speed * CV.MS_TO_KPH
@@ -765,7 +763,7 @@ class Controls:
     if self.enabled:
       clear_event_types.add(ET.NO_ENTRY)
 
-    alerts = self.events.create_alerts(self.current_alert_types, [self.CP, self.sm, self.is_metric, self.soft_disable_timer])
+    alerts = self.events.create_alerts(self.current_alert_types, [self.CP, CS, self.sm, self.is_metric, self.soft_disable_timer])
     self.AM.add_many(self.sm.frame, alerts)
     current_alert = self.AM.process_alerts(self.sm.frame, clear_event_types)
     if current_alert:

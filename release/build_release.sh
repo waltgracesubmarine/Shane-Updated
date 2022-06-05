@@ -41,8 +41,8 @@ cd $BUILD_DIR
 
 rm -f panda/board/obj/panda.bin.signed
 
-VERSION=$(cat selfdrive/common/version.h | awk -F[\"-]  '{print $2}')
-echo "#define COMMA_VERSION \"$VERSION-release\"" > selfdrive/common/version.h
+VERSION=$(cat common/version.h | awk -F[\"-]  '{print $2}')
+echo "#define COMMA_VERSION \"$VERSION-release\"" > common/version.h
 
 echo "[-] committing version $VERSION T=$SECONDS"
 git add -f .
@@ -76,7 +76,7 @@ find . -name 'moc_*' -delete
 find . -name '__pycache__' -delete
 rm -rf panda/board panda/certs panda/crypto
 rm -rf .sconsign.dblite Jenkinsfile release/
-rm models/supercombo.dlc
+rm selfdrive/modeld/models/supercombo.dlc
 
 # Move back signed panda fw
 mkdir -p panda/board/obj
