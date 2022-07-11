@@ -534,6 +534,7 @@ jobs:
       - name: Save diff
         id: step1
         run: |
+          ${{ env.RUN }} "git config --global --add safe.directory '*'"
           ${{ env.RUN }} "git pull || git pull || true"
           ${{ env.RUN }} "git checkout 94e47d6da06d2955d38e51caa85537dcc599216e"
           ${{ env.RUN }} "git log -1"
