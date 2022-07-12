@@ -1,4 +1,4 @@
-print("Start of print_docs_diff")
+#!/usr/bin/env python3
 import os
 import pickle
 
@@ -6,41 +6,55 @@ from common.basedir import BASEDIR
 from selfdrive.car.docs import get_all_car_info
 from selfdrive.car.docs_definitions import Column
 
+STAR_ICON = "https://raw.githubusercontent.com/commaai/openpilot/master/docs/assets/icon-star-{}.svg"
+
 
 def pretty_row(row, exclude=[Column.MAKE, Column.MODEL]):
   return {k.value: v for k, v in row.items() if k not in exclude}
 
 
-with open(os.path.join(BASEDIR, '../openpilot_cache/old_car_info'), 'rb') as f:
-  old_car_info = pickle.load(f)
+def load_base_car_info():
+  with open(os.path.join(BASEDIR, '../openpilot_cache/old_car_info'), 'rb') as f:  # TODO: rename to base
+    return pickle.load(f)
 
 
-old_car_info = {f'{i.make} {i.model}': i for i in old_car_info}
-new_car_info = {f'{i.make} {i.model}': i for i in get_all_car_info()}
+def print_car_info_diff():
+  base_car_info = load_base_car_info()
 
-added_cars = set(new_car_info) - set(old_car_info)
-deleted_cars = set(old_car_info) - set(new_car_info)
+  base_car_info = {f'{i.make} {i.model}': i for i in base_car_info}
+  new_car_info = {f'{i.make} {i.model}': i for i in get_all_car_info()}
 
-# print(added_cars, deleted_cars)
-if len(added_cars):
-  print('This PR adds these car entries:')
-  for k in added_cars:
-    car_info = new_car_info[k]
-    print('{}: {}'.format(k, pretty_row(car_info.row)))
+  markdown_builder = ["### ⚠️ This PR contains changes to [CARS.md](../blob/master/docs/CARS.md) ⚠️"]
 
-print()
-if len(deleted_cars):
-  print('This PR removes these car entries:')
-  for k in deleted_cars:
-    car_info = old_car_info[k]
-    print('{}: {}'.format(k, pretty_row(car_info.row)))
+  # TODO: car changing tiers
 
-print('Just extra stuff')
-print('Just extra stuff2')
+  # TODO: diffs in cars
+  # TODO: once we identify changes, need to remove it from base_car_info and new_car_info so they don't pick up changes in make+model+years as new/removed cars
+  # for new_car, new_car_info in new_car_info.items():
+  #   if new_car in base_car_info and new_car_info.row != base_car_info[new_car].row:
+  #     print('Diff in car: {}'.format(new_car_info.row))
 
-# for new_car, new_car_info in new_car_info.items():
-#   if new_car in old_car_info and new_car_info.row != old_car_info[new_car].row:
-#     print('Diff in car: {}'.format(new_car_info.row))
+  # diffs = []
+  # for car_info in get_all_car_info():
 
-# diffs = []
-# for car_info in get_all_car_info():
+  deleted_cars = set(base_car_info) - set(new_car_info)
+  if len(deleted_cars):
+    markdown_builder.append("# Removed")
+    markdown_builder.append("|".join([column.value for column in Column]))
+    for k in deleted_cars:
+      car_info = base_car_info[k]
+      markdown_builder.append("|".join([car_info.get_column(column, STAR_ICON, '{}') for column in Column]))
+
+  added_cars = set(new_car_info) - set(base_car_info)
+  if len(added_cars):
+    markdown_builder.append("# Added")
+    markdown_builder.append("|".join([column.value for column in Column]))
+    for k in added_cars:
+      car_info = new_car_info[k]
+      markdown_builder.append("|".join([car_info.get_column(column, STAR_ICON, '{}') for column in Column]))
+
+  print("\n".join(markdown_builder))
+
+
+if __name__ == "__main__":
+  print_car_info_diff()
