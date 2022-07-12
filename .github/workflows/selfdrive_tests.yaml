@@ -540,11 +540,10 @@ jobs:
         run: |
           ${{ env.RUN }} "scons -j$(nproc)"
           output=$(${{ env.RUN }} "python selfdrive/debug/print_docs_diff.py")
-          output="${output//'%'/'%25'}"
           output="${output//$'\n'/'%0A'}"
-          output="${output//$'\r'/'%0D'}"
           echo "::set-output name=diff::$output"
       - uses: mshick/add-pr-comment@v1
+        if: "${{ steps.save_diff.outputs.diff }}" != ""
         with:
           message: "${{ steps.save_diff.outputs.diff }}"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
