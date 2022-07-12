@@ -531,7 +531,7 @@ jobs:
       - name: Get original car info
         run: |
           ${{ env.RUN }} "scons -j$(nproc) && python selfdrive/debug/dump_car_info.py"
-          sudo chown -R $USER:$USER /home/github/actions-runner/_work/openpilot
+          sudo chown -R $USER:$USER /home/runner/work/openpilot/openpilot
       - uses: actions/checkout@v3
         with:
           submodules: true
