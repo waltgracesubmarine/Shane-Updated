@@ -549,8 +549,22 @@ jobs:
           output=$(${{ env.RUN }} "python selfdrive/debug/print_docs_diff.py")
           output="${output//$'\n'/'%0A'}"
           echo "::set-output name=diff::$output"
-      - uses: mshick/add-pr-comment@v1
-        if: "${{ steps.save_diff.outputs.diff }}" != ""
+      - name: Find comment
+        uses: peter-evans/find-comment@v1
+        id: fc
         with:
-          message: "${{ steps.save_diff.outputs.diff }}"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'vehicle researcher[bot]'
+          body-includes: This comment was written by a bot!
+      - name: Create comment
+        if: steps.fc.outputs.comment-id == "" && "${{ steps.save_diff.outputs.diff }}" != ""
+        uses: peter-evans/create-or-update-comment@v1
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: "${{ steps.save_diff.outputs.diff }}"
+      - name: Update comment
+        if: steps.fc.outputs.comment-id != "" && "${{ steps.save_diff.outputs.diff }}" != ""
+        uses: peter-evans/create-or-update-comment@v1
+        with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          body: "${{ steps.save_diff.outputs.diff }}"
