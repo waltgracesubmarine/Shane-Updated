@@ -531,6 +531,7 @@ jobs:
       - name: Get original car info
         run: |
           ${{ env.RUN }} "scons -j$(nproc) && python selfdrive/debug/dump_car_info.py"
+          ${{ env.RUN }} "touch /tmp/hi"
           ${{ env.RUN }} "ls /tmp/"
       - uses: actions/checkout@v3
         with:
