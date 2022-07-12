@@ -531,13 +531,16 @@ jobs:
       - name: Get original car info
         run: |
           ${{ env.RUN }} "scons -j$(nproc) && python selfdrive/debug/dump_car_info.py"
+          ${{ env.RUN }} "ls /tmp/"
       - uses: actions/checkout@v3
         with:
           submodules: true
-          ref: 7fd1114247bedfaceb8d9a61bbdf04f8cf4e90fc
+          ref: 493e24973158ef3a9fccaeb6f554689c74476c9e
       - name: Save diff
         id: step1
         run: |
+          echo "Second ls"
+          ${{ env.RUN }} "ls /tmp/"
           echo "git diff!!"
           ${{ env.RUN }} "git diff"
           ${{ env.RUN }} "git log -1"
