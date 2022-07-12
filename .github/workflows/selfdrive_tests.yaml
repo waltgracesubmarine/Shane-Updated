@@ -17,7 +17,7 @@ env:
       docker pull $DOCKER_REGISTRY/$BASE_IMAGE:latest || true
       docker build --cache-from $DOCKER_REGISTRY/$BASE_IMAGE:latest -t $DOCKER_REGISTRY/$BASE_IMAGE:latest -t $BASE_IMAGE:latest -f Dockerfile.openpilot_base .
 
-  RUN: docker run --shm-size 1G -v $PWD:/tmp/openpilot -w /tmp/openpilot -e PYTHONPATH=/tmp/openpilot -e NUM_JOBS -e JOB_ID -e GITHUB_ACTION -e GITHUB_REF -e GITHUB_HEAD_REF -e GITHUB_SHA -e GITHUB_ENV -e GITHUB_REPOSITORY -e GITHUB_RUN_ID -v /tmp/scons_cache:/tmp/scons_cache -v /tmp/comma_download_cache:/tmp/comma_download_cache $BASE_IMAGE /bin/sh -c
+  RUN: docker run -u 0 --shm-size 1G -v $PWD:/tmp/openpilot -w /tmp/openpilot -e PYTHONPATH=/tmp/openpilot -e NUM_JOBS -e JOB_ID -e GITHUB_ACTION -e GITHUB_REF -e GITHUB_HEAD_REF -e GITHUB_SHA -e GITHUB_ENV -e GITHUB_REPOSITORY -e GITHUB_RUN_ID -v /tmp/scons_cache:/tmp/scons_cache -v /tmp/comma_download_cache:/tmp/comma_download_cache $BASE_IMAGE /bin/sh -c
 
   BUILD_CL: |
       docker pull $DOCKER_REGISTRY/$CL_BASE_IMAGE:latest || true
@@ -514,10 +514,11 @@ jobs:
         with:
           submodules: true
           ref: 3e3801088da46a35c9bf000dd399726750297edd  # change to PR base ref
+          token:
       - name: Cache scons
         id: scons-cache
         # TODO: Change the version to the released version when https://github.com/actions/cache/pull/489 (or 571) is merged.
-        uses: actions/cache@03e00da99d75a2204924908e1cca7902cafce66b
+        uses: actions/cache@v3
         env:
           CACHE_SKIP_SAVE: true
         with:
@@ -526,20 +527,22 @@ jobs:
           restore-keys: |
             scons-key1-
             scons-
-      - name: Build Docker image
-        run: eval "$BUILD"
+#      - name: Build Docker image
+#        run: eval "$BUILD"
       - name: Get original car info
         run: |
           ${{ env.RUN }} "scons -j$(nproc) && python selfdrive/debug/dump_car_info.py"
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+          ref: 94e47d6da06d2955d38e51caa85537dcc599216e
+          token:
       - name: Save diff
         id: step1
         run: |
-          ${{ env.RUN }} "git config --global --add safe.directory '*'"
-          ${{ env.RUN }} "git pull || git pull || true"
-          ${{ env.RUN }} "git checkout 94e47d6da06d2955d38e51caa85537dcc599216e"
+          echo "git diff!!"
+          ${{ env.RUN }} "git diff"
           ${{ env.RUN }} "git log -1"
-          ${{ env.RUN }} "git config --global --add safe.directory /tmp/openpilot/cereal"
-          ${{ env.RUN }} "git submodule update"
           ${{ env.RUN }} "scons -j$(nproc)"
           output=$(${{ env.RUN }} "python selfdrive/debug/print_docs_diff.py")
           output="${output//'%'/'%25'}"

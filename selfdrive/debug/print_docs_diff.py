@@ -11,7 +11,7 @@ def pretty_row(row, exclude=[Column.MAKE, Column.MODEL]):
   return {k.value: v for k, v in row.items() if k not in exclude}
 
 
-with open(os.path.join(BASEDIR, 'old_car_info'), 'rb') as f:
+with open(os.path.join(BASEDIR, 'old_car_info/old_car_info'), 'rb') as f:
   old_car_info = pickle.load(f)
 
 
