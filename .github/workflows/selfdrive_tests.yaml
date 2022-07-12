@@ -559,7 +559,7 @@ jobs:
         if: steps.save_diff.outputs.diff != ''
         uses: peter-evans/create-or-update-comment@v1
         with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
           body: "${{ steps.save_diff.outputs.diff }}"
-          comment-id: ${{ steps.fc.outputs.comment-id }}
           edit-mode: replace
