@@ -77,7 +77,7 @@ def print_car_info_diff():
   # Print diff
   if len(changes) or len(removals) or len(additions):
     markdown_builder = ["### ⚠️ This PR makes changes to [CARS.md](../blob/master/docs/CARS.md) ⚠️"]
-    for title, category in (("## 🔀 Changes", changes), ("Delete", removals), ("Add", additions)):
+    for title, category in (("## 🔀 Changes", changes), ("## ❌ Removed", removals), ("## ➕ Added", additions)):
       if len(category):
         markdown_builder.append(title)
         markdown_builder.append(COLUMNS)
