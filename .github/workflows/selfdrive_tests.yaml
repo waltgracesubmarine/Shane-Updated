@@ -538,7 +538,7 @@ jobs:
       - name: Get base car info
         run: |
           ${{ env.RUN }} "scons -j$(nproc) && python selfdrive/debug/dump_car_info.py"
-          sudo chown -R $USER:$USER ${{ GITHUB_WORKSPACE }}
+          sudo chown -R $USER:$USER ${{ github.workspace }}
       - uses: actions/checkout@v3
         with:
           submodules: true
