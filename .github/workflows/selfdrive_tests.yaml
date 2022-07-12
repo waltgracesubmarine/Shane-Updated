@@ -534,8 +534,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: true
-          ref: 94e47d6da06d2955d38e51caa85537dcc599216e
-          token:
+          ref: 9df3123a176d07f247d5d98da6fea015778cee41
       - name: Save diff
         id: step1
         run: |
