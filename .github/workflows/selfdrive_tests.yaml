@@ -534,7 +534,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: true
-          ref: 7d64c27649e8c5f28b0c081340ed97aff5c57639
+          ref: eaed8921d7d23d39164ef98cb2960f686cc25545
       - name: Save diff
         id: save_diff
         run: |
