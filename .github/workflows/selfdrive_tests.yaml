@@ -554,7 +554,6 @@ jobs:
         id: fc
         with:
           issue-number: ${{ github.event.pull_request.number }}
-          comment-author: 'vehicle researcher[bot]'
           body-includes: This PR makes changes to
       - name: Update comment
         if: steps.save_diff.outputs.diff != ''
