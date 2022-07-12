@@ -538,6 +538,8 @@ jobs:
           ${{ env.RUN }} "git pull || git pull || true"
           ${{ env.RUN }} "git checkout 94e47d6da06d2955d38e51caa85537dcc599216e"
           ${{ env.RUN }} "git log -1"
+          ${{ env.RUN }} "git config --global --add safe.directory /tmp/openpilot/cereal"
+          ${{ env.RUN }} "git submodule update"
           ${{ env.RUN }} "scons -j$(nproc)"
           output=$(${{ env.RUN }} "python selfdrive/debug/print_docs_diff.py")
           output="${output//'%'/'%25'}"
