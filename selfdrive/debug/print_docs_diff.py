@@ -58,7 +58,8 @@ def print_car_info_diff():
   #
   # return
 
-  markdown_builder.append("# Changes")
+  markdown_builder.append("## 🔀 Changes")
+  markdown_builder.append(COLUMNS)
   markdown_builder.append(COLUMN_HEADER)
   for base_car_model, base_car in base_car_info.items():
     if base_car_model not in new_car_info:
@@ -97,7 +98,7 @@ def print_car_info_diff():
 
   deleted_cars = set(base_car_info) - set(new_car_info)
   if len(deleted_cars):
-    markdown_builder.append("# Removed")
+    markdown_builder.append("## ❌ Removed")
     markdown_builder.append(COLUMNS)
     markdown_builder.append(COLUMN_HEADER)
     for k in deleted_cars:
@@ -106,7 +107,7 @@ def print_car_info_diff():
 
   added_cars = set(new_car_info) - set(base_car_info)
   if len(added_cars):
-    markdown_builder.append("# Added")
+    markdown_builder.append("## ➕ Added")
     markdown_builder.append(COLUMNS)
     markdown_builder.append(COLUMN_HEADER)
     for k in added_cars:
