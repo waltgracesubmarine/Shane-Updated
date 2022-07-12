@@ -17,12 +17,12 @@ env:
       docker pull $DOCKER_REGISTRY/$BASE_IMAGE:latest || true
       docker build --cache-from $DOCKER_REGISTRY/$BASE_IMAGE:latest -t $DOCKER_REGISTRY/$BASE_IMAGE:latest -t $BASE_IMAGE:latest -f Dockerfile.openpilot_base .
 
-  RUN: docker run -u 0 --shm-size 1G -v $PWD:/tmp/openpilot -w /tmp/openpilot -e PYTHONPATH=/tmp/openpilot -e NUM_JOBS -e JOB_ID -e GITHUB_ACTION -e GITHUB_REF -e GITHUB_HEAD_REF -e GITHUB_SHA -e GITHUB_ENV -e GITHUB_REPOSITORY -e GITHUB_RUN_ID -v /tmp/scons_cache:/tmp/scons_cache -v /tmp/comma_download_cache:/tmp/comma_download_cache $BASE_IMAGE /bin/sh -c
+  RUN: docker run --shm-size 1G -v $PWD:/tmp/openpilot -w /tmp/openpilot -e PYTHONPATH=/tmp/openpilot -e NUM_JOBS -e JOB_ID -e GITHUB_ACTION -e GITHUB_REF -e GITHUB_HEAD_REF -e GITHUB_SHA -e GITHUB_ENV -e GITHUB_REPOSITORY -e GITHUB_RUN_ID -v /tmp/scons_cache:/tmp/scons_cache -v /tmp/comma_download_cache:/tmp/comma_download_cache -v /tmp/openpilot_cache:/tmp/openpilot_cache $BASE_IMAGE /bin/sh -c
 
   BUILD_CL: |
       docker pull $DOCKER_REGISTRY/$CL_BASE_IMAGE:latest || true
       docker build --cache-from $DOCKER_REGISTRY/$CL_BASE_IMAGE:latest -t $DOCKER_REGISTRY/$CL_BASE_IMAGE:latest -t $CL_BASE_IMAGE:latest -f Dockerfile.openpilot_base_cl .
-  RUN_CL: docker run --shm-size 1G -v $PWD:/tmp/openpilot -w /tmp/openpilot -e PYTHONPATH=/tmp/openpilot -e NUM_JOBS -e JOB_ID -e GITHUB_ACTION -e GITHUB_REF -e GITHUB_HEAD_REF -e GITHUB_SHA -e GITHUB_REPOSITORY -e GITHUB_RUN_ID -v /tmp/scons_cache:/tmp/scons_cache -v /tmp/comma_download_cache:/tmp/comma_download_cache $CL_BASE_IMAGE /bin/sh -c
+  RUN_CL: docker run --shm-size 1G -v $PWD:/tmp/openpilot -w /tmp/openpilot -e PYTHONPATH=/tmp/openpilot -e NUM_JOBS -e JOB_ID -e GITHUB_ACTION -e GITHUB_REF -e GITHUB_HEAD_REF -e GITHUB_SHA -e GITHUB_REPOSITORY -e GITHUB_RUN_ID -v /tmp/scons_cache:/tmp/scons_cache -v /tmp/comma_download_cache:/tmp/comma_download_cache -v /tmp/openpilot_cache:/tmp/openpilot_cache $CL_BASE_IMAGE /bin/sh -c
 
   UNIT_TEST: coverage run --append -m unittest discover
 
@@ -526,35 +526,28 @@ jobs:
           restore-keys: |
             scons-key1-
             scons-
-#      - name: Build Docker image
-#        run: eval "$BUILD"
+      - name: Build Docker image
+        run: eval "$BUILD"
       - name: Get original car info
         run: |
           ${{ env.RUN }} "scons -j$(nproc) && python selfdrive/debug/dump_car_info.py"
-          ${{ env.RUN }} "touch /tmp/hi"
-          ${{ env.RUN }} "ls /tmp/"
       - uses: actions/checkout@v3
         with:
           submodules: true
           ref: 7d64c27649e8c5f28b0c081340ed97aff5c57639
       - name: Save diff
-        id: step1
+        id: save_diff
         run: |
-          echo "Second ls"
-          ${{ env.RUN }} "ls /tmp/"
-          echo "git diff!!"
-          ${{ env.RUN }} "git diff"
-          ${{ env.RUN }} "git log -1"
           ${{ env.RUN }} "scons -j$(nproc)"
           output=$(${{ env.RUN }} "python selfdrive/debug/print_docs_diff.py")
           output="${output//'%'/'%25'}"
           output="${output//$'\n'/'%0A'}"
           output="${output//$'\r'/'%0D'}"
-          echo "::set-output name=changelog::$output"
-#          ls -lah
-#          echo "CAR_DIFF=$(${{ env.RUN }} 'python selfdrive/debug/print_docs_diff.py')" >> $GITHUB_ENV
-#          echo "CAR_DIFF=$(${{ env.RUN }} 'python selfdrive/debug/print_docs_diff.py')" >> $GITHUB_ENV
+          echo "::set-output name=diff::$output"
+      - name: print diff
+        run: |
+          echo -e "${{ steps.save_diff.outputs.diff }}"
       - uses: mshick/add-pr-comment@v1
         with:
-          message: ${{ steps.step1.outputs.changelog }}
+          message: "${{ steps.save_diff.outputs.diff }}"
           repo-token: ${{ secrets.GITHUB_TOKEN }}

@@ -11,7 +11,7 @@ def pretty_row(row, exclude=[Column.MAKE, Column.MODEL]):
   return {k.value: v for k, v in row.items() if k not in exclude}
 
 
-with open(os.path.join(BASEDIR, '../old_car_info'), 'rb') as f:
+with open(os.path.join(BASEDIR, '../openpilot_cache/old_car_info'), 'rb') as f:
   old_car_info = pickle.load(f)
 
 
@@ -34,6 +34,9 @@ if len(deleted_cars):
   for k in deleted_cars:
     car_info = old_car_info[k]
     print('{}: {}'.format(k, pretty_row(car_info.row)))
+
+print('Just extra stuff')
+print('Just extra stuff2')
 
 # for new_car, new_car_info in new_car_info.items():
 #   if new_car in old_car_info and new_car_info.row != old_car_info[new_car].row:
