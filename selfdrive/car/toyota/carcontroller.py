@@ -113,11 +113,11 @@ class CarController:
     # - there is something to display
     # - there is something to stop displaying
     fcw_alert = hud_control.visualAlert == VisualAlert.fcw
-    lda_hold_wheel = hud_control.visualAlert in (VisualAlert.steerRequired, VisualAlert.ldw)
+    steer_alert = hud_control.visualAlert in (VisualAlert.steerRequired, VisualAlert.ldw)
 
     send_ui = False
-    if ((fcw_alert or lda_hold_wheel) and not self.alert_active) or \
-       (not (fcw_alert or lda_hold_wheel) and self.alert_active):
+    if ((fcw_alert or steer_alert) and not self.alert_active) or \
+       (not (fcw_alert or steer_alert) and self.alert_active):
       send_ui = True
       self.alert_active = not self.alert_active
     elif pcm_cancel_cmd:
@@ -125,7 +125,7 @@ class CarController:
       send_ui = True
 
     if (self.frame % 100 == 0 or send_ui) and (self.CP.carFingerprint != CAR.PRIUS_V):
-      can_sends.append(create_ui_command(self.packer, lda_hold_wheel or pcm_cancel_cmd, hud_control.leftLaneVisible,
+      can_sends.append(create_ui_command(self.packer, steer_alert or pcm_cancel_cmd, hud_control.leftLaneVisible,
                                          hud_control.rightLaneVisible, hud_control.leftLaneDepart,
                                          hud_control.rightLaneDepart, CC.enabled))
 
