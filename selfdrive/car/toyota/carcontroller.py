@@ -114,6 +114,13 @@ class CarController:
     # - there is something to stop displaying
     fcw_alert = hud_control.visualAlert == VisualAlert.fcw
     steer_alert = hud_control.visualAlert in (VisualAlert.steerRequired, VisualAlert.ldw)
+    chime = False
+    if pcm_cancel_cmd:
+      # when cancelling, steer alert silences bad fault sound except when pressing brake while stopped
+      if CS.out.standstill and CS.out.brakePressed:
+        chime = True
+      else:
+        steer_alert = True
 
     send_ui = False
     if ((fcw_alert or steer_alert) and not self.alert_active) or \
@@ -125,7 +132,7 @@ class CarController:
       send_ui = True
 
     if (self.frame % 100 == 0 or send_ui) and (self.CP.carFingerprint != CAR.PRIUS_V):
-      can_sends.append(create_ui_command(self.packer, steer_alert or pcm_cancel_cmd, hud_control.leftLaneVisible,
+      can_sends.append(create_ui_command(self.packer, steer_alert, chime, hud_control.leftLaneVisible,
                                          hud_control.rightLaneVisible, hud_control.leftLaneDepart,
                                          hud_control.rightLaneDepart, CC.enabled))
 

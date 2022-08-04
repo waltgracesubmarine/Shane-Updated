@@ -66,9 +66,10 @@ def create_fcw_command(packer, fcw):
   return packer.make_can_msg("ACC_HUD", 0, values)
 
 
-def create_ui_command(packer, lda_hold_wheel, left_line, right_line, left_lane_depart, right_lane_depart, enabled):
+def create_ui_command(packer, steer, chime, left_line, right_line, left_lane_depart, right_lane_depart, enabled):
   values = {
-    "LDA_ALERT": 1 if lda_hold_wheel else 0,  # 1: short text hold wheel, 2: longer text hold wheel
+    "TWO_BEEPS": chime,
+    "LDA_ALERT": steer,  # 1: short text hold wheel, 2: longer text hold wheel
     "RIGHT_LINE": 3 if right_lane_depart else 1 if right_line else 2,
     "LEFT_LINE": 3 if left_lane_depart else 1 if left_line else 2,
     "BARRIERS": 1 if enabled else 0,
@@ -76,7 +77,6 @@ def create_ui_command(packer, lda_hold_wheel, left_line, right_line, left_lane_d
     # static signals
     "SET_ME_X02": 2,
     "SET_ME_X01": 1,
-    "TWO_BEEPS": 0,
     "LKAS_STATUS": 1,
     "REPEATED_BEEPS": 0,
     "LANE_SWAY_FLD": 7,
