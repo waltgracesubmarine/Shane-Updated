@@ -114,9 +114,13 @@ class CarController:
     # - there is something to stop displaying
     fcw_alert = hud_control.visualAlert == VisualAlert.fcw
     steer_alert = hud_control.visualAlert in (VisualAlert.steerRequired, VisualAlert.ldw)
-    # when cancelling, steer alert silences bad fault sound except when pressing brake while stopped
-    steer_alert |= not CS.out.standstill or not CS.out.brakePressed
-    chime = CS.out.standstill and CS.out.brakePressed
+    chime = False
+    if pcm_cancel_cmd:
+      # when cancelling, steer alert silences bad fault sound except when pressing brake while stopped
+      if CS.out.standstill and CS.out.brakePressed:
+        chime = True
+      else:
+        steer_alert = True
 
     send_ui = False
     if ((fcw_alert or steer_alert) and not self.alert_active) or \
